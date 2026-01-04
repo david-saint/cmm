@@ -241,64 +241,64 @@ func (m Model) View() string {
 
 		b.WriteString(helpStyle.Render("\n↑/↓: move • space: select • enter: scan • q: quit"))
 
-	case stateScanning:
-		b.WriteString(headerStyle.Render("Scanning..."))
-		b.WriteString("\n\n")
-		b.WriteString(fmt.Sprintf("%s Please wait while we look for removable files.", m.spinner.View()))
-
-	case stateResults:
-		b.WriteString(headerStyle.Render("Scan Results"))
-		b.WriteString("\n\n")
-
-		var totalBytes int64
-		for _, res := range m.results {
-			var moduleBytes int64
-			for _, item := range res.Items {
-				moduleBytes += item.Size
-			}
-			totalBytes += moduleBytes
-			b.WriteString(fmt.Sprintf("%s: %d items found (%s)\n", res.Module.Name(), len(res.Items), formatSize(moduleBytes)))
-		}
-
-		b.WriteString("\n")
-		b.WriteString(titleStyle.Render(fmt.Sprintf(" Total Space Reclaimable: %s ", formatSize(totalBytes))))
-
-		if m.config.DryRun {
-			b.WriteString(helpStyle.Render("\n\nenter/q: quit"))
-		} else {
-			b.WriteString(helpStyle.Render("\n\nenter: proceed to cleanup • q: quit"))
-		}
-
-	case stateConfirming:
-		hasHarsh := false
-		for i := range m.selected {
-			if m.choices[i].Category() == "Harsh" {
-				hasHarsh = true
-				break
-			}
-		}
-
-		if hasHarsh {
-			b.WriteString(lipgloss.NewStyle().
-				Foreground(lipgloss.Color("#FFFDFE")).
-				Background(errorColor).
-				Padding(0, 1).
-				Bold(true).
-				Render("☢️  WARNING: HARSH CLEANUP DETECTED"))
+		case stateScanning:
+			b.WriteString(headerStyle.Render("Scanning..."))
 			b.WriteString("\n\n")
-			b.WriteString("Some of the selected modules are marked as 'Harsh'.\n")
-			b.WriteString("These might delete data that is harder to reconstruct (like local snapshots).\n\n")
-		} else {
-			b.WriteString(lipgloss.NewStyle().Foreground(accentColor).Bold(true).Render("⚠️  CONFIRMATION REQUIRED"))
+			b.WriteString(fmt.Sprintf("%s Please wait while we look for removable files.", m.spinner.View()))
+			b.WriteString(helpStyle.Render("\n\nesc: back"))
+	
+		case stateResults:
+			b.WriteString(headerStyle.Render("Scan Results"))
 			b.WriteString("\n\n")
-		}
-
-		b.WriteString("Are you sure you want to delete the files found by the selected modules?\n")
-		b.WriteString("This action cannot be undone.\n\n")
-		b.WriteString(lipgloss.NewStyle().Foreground(accentColor).Render("Type 'y' to confirm or 'n' to cancel."))
-		b.WriteString(helpStyle.Render("\n\ny/n: confirm/cancel • q: quit"))
-
-	case stateExecuting:
+	
+			var totalBytes int64
+			for _, res := range m.results {
+				var moduleBytes int64
+				for _, item := range res.Items {
+					moduleBytes += item.Size
+				}
+				totalBytes += moduleBytes
+				b.WriteString(fmt.Sprintf("%s: %d items found (%s)\n", res.Module.Name(), len(res.Items), formatSize(moduleBytes)))
+			}
+	
+			b.WriteString("\n")
+			b.WriteString(titleStyle.Render(fmt.Sprintf(" Total Space Reclaimable: %s ", formatSize(totalBytes))))
+			
+			if m.config.DryRun {
+				b.WriteString(helpStyle.Render("\n\nenter/q: quit • esc: back"))
+			} else {
+				b.WriteString(helpStyle.Render("\n\nenter: proceed to cleanup • q: quit • esc: back"))
+			}
+	
+		case stateConfirming:
+			hasHarsh := false
+			for i := range m.selected {
+				if m.choices[i].Category() == "Harsh" {
+					hasHarsh = true
+					break
+				}
+			}
+	
+			if hasHarsh {
+				b.WriteString(lipgloss.NewStyle().
+					Foreground(lipgloss.Color("#FFFDFE")).
+					Background(errorColor).
+					Padding(0, 1).
+					Bold(true).
+					Render("☢️  WARNING: HARSH CLEANUP DETECTED"))
+				b.WriteString("\n\n")
+				b.WriteString("Some of the selected modules are marked as 'Harsh'.\n")
+				b.WriteString("These might delete data that is harder to reconstruct (like local snapshots).\n\n")
+			} else {
+				b.WriteString(lipgloss.NewStyle().Foreground(accentColor).Bold(true).Render("⚠️  CONFIRMATION REQUIRED"))
+				b.WriteString("\n\n")
+			}
+	
+			b.WriteString("Are you sure you want to delete the files found by the selected modules?\n")
+			b.WriteString("This action cannot be undone.\n\n")
+			b.WriteString(lipgloss.NewStyle().Foreground(accentColor).Render("Type 'y' to confirm or 'n' to cancel."))
+			b.WriteString(helpStyle.Render("\n\ny/n: confirm/cancel • q: quit • esc: back"))
+		case stateExecuting:
 		b.WriteString(headerStyle.Render("Executing Cleanup..."))
 		b.WriteString("\n\n")
 		b.WriteString(fmt.Sprintf("%s Please wait while we delete the files.", m.spinner.View()))
