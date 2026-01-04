@@ -9,7 +9,7 @@ This phase focuses on creating a module to clean up user and system application 
 - [x] **Task 1.2: Add Unit Tests for LogsModule** [8851374]
 - [ ] **Task 1.3: Conductor - User Manual Verification 'Phase 1: System Logs Module' (Protocol in workflow.md)**
 
-## Phase 2: Homebrew Module
+## Phase 2: Homebrew Module [checkpoint: 284242f]
 This phase adds support for cleaning up Homebrew artifacts.
 
 - [x] **Task 2.1: Implement HomebrewModule** [ba0cf0e]
