@@ -274,43 +274,42 @@ func (m Model) View() string {
 						cursor = cursorStyle.Render("> ")
 					}
 		
-					// Accordion indicator
-					arrow := "▶ "
-					if m.expanded[i] {
-						arrow = "▼ "
-					}
-		
-					b.WriteString(fmt.Sprintf("%s%s%s: %d items found (%s)\n", 
-						cursor, 
-						arrow,
-						res.Module.Name(), 
-						len(res.Items), 
-						formatSize(moduleBytes)))
-		
-					if m.expanded[i] {
-						for _, item := range res.Items {
-							icon := "📄"
-							if item.Type == "dir" {
-								icon = "📁"
-							} else if item.Type == "snapshot" {
-								icon = "📸"
+								// Accordion indicator
+								arrow := "▶ "
+								if m.expanded[i] {
+									arrow = "▼ "
+								}
+					
+								b.WriteString(fmt.Sprintf("%s%s%s: %d items found (%s)\n", 
+									cursor, 
+									arrowStyle.Render(arrow),
+									res.Module.Name(), 
+									len(res.Items), 
+									formatSize(moduleBytes)))
+					
+								if m.expanded[i] {
+									for _, item := range res.Items {
+										icon := "📄"
+										if item.Type == "dir" {
+											icon = "📁"
+										} else if item.Type == "snapshot" {
+											icon = "📸"
+										}
+										
+										// Truncate long paths
+										displayPath := item.Path
+										if len(displayPath) > 60 {
+											displayPath = "..." + displayPath[len(displayPath)-57:]
+										}
+					
+										b.WriteString(fmt.Sprintf("      %s %-60s %10s\n", 
+											icon, 
+											detailPathStyle.Render(displayPath), 
+											detailSizeStyle.Render(formatSize(item.Size))))
+									}
+								}
 							}
-							
-							// Truncate long paths
-							displayPath := item.Path
-							if len(displayPath) > 60 {
-								displayPath = "..." + displayPath[len(displayPath)-57:]
-							}
-		
-							b.WriteString(fmt.Sprintf("      %s %-60s %10s\n", 
-								icon, 
-								displayPath, 
-								formatSize(item.Size)))
-						}
-					}
-				}
-		
-						b.WriteString("\n")
+											b.WriteString("\n")
 		
 						b.WriteString(titleStyle.Render(fmt.Sprintf(" Total Space Reclaimable: %s ", formatSize(totalBytes))))
 		

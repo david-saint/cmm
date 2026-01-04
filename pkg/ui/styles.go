@@ -39,4 +39,15 @@ var (
 	helpStyle = lipgloss.NewStyle().
 			Foreground(lipgloss.Color("#626262")).
 			MarginTop(1)
+
+	// Detail Styles
+	detailPathStyle = lipgloss.NewStyle().
+			Foreground(lipgloss.Color("#A0A0A0"))
+
+	detailSizeStyle = lipgloss.NewStyle().
+			Foreground(secondaryColor)
+	
+	arrowStyle = lipgloss.NewStyle().
+			Foreground(primaryColor).
+			Bold(true)
 )
