@@ -28,7 +28,7 @@
 - [x] Task: Conductor - User Manual Verification 'Execution Engine & Safety' (Protocol in workflow.md) 2b42d61
 
 ## Phase 5: Final Reporting & Polish
-- [x] Task: Implement the post-cleanup summary report (Space reclaimed, files removed) b4ea7f5
-- [x] Task: Add error handling and user-friendly messages for permission issues b4ea7f5
-- [~] Task: Final UX pass: Add spinners, progress bars, and keyboard shortcuts
+- [x] Task: Implement the post-cleanup summary report (Space reclaimed, files removed) cf85ca9
+- [x] Task: Add error handling and user-friendly messages for permission issues cf85ca9
+- [x] Task: Final UX pass: Add spinners, progress bars, and keyboard shortcuts cf85ca9
 - [ ] Task: Conductor - User Manual Verification 'Final Reporting & Polish' (Protocol in workflow.md)
