@@ -68,6 +68,7 @@ func (m *TimeMachineModule) Scan() ([]cmm.FileItem, error) {
 		items = append(items, cmm.FileItem{
 			Path: snapshotName,
 			Size: 0, // tmutil doesn't easily give size per snapshot
+			Type: "snapshot",
 		})
 	}
 

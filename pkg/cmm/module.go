@@ -4,6 +4,7 @@ package cmm
 type FileItem struct {
 	Path string
 	Size int64
+	Type string // e.g. "dir", "file", "cache", etc.
 }
 
 // Module is the interface that all cleanup modules must implement.

@@ -48,9 +48,15 @@ func (m *CachesModule) Scan() ([]cmm.FileItem, error) {
 		
 		size := m.calculateSize(path)
 		
+		itemType := "file"
+		if entry.IsDir() {
+			itemType = "dir"
+		}
+
 		items = append(items, cmm.FileItem{
 			Path: path,
 			Size: size,
+			Type: itemType,
 		})
 	}
 

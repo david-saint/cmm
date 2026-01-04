@@ -41,3 +41,29 @@ func TestScanner_Scan(t *testing.T) {
 		t.Errorf("expected 2 total items, got %d", totalItems)
 	}
 }
+
+func TestScanner_ScanSorting(t *testing.T) {
+	items := []FileItem{
+		{Path: "small", Size: 10},
+		{Path: "large", Size: 100},
+		{Path: "medium", Size: 50},
+	}
+	m := &scannerMockModule{name: "M1", items: items}
+
+	scanner := NewScanner()
+	scanner.Register(m)
+
+	results, err := scanner.Scan()
+	if err != nil {
+		t.Fatalf("Scan() failed: %v", err)
+	}
+
+	resItems := results[0].Items
+	if len(resItems) != 3 {
+		t.Fatalf("expected 3 items, got %d", len(resItems))
+	}
+
+	if resItems[0].Size != 100 || resItems[1].Size != 50 || resItems[2].Size != 10 {
+		t.Errorf("items not sorted correctly: got sizes %d, %d, %d", resItems[0].Size, resItems[1].Size, resItems[2].Size)
+	}
+}

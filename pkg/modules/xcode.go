@@ -52,9 +52,15 @@ func (m *XcodeModule) Scan() ([]cmm.FileItem, error) {
 		
 		size := m.calculateSize(path)
 		
+		itemType := "file"
+		if entry.IsDir() {
+			itemType = "dir"
+		}
+
 		items = append(items, cmm.FileItem{
 			Path: path,
 			Size: size,
+			Type: itemType,
 		})
 		_ = info // use info if needed
 	}

@@ -1,5 +1,9 @@
 package cmm
 
+import (
+	"sort"
+)
+
 // ModuleResult contains the results of a single module scan.
 type ModuleResult struct {
 	Module Module
@@ -31,6 +35,12 @@ func (s *Scanner) Scan() ([]ModuleResult, error) {
 		if err != nil {
 			return nil, err
 		}
+
+		// Sort items by size descending
+		sort.Slice(items, func(i, j int) bool {
+			return items[i].Size > items[j].Size
+		})
+
 		results = append(results, ModuleResult{
 			Module: m,
 			Items:  items,
