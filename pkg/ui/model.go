@@ -2,6 +2,7 @@ package ui
 
 import (
 	"fmt"
+	"strings"
 
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/david-saint/cmm/pkg/cmm"
@@ -55,23 +56,33 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 }
 
 func (m Model) View() string {
-	s := "Which modules do you want to run?\n\n"
+	var b strings.Builder
+
+	b.WriteString(titleStyle.Render(" cmm - Clean My Mac CLI "))
+	b.WriteString("\n\n")
+	b.WriteString(headerStyle.Render("Which modules do you want to run?"))
+	b.WriteString("\n\n")
 
 	for i, choice := range m.choices {
-		cursor := " " // no cursor
+		cursor := "  "
 		if m.cursor == i {
-			cursor = ">" // cursor!
+			cursor = cursorStyle.Render("> ")
 		}
 
-		checked := " " // not selected
+		checked := "[ ]"
 		if _, ok := m.selected[i]; ok {
-			checked = "x" // selected!
+			checked = selectedStyle.Render("[x]")
 		}
 
-		s += fmt.Sprintf("%s [%s] %s\n", cursor, checked, choice.Name())
+		name := choice.Name()
+		if choice.Category() == "Harsh" {
+			name += harshStyle.Render(" (Harsh)")
+		}
+
+		b.WriteString(fmt.Sprintf("%s %s %s\n", cursor, checked, name))
 	}
 
-	s += "\nPress q to quit.\n"
+	b.WriteString(helpStyle.Render("\n↑/↓: move • space: select • q: quit"))
 
-	return s
+	return b.String()
 }
