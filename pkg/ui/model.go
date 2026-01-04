@@ -263,30 +263,68 @@ func (m Model) View() string {
 			b.WriteString(fmt.Sprintf("%s Please wait while we look for removable files.", m.spinner.View()))
 			b.WriteString(helpStyle.Render("\n\nesc: back"))
 	
-		case stateResults:
-			b.WriteString(headerStyle.Render("Scan Results"))
-			b.WriteString("\n\n")
-	
-			var totalBytes int64
-			for _, res := range m.results {
-				var moduleBytes int64
-				for _, item := range res.Items {
-					moduleBytes += item.Size
+			case stateResults:
+				b.WriteString(headerStyle.Render("Scan Results"))
+				b.WriteString("\n\n")
+		
+				var totalBytes int64
+				for i, res := range m.results {
+					var moduleBytes int64
+					for _, item := range res.Items {
+						moduleBytes += item.Size
+					}
+					totalBytes += moduleBytes
+		
+					cursor := "  "
+					if m.cursor == i {
+						cursor = cursorStyle.Render("> ")
+					}
+		
+					// Accordion indicator
+					arrow := "▶ "
+					if m.expanded[i] {
+						arrow = "▼ "
+					}
+		
+					b.WriteString(fmt.Sprintf("%s%s%s: %d items found (%s)\n", 
+						cursor, 
+						arrow,
+						res.Module.Name(), 
+						len(res.Items), 
+						formatSize(moduleBytes)))
+		
+					if m.expanded[i] {
+						for _, item := range res.Items {
+							icon := "📄"
+							if item.Type == "dir" {
+								icon = "📁"
+							} else if item.Type == "snapshot" {
+								icon = "📸"
+							}
+							
+							// Truncate long paths
+							displayPath := item.Path
+							if len(displayPath) > 60 {
+								displayPath = "..." + displayPath[len(displayPath)-57:]
+							}
+		
+							b.WriteString(fmt.Sprintf("      %s %-60s %10s\n", 
+								icon, 
+								displayPath, 
+								formatSize(item.Size)))
+						}
+					}
 				}
-				totalBytes += moduleBytes
-				b.WriteString(fmt.Sprintf("%s: %d items found (%s)\n", res.Module.Name(), len(res.Items), formatSize(moduleBytes)))
-			}
-	
-			b.WriteString("\n")
-			b.WriteString(titleStyle.Render(fmt.Sprintf(" Total Space Reclaimable: %s ", formatSize(totalBytes))))
-			
-			if m.config.DryRun {
-				b.WriteString(helpStyle.Render("\n\nenter/q: quit • esc: back"))
-			} else {
-				b.WriteString(helpStyle.Render("\n\nenter: proceed to cleanup • q: quit • esc: back"))
-			}
-	
-		case stateConfirming:
+		
+				b.WriteString("\n")
+				b.WriteString(titleStyle.Render(fmt.Sprintf(" Total Space Reclaimable: %s ", formatSize(totalBytes))))
+				
+				if m.config.DryRun {
+					b.WriteString(helpStyle.Render("\n\n↑/↓: move • enter/space: toggle • esc: back • q: quit"))
+				} else {
+					b.WriteString(helpStyle.Render("\n\n↑/↓: move • enter/space: toggle • c: proceed • esc: back • q: quit"))
+				}
+				case stateConfirming:
 			hasHarsh := false
 			for i := range m.selected {
 				if m.choices[i].Category() == "Harsh" {
