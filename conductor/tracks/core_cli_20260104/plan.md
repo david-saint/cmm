@@ -1,0 +1,34 @@
+# Track Plan: core_cli_20260104
+
+## Phase 1: Foundation
+- [ ] Task: Initialize Go module and setup Cobra CLI structure
+- [ ] Task: Define the `Module` interface and shared data structures
+- [ ] Task: Implement a basic "Hello World" Cobra command for `cmm`
+- [ ] Task: Conductor - User Manual Verification 'Foundation' (Protocol in workflow.md)
+
+## Phase 2: Scanning Engine & Initial Modules
+- [ ] Task: Implement the Xcode Derived Data module (Scan logic)
+- [ ] Task: Implement the User Caches module (Scan logic for general caches)
+- [ ] Task: Implement the Time Machine Snapshots module (Scan logic using `tmutil`)
+- [ ] Task: Create the Scanner Engine to orchestrate multiple modules
+- [ ] Task: Conductor - User Manual Verification 'Scanning Engine & Initial Modules' (Protocol in workflow.md)
+
+## Phase 3: Interactive TUI (Bubble Tea)
+- [ ] Task: Implement a basic Bubble Tea model for module selection
+- [ ] Task: Add multi-select capability to the TUI
+- [ ] Task: Style the TUI using Lip Gloss (Headers, semantic coloring)
+- [ ] Task: Connect the Scanning Engine to the TUI to show real-time progress/results
+- [ ] Task: Conductor - User Manual Verification 'Interactive TUI' (Protocol in workflow.md)
+
+## Phase 4: Execution Engine & Safety
+- [ ] Task: Implement "Dry Run" logic to preview deletions
+- [ ] Task: Implement the Execution Engine with safety confirmations
+- [ ] Task: Add "Nuclear/Harsh" warning prompts for specific modules
+- [ ] Task: Implement the actual deletion logic for the initial modules
+- [ ] Task: Conductor - User Manual Verification 'Execution Engine & Safety' (Protocol in workflow.md)
+
+## Phase 5: Final Reporting & Polish
+- [ ] Task: Implement the post-cleanup summary report (Space reclaimed, files removed)
+- [ ] Task: Add error handling and user-friendly messages for permission issues
+- [ ] Task: Final UX pass: Add spinners, progress bars, and keyboard shortcuts
+- [ ] Task: Conductor - User Manual Verification 'Final Reporting & Polish' (Protocol in workflow.md)

@@ -1,0 +1,8 @@
+{
+  "track_id": "core_cli_20260104",
+  "type": "feature",
+  "status": "new",
+  "created_at": "2026-01-04T12:00:00Z",
+  "updated_at": "2026-01-04T12:00:00Z",
+  "description": "Build the core cmm CLI with an interactive TUI to selectively clean Time Machine snapshots, User Caches, and Xcode Data."
+}
