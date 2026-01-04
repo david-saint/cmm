@@ -32,8 +32,9 @@ import (
 // NewRootCmd represents the base command when called without any subcommands
 func NewRootCmd() *cobra.Command {
 	cmd := &cobra.Command{
-		Use:   "cmm",
-		Short: "cmm is a macOS cleanup tool for developers",
+		Use:     "cmm",
+		Version: "0.1.0",
+		Short:   "cmm is a macOS cleanup tool for developers",
 		Long: `cmm (Clean My Mac CLI) is a tool designed to help developers 
 reclaim disk space by selectively cleaning up bloat like 
 Xcode Derived Data, User Caches, and Time Machine snapshots.`,
