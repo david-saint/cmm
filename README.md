@@ -24,6 +24,18 @@
 
 To get started, you'll need [Go](https://go.dev/doc/install) installed on your system.
 
+### Recommended (via `go install`)
+
+The easiest way to install `cmm` is via `go install`:
+
+```bash
+go install github.com/david-saint/cmm@latest
+```
+
+### From Source
+
+If you prefer to build it yourself or want to contribute:
+
 1. **Clone the repository:**
 
    ```bash
@@ -31,21 +43,9 @@ To get started, you'll need [Go](https://go.dev/doc/install) installed on your s
    cd cmm
    ```
 
-2. **Install dependencies:**
-
-   ```bash
-   go mod tidy
-   ```
-
-3. **Build the binary:**
-
+2. **Build the binary:**
    ```bash
    go build -o cmm main.go
-   ```
-
-4. **(Optional) Move to your path:**
-   ```bash
-   mv cmm /usr/local/bin/
    ```
 
 ---
@@ -55,7 +55,7 @@ To get started, you'll need [Go](https://go.dev/doc/install) installed on your s
 Run the tool interactively:
 
 ```bash
-./cmm run
+cmm run
 ```
 
 ### Tips
