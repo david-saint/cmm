@@ -49,7 +49,12 @@ func NewRunCmd() *cobra.Command {
 			availableModules := []cmm.Module{
 				modules.NewXcodeModule(xcodePath),
 				modules.NewCachesModule(cachesPath),
+				modules.NewLogsModule(),
 				modules.NewTimeMachineModule(), // Time Machine is tricky to mock easily in integration, keeping as is (harsh warning applies)
+			}
+
+			if hb := modules.NewHomebrewModule(); hb != nil {
+				availableModules = append(availableModules, hb)
 			}
 
 			config := ui.Config{
