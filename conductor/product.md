@@ -1,7 +1,3 @@
-# Initial Concept
-
-I want to build a go command line tool that'll walk me through the process of cleanup and maintainance of my Mac device. The IDEA.md file contains a list of steps (recommended and harsh) the tool should be smart enough to allow me pick the flow I want to go for whenever I run it.
-
 # Product Guide - cmm (macOS Cleanup & Maintenance)
 
 ## Product Vision
@@ -18,9 +14,10 @@ I want to build a go command line tool that'll walk me through the process of cl
 - **Customizable Control:** Offer flexible "flows" (Quick, Deep, Custom) to suit different needs and risk tolerances.
 
 ## Key Features
-- **Automated Modules:** Specialized logic for Time Machine snapshots, Library caches, iOS backups, Xcode data, System logs, and Homebrew.
+- **Automated Modules:** Specialized logic for Time Machine snapshots, User caches, Xcode Derived Data, and System logs.
 - **Interactive Mode:** A rich terminal interface allowing users to hand-pick tasks or choose predefined maintenance paths.
 - **Dry Run Capability:** Transparency through previews, showing exactly what will be deleted before any action is taken.
+- **Safety Warnings:** High-visibility warnings for "Harsh" cleanup modules.
 
 ## Safety & Trust
 - **Mandatory Confirmations:** Explicit user approval required for any destructive operations.
