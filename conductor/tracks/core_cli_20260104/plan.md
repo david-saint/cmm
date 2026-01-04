@@ -1,7 +1,7 @@
 # Track Plan: core_cli_20260104
 
 ## Phase 1: Foundation
-- [~] Task: Initialize Go module and setup Cobra CLI structure
+- [x] Task: Initialize Go module and setup Cobra CLI structure f951059
 - [ ] Task: Define the `Module` interface and shared data structures
 - [ ] Task: Implement a basic "Hello World" Cobra command for `cmm`
 - [ ] Task: Conductor - User Manual Verification 'Foundation' (Protocol in workflow.md)
