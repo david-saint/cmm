@@ -16,7 +16,7 @@ This phase adds support for cleaning up Homebrew artifacts.
 - [x] **Task 2.2: Add Unit Tests for HomebrewModule** [ba0cf0e]
 - [ ] **Task 2.3: Conductor - User Manual Verification 'Phase 2: Homebrew Module' (Protocol in workflow.md)**
 
-## Phase 3: Integration and Registration
+## Phase 3: Integration and Registration [checkpoint: 88c78be]
 Register the new modules and ensure they are available in the CLI.
 
 - [x] **Task 3.1: Register New Modules in CLI** [2a5aee3]
