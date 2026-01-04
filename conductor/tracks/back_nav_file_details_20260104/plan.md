@@ -25,10 +25,10 @@
     - [x] Ensure the view handles large lists efficiently (e.g., within a viewport or truncated)
 - [x] Task: Conductor - User Manual Verification 'Phase 3: TUI Implementation for File Details' (253353c)
 
-## Phase 4: Final Polishing and Integration
+## Phase 4: Final Polishing and Integration [checkpoint: 7a3e4b2]
 - [x] Task: Refine Styles and Layout (4aecc87)
     - [x] Update `pkg/ui/styles.go` with specific styles for the detailed list
     - [x] Ensure consistent indentation and visual hierarchy for the accordion view
-- [ ] Task: Final End-to-End Verification
-    - [ ] Perform a full dry-run scan and verify navigation and detail viewing
-- [ ] Task: Conductor - User Manual Verification 'Phase 4: Final Polishing and Integration' (Protocol in workflow.md)
+- [x] Task: Final End-to-End Verification (7a3e4b2)
+    - [x] Perform a full dry-run scan and verify navigation and detail viewing
+- [x] Task: Conductor - User Manual Verification 'Phase 4: Final Polishing and Integration' (7a3e4b2)
