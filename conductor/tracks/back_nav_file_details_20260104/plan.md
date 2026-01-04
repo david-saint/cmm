@@ -7,10 +7,10 @@
 - [x] Task: Conductor - User Manual Verification 'Phase 1: Navigation Infrastructure' (d5e43e9)
 
 ## Phase 2: Data Model and Sorting Logic
-- [ ] Task: Update Module/Scanner data structures to include detailed file info
-    - [ ] Modify `ModuleResult` or equivalent to store a list of file details (path, size, type)
-    - [ ] Implement sorting logic to order files by size descending
-    - [ ] Write unit tests for sorting logic in `pkg/cmm/scanner_test.go`
+- [x] Task: Update Module/Scanner data structures to include detailed file info (7e1fd6b)
+    - [x] Modify `ModuleResult` or equivalent to store a list of file details (path, size, type)
+    - [x] Implement sorting logic to order files by size descending
+    - [x] Write unit tests for sorting logic in `pkg/cmm/scanner_test.go`
 - [ ] Task: Conductor - User Manual Verification 'Phase 2: Data Model and Sorting Logic' (Protocol in workflow.md)
 
 ## Phase 3: TUI Implementation for File Details
