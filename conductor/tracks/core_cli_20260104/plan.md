@@ -6,12 +6,12 @@
 - [x] Task: Implement a basic "Hello World" Cobra command for `cmm` a709689
 - [x] Task: Conductor - User Manual Verification 'Foundation' (Protocol in workflow.md) d90cea9
 
-## Phase 2: Scanning Engine & Initial Modules
+## Phase 2: Scanning Engine & Initial Modules [checkpoint: 170858d]
 - [x] Task: Implement the Xcode Derived Data module (Scan logic) 5f5bcfd
 - [x] Task: Implement the User Caches module (Scan logic for general caches) 5f953bd
 - [x] Task: Implement the Time Machine Snapshots module (Scan logic using `tmutil`) 21f21f2
 - [x] Task: Create the Scanner Engine to orchestrate multiple modules 6010cfc
-- [ ] Task: Conductor - User Manual Verification 'Scanning Engine & Initial Modules' (Protocol in workflow.md)
+- [x] Task: Conductor - User Manual Verification 'Scanning Engine & Initial Modules' (Protocol in workflow.md) 170858d
 
 ## Phase 3: Interactive TUI (Bubble Tea)
 - [ ] Task: Implement a basic Bubble Tea model for module selection
