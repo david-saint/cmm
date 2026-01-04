@@ -11,10 +11,10 @@ type mockModule struct {
 	name string
 }
 
-func (m mockModule) Name() string                     { return m.name }
-func (m mockModule) Description() string              { return "desc" }
-func (m mockModule) Category() string                 { return "Recommended" }
-func (m mockModule) Scan() ([]cmm.FileItem, error)    { return nil, nil }
+func (m mockModule) Name() string                         { return m.name }
+func (m mockModule) Description() string                  { return "desc" }
+func (m mockModule) Category() string                     { return "Recommended" }
+func (m mockModule) Scan() ([]cmm.FileItem, error)        { return nil, nil }
 func (m mockModule) Delete([]cmm.FileItem) (int64, error) { return 0, nil }
 
 func TestInitialModel(t *testing.T) {
@@ -70,6 +70,64 @@ func TestModel_Update(t *testing.T) {
 	m = newModel.(Model)
 
 	if _, ok := m.selected[0]; ok {
+
 		t.Errorf("expected item 0 to be deselected after second space")
+
 	}
+
+}
+
+func TestModel_EscNavigation(t *testing.T) {
+
+	modules := []cmm.Module{
+
+		mockModule{name: "Module 1"},
+	}
+
+	m := NewModel(nil, modules, Config{})
+
+	// From stateResults to stateSelecting
+
+	m.state = stateResults
+
+	msg := tea.KeyMsg{Type: tea.KeyEsc}
+
+	newModel, _ := m.Update(msg)
+
+	m = newModel.(Model)
+
+	if m.state != stateSelecting {
+
+		t.Errorf("expected stateSelecting after Esc from stateResults, got %v", m.state)
+
+	}
+
+	// From stateConfirming to stateResults
+
+	m.state = stateConfirming
+
+	newModel, _ = m.Update(msg)
+
+	m = newModel.(Model)
+
+	if m.state != stateResults {
+
+		t.Errorf("expected stateResults after Esc from stateConfirming, got %v", m.state)
+
+	}
+
+	// From stateScanning to stateSelecting
+
+	m.state = stateScanning
+
+	newModel, _ = m.Update(msg)
+
+	m = newModel.(Model)
+
+	if m.state != stateSelecting {
+
+		t.Errorf("expected stateSelecting after Esc from stateScanning, got %v", m.state)
+
+	}
+
 }

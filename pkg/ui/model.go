@@ -95,6 +95,16 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		case "ctrl+c", "q":
 			return m, tea.Quit
 
+		case "esc":
+			if m.state == stateScanning || m.state == stateResults {
+				m.state = stateSelecting
+				return m, nil
+			}
+			if m.state == stateConfirming {
+				m.state = stateResults
+				return m, nil
+			}
+
 		case "up", "k":
 			if m.state == stateSelecting && m.cursor > 0 {
 				m.cursor--
@@ -252,7 +262,7 @@ func (m Model) View() string {
 
 		b.WriteString("\n")
 		b.WriteString(titleStyle.Render(fmt.Sprintf(" Total Space Reclaimable: %s ", formatSize(totalBytes))))
-		
+
 		if m.config.DryRun {
 			b.WriteString(helpStyle.Render("\n\nenter/q: quit"))
 		} else {
@@ -296,7 +306,7 @@ func (m Model) View() string {
 	case stateFinished:
 		b.WriteString(headerStyle.Render("Cleanup Complete!"))
 		b.WriteString("\n\n")
-		
+
 		for _, res := range m.results {
 			var moduleBytes int64
 			for _, item := range res.Items {
