@@ -126,7 +126,10 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				return m, m.runScan
 			}
 			if m.state == stateResults {
-				m.expanded[m.cursor] = !m.expanded[m.cursor]
+				if m.config.DryRun {
+					return m, tea.Quit
+				}
+				m.state = stateConfirming
 				return m, nil
 			}
 			if m.state == stateConfirming {
@@ -135,15 +138,6 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			}
 			if m.state == stateFinished || m.err != nil {
 				return m, tea.Quit
-			}
-
-		case "c":
-			if m.state == stateResults {
-				if m.config.DryRun {
-					return m, tea.Quit
-				}
-				m.state = stateConfirming
-				return m, nil
 			}
 
 		case "y", "Y":
@@ -316,15 +310,25 @@ func (m Model) View() string {
 					}
 				}
 		
-				b.WriteString("\n")
-				b.WriteString(titleStyle.Render(fmt.Sprintf(" Total Space Reclaimable: %s ", formatSize(totalBytes))))
+						b.WriteString("\n")
+		
+						b.WriteString(titleStyle.Render(fmt.Sprintf(" Total Space Reclaimable: %s ", formatSize(totalBytes))))
+		
+						
+		
+						if m.config.DryRun {
+		
+							b.WriteString(helpStyle.Render("\n\n↑/↓: move • space: toggle • enter/q: quit • esc: back"))
+		
+						} else {
+		
+							b.WriteString(helpStyle.Render("\n\n↑/↓: move • space: toggle • enter: proceed • esc: back • q: quit"))
+		
+						}
+		
 				
-				if m.config.DryRun {
-					b.WriteString(helpStyle.Render("\n\n↑/↓: move • enter/space: toggle • esc: back • q: quit"))
-				} else {
-					b.WriteString(helpStyle.Render("\n\n↑/↓: move • enter/space: toggle • c: proceed • esc: back • q: quit"))
-				}
-				case stateConfirming:
+		
+					case stateConfirming:
 			hasHarsh := false
 			for i := range m.selected {
 				if m.choices[i].Category() == "Harsh" {
