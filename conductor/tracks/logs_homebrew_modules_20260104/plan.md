@@ -12,16 +12,8 @@ This phase focuses on creating a module to clean up user and system application 
 ## Phase 2: Homebrew Module
 This phase adds support for cleaning up Homebrew artifacts.
 
-- [ ] **Task 2.1: Implement HomebrewModule**
-    - Create `pkg/modules/homebrew.go`.
-    - Implement `cmm.Module` interface.
-    - Add logic to detect `brew` in `PATH`.
-    - Implement `Scan` using `brew cleanup --dry-run` (if possible) or a summary entry.
-    - Implement `Delete` using `brew cleanup --prune=all`.
-- [ ] **Task 2.2: Add Unit Tests for HomebrewModule**
-    - Create `pkg/modules/homebrew_test.go`.
-    - Mock external command execution for `brew`.
-    - Test detection and execution logic.
+- [x] **Task 2.1: Implement HomebrewModule** [ba0cf0e]
+- [x] **Task 2.2: Add Unit Tests for HomebrewModule** [ba0cf0e]
 - [ ] **Task 2.3: Conductor - User Manual Verification 'Phase 2: Homebrew Module' (Protocol in workflow.md)**
 
 ## Phase 3: Integration and Registration
