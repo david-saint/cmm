@@ -17,7 +17,7 @@
 - [x] Task: Implement a basic Bubble Tea model for module selection c2bdac6
 - [x] Task: Add multi-select capability to the TUI c2bdac6
 - [x] Task: Style the TUI using Lip Gloss (Headers, semantic coloring) 6d2bc2b
-- [~] Task: Connect the Scanning Engine to the TUI to show real-time progress/results
+- [x] Task: Connect the Scanning Engine to the TUI to show real-time progress/results 2368c60
 - [ ] Task: Conductor - User Manual Verification 'Interactive TUI' (Protocol in workflow.md)
 
 ## Phase 4: Execution Engine & Safety
