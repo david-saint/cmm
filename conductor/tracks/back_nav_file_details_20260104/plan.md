@@ -13,7 +13,7 @@
     - [x] Write unit tests for sorting logic in `pkg/cmm/scanner_test.go`
 - [x] Task: Conductor - User Manual Verification 'Phase 2: Data Model and Sorting Logic' (67e2a78)
 
-## Phase 3: TUI Implementation for File Details
+## Phase 3: TUI Implementation for File Details [checkpoint: 253353c]
 - [x] Task: Implement inline toggle logic in the View model (eaeaccc)
     - [x] Add `Expanded` state to category/result items in the UI model
     - [x] Update `Update` function to toggle `Expanded` state on `enter` or `space`
@@ -23,7 +23,7 @@
     - [x] Format file sizes for human readability
     - [x] Add icons/visual indicators for file types using `Lip Gloss`
     - [x] Ensure the view handles large lists efficiently (e.g., within a viewport or truncated)
-- [ ] Task: Conductor - User Manual Verification 'Phase 3: TUI Implementation for File Details' (Protocol in workflow.md)
+- [x] Task: Conductor - User Manual Verification 'Phase 3: TUI Implementation for File Details' (253353c)
 
 ## Phase 4: Final Polishing and Integration
 - [ ] Task: Refine Styles and Layout
