@@ -8,8 +8,8 @@
 
 ## Phase 2: Scanning Engine & Initial Modules
 - [x] Task: Implement the Xcode Derived Data module (Scan logic) 5f5bcfd
-- [~] Task: Implement the User Caches module (Scan logic for general caches)
-- [ ] Task: Implement the Time Machine Snapshots module (Scan logic using `tmutil`)
+- [x] Task: Implement the User Caches module (Scan logic for general caches) 5f953bd
+- [~] Task: Implement the Time Machine Snapshots module (Scan logic using `tmutil`)
 - [ ] Task: Create the Scanner Engine to orchestrate multiple modules
 - [ ] Task: Conductor - User Manual Verification 'Scanning Engine & Initial Modules' (Protocol in workflow.md)
 
