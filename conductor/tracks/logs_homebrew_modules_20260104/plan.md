@@ -2,7 +2,7 @@
 
 This plan outlines the implementation of two new cleanup modules for `cmm`: `LogsModule` and `HomebrewModule`.
 
-## Phase 1: System Logs Module
+## Phase 1: System Logs Module [checkpoint: 3a0e7f4]
 This phase focuses on creating a module to clean up user and system application logs.
 
 - [x] **Task 1.1: Implement LogsModule** [8851374]
