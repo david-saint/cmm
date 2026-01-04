@@ -2,10 +2,12 @@ package ui
 
 import (
 	"fmt"
+	"os"
 	"strings"
 
-	lipgloss "github.com/charmbracelet/lipgloss"
+	"github.com/charmbracelet/bubbles/spinner"
 	tea "github.com/charmbracelet/bubbletea"
+	lipgloss "github.com/charmbracelet/lipgloss"
 	"github.com/david-saint/cmm/pkg/cmm"
 )
 
@@ -35,20 +37,26 @@ type Model struct {
 	err      error
 	config   Config
 	freed    int64
+	spinner  spinner.Model
 }
 
 func NewModel(scanner *cmm.Scanner, modules []cmm.Module, config Config) Model {
+	s := spinner.New()
+	s.Spinner = spinner.Dot
+	s.Style = lipgloss.NewStyle().Foreground(primaryColor)
+
 	return Model{
 		scanner:  scanner,
 		choices:  modules,
 		selected: make(map[int]struct{}),
 		state:    stateSelecting,
 		config:   config,
+		spinner:  s,
 	}
 }
 
 func (m Model) Init() tea.Cmd {
-	return nil
+	return m.spinner.Tick
 }
 
 type scanMsg []cmm.ModuleResult
@@ -79,6 +87,7 @@ func (m Model) runExecute() tea.Msg {
 }
 
 func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
+	var cmd tea.Cmd
 	switch msg := msg.(type) {
 	case tea.KeyMsg:
 		switch msg.String() {
@@ -150,8 +159,11 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	case errMsg:
 		m.err = msg
-		// If we were executing, we might want to stay in a state that shows the partial results
 		return m, nil
+
+	case spinner.TickMsg:
+		m.spinner, cmd = m.spinner.Update(msg)
+		return m, cmd
 	}
 
 	return m, nil
@@ -168,8 +180,23 @@ func (m Model) View() string {
 	b.WriteString("\n\n")
 
 	if m.err != nil {
-		b.WriteString(lipgloss.NewStyle().Foreground(errorColor).Render(fmt.Sprintf("Error: %v", m.err)))
-		b.WriteString(helpStyle.Render("\n\nenter/q: quit"))
+		errorTitle := " Error "
+		errorMessage := m.err.Error()
+		if os.IsPermission(m.err) {
+			errorTitle = " Permission Denied "
+			errorMessage = "cmm needs additional permissions to clean some areas. Try running with 'sudo' or check System Settings > Privacy & Security > Full Disk Access."
+		}
+
+		b.WriteString(lipgloss.NewStyle().
+			Foreground(lipgloss.Color("#FFFDFE")).
+			Background(errorColor).
+			Padding(0, 1).
+			Bold(true).
+			Render(errorTitle))
+		b.WriteString("\n\n")
+		b.WriteString(errorMessage)
+		b.WriteString("\n\n")
+		b.WriteString(helpStyle.Render("enter/q: quit"))
 		return b.String()
 	}
 
@@ -202,7 +229,7 @@ func (m Model) View() string {
 	case stateScanning:
 		b.WriteString(headerStyle.Render("Scanning..."))
 		b.WriteString("\n\n")
-		b.WriteString("Please wait while we look for removable files.")
+		b.WriteString(fmt.Sprintf("%s Please wait while we look for removable files.", m.spinner.View()))
 
 	case stateResults:
 		b.WriteString(headerStyle.Render("Scan Results"))
@@ -259,12 +286,22 @@ func (m Model) View() string {
 	case stateExecuting:
 		b.WriteString(headerStyle.Render("Executing Cleanup..."))
 		b.WriteString("\n\n")
-		b.WriteString("Please wait while we delete the files.")
+		b.WriteString(fmt.Sprintf("%s Please wait while we delete the files.", m.spinner.View()))
 
 	case stateFinished:
 		b.WriteString(headerStyle.Render("Cleanup Complete!"))
 		b.WriteString("\n\n")
-		b.WriteString(fmt.Sprintf("Successfully reclaimed %s of disk space.", formatSize(m.freed)))
+		
+		for _, res := range m.results {
+			var moduleBytes int64
+			for _, item := range res.Items {
+				moduleBytes += item.Size
+			}
+			b.WriteString(fmt.Sprintf("%s: Reclaimed %s\n", res.Module.Name(), formatSize(moduleBytes)))
+		}
+
+		b.WriteString("\n")
+		b.WriteString(titleStyle.Render(fmt.Sprintf(" Successfully reclaimed %s of disk space. ", formatSize(m.freed))))
 		b.WriteString(helpStyle.Render("\n\nenter/q: quit"))
 	}
 
