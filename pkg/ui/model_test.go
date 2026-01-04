@@ -124,10 +124,80 @@ func TestModel_EscNavigation(t *testing.T) {
 
 	m = newModel.(Model)
 
-	if m.state != stateSelecting {
+		if m.state != stateSelecting {
 
-		t.Errorf("expected stateSelecting after Esc from stateScanning, got %v", m.state)
+			t.Errorf("expected stateSelecting after Esc from stateScanning, got %v", m.state)
+
+		}
 
 	}
 
-}
+	
+
+	func TestModel_ToggleExpanded(t *testing.T) {
+
+		modules := []cmm.Module{
+
+			mockModule{name: "Module 1"},
+
+		}
+
+		m := NewModel(nil, modules, Config{})
+
+		m.state = stateResults
+
+		m.results = []cmm.ModuleResult{
+
+			{Module: modules[0], Items: []cmm.FileItem{{Path: "p1", Size: 10}}},
+
+		}
+
+	
+
+		// Toggle on space
+
+		msg := tea.KeyMsg{Type: tea.KeySpace}
+
+		newModel, _ := m.Update(msg)
+
+		m = newModel.(Model)
+
+		if !m.expanded[0] {
+
+			t.Errorf("expected module 0 to be expanded after space")
+
+		}
+
+	
+
+		// Toggle off space
+
+		newModel, _ = m.Update(msg)
+
+		m = newModel.(Model)
+
+		if m.expanded[0] {
+
+			t.Errorf("expected module 0 to be collapsed after second space")
+
+		}
+
+	
+
+		// Toggle on enter
+
+		msg = tea.KeyMsg{Type: tea.KeyEnter}
+
+		newModel, _ = m.Update(msg)
+
+		m = newModel.(Model)
+
+		if !m.expanded[0] {
+
+			t.Errorf("expected module 0 to be expanded after enter")
+
+		}
+
+	}
+
+	

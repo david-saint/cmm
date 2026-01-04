@@ -33,6 +33,7 @@ type Model struct {
 	choices  []cmm.Module
 	cursor   int
 	selected map[int]struct{}
+	expanded map[int]bool
 	state    state
 	results  []cmm.ModuleResult
 	err      error
@@ -50,6 +51,7 @@ func NewModel(scanner *cmm.Scanner, modules []cmm.Module, config Config) Model {
 		scanner:  scanner,
 		choices:  modules,
 		selected: make(map[int]struct{}),
+		expanded: make(map[int]bool),
 		state:    stateSelecting,
 		config:   config,
 		spinner:  s,
@@ -106,12 +108,15 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			}
 
 		case "up", "k":
-			if m.state == stateSelecting && m.cursor > 0 {
+			if (m.state == stateSelecting || m.state == stateResults) && m.cursor > 0 {
 				m.cursor--
 			}
 
 		case "down", "j":
 			if m.state == stateSelecting && m.cursor < len(m.choices)-1 {
+				m.cursor++
+			}
+			if m.state == stateResults && m.cursor < len(m.results)-1 {
 				m.cursor++
 			}
 
@@ -121,10 +126,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				return m, m.runScan
 			}
 			if m.state == stateResults {
-				if m.config.DryRun {
-					return m, tea.Quit
-				}
-				m.state = stateConfirming
+				m.expanded[m.cursor] = !m.expanded[m.cursor]
 				return m, nil
 			}
 			if m.state == stateConfirming {
@@ -133,6 +135,15 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			}
 			if m.state == stateFinished || m.err != nil {
 				return m, tea.Quit
+			}
+
+		case "c":
+			if m.state == stateResults {
+				if m.config.DryRun {
+					return m, tea.Quit
+				}
+				m.state = stateConfirming
+				return m, nil
 			}
 
 		case "y", "Y":
@@ -156,11 +167,16 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 					m.selected[m.cursor] = struct{}{}
 				}
 			}
+			if m.state == stateResults {
+				m.expanded[m.cursor] = !m.expanded[m.cursor]
+				return m, nil
+			}
 		}
 
 	case scanMsg:
 		m.results = msg
 		m.state = stateResults
+		m.cursor = 0 // Reset cursor for results view
 		return m, nil
 
 	case executeMsg:
