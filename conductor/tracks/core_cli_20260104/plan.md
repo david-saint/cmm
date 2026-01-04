@@ -1,10 +1,10 @@
 # Track Plan: core_cli_20260104
 
-## Phase 1: Foundation
+## Phase 1: Foundation [checkpoint: d90cea9]
 - [x] Task: Initialize Go module and setup Cobra CLI structure f951059
 - [x] Task: Define the `Module` interface and shared data structures 62027cb
 - [x] Task: Implement a basic "Hello World" Cobra command for `cmm` a709689
-- [ ] Task: Conductor - User Manual Verification 'Foundation' (Protocol in workflow.md)
+- [x] Task: Conductor - User Manual Verification 'Foundation' (Protocol in workflow.md) d90cea9
 
 ## Phase 2: Scanning Engine & Initial Modules
 - [ ] Task: Implement the Xcode Derived Data module (Scan logic)
