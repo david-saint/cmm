@@ -22,7 +22,7 @@ func TestInitialModel(t *testing.T) {
 		mockModule{name: "Module 1"},
 		mockModule{name: "Module 2"},
 	}
-	m := NewModel(modules)
+	m := NewModel(nil, modules)
 
 	if len(m.choices) != 2 {
 		t.Errorf("expected 2 choices, got %d", len(m.choices))
@@ -38,7 +38,7 @@ func TestModel_Update(t *testing.T) {
 		mockModule{name: "Module 1"},
 		mockModule{name: "Module 2"},
 	}
-	m := NewModel(modules)
+	m := NewModel(nil, modules)
 
 	// Test cursor movement
 	msg := tea.KeyMsg{Type: tea.KeyDown}
@@ -63,13 +63,13 @@ func TestModel_Update(t *testing.T) {
 	m = newModel.(Model)
 
 	if _, ok := m.selected[0]; !ok {
-		t.Errorf("expected item 0 to be selected after KeySpace")
+		t.Errorf("expected item 0 to be selected after space")
 	}
 
 	newModel, _ = m.Update(msg)
 	m = newModel.(Model)
 
 	if _, ok := m.selected[0]; ok {
-		t.Errorf("expected item 0 to be deselected after second KeySpace")
+		t.Errorf("expected item 0 to be deselected after second space")
 	}
 }
