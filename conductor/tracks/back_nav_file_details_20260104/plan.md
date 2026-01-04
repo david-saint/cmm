@@ -18,11 +18,11 @@
     - [x] Add `Expanded` state to category/result items in the UI model
     - [x] Update `Update` function to toggle `Expanded` state on `enter` or `space`
     - [x] Write tests for toggle state changes
-- [ ] Task: Implement Detailed File List View
-    - [ ] Create a sub-view function to render the list of files under an expanded category
-    - [ ] Format file sizes for human readability
-    - [ ] Add icons/visual indicators for file types using `Lip Gloss`
-    - [ ] Ensure the view handles large lists efficiently (e.g., within a viewport or truncated)
+- [x] Task: Implement Detailed File List View (ed78282)
+    - [x] Create a sub-view function to render the list of files under an expanded category
+    - [x] Format file sizes for human readability
+    - [x] Add icons/visual indicators for file types using `Lip Gloss`
+    - [x] Ensure the view handles large lists efficiently (e.g., within a viewport or truncated)
 - [ ] Task: Conductor - User Manual Verification 'Phase 3: TUI Implementation for File Details' (Protocol in workflow.md)
 
 ## Phase 4: Final Polishing and Integration
