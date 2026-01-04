@@ -26,6 +26,16 @@ github.com/david-saint/cmm/pkg/modules/caches.go:82.29,84.17 2 0
 github.com/david-saint/cmm/pkg/modules/caches.go:84.17,86.4 1 0
 github.com/david-saint/cmm/pkg/modules/caches.go:87.3,87.26 1 0
 github.com/david-saint/cmm/pkg/modules/caches.go:89.2,89.24 1 0
+github.com/david-saint/cmm/pkg/modules/homebrew.go:13.42,15.16 2 1
+github.com/david-saint/cmm/pkg/modules/homebrew.go:15.16,17.3 1 0
+github.com/david-saint/cmm/pkg/modules/homebrew.go:18.2,20.3 1 1
+github.com/david-saint/cmm/pkg/modules/homebrew.go:23.40,25.2 1 1
+github.com/david-saint/cmm/pkg/modules/homebrew.go:27.47,29.2 1 1
+github.com/david-saint/cmm/pkg/modules/homebrew.go:31.44,33.2 1 1
+github.com/david-saint/cmm/pkg/modules/homebrew.go:35.57,45.2 1 1
+github.com/david-saint/cmm/pkg/modules/homebrew.go:47.70,51.16 3 0
+github.com/david-saint/cmm/pkg/modules/homebrew.go:51.16,53.3 1 0
+github.com/david-saint/cmm/pkg/modules/homebrew.go:57.2,57.15 1 0
 github.com/david-saint/cmm/pkg/modules/logs.go:14.34,22.2 2 1
 github.com/david-saint/cmm/pkg/modules/logs.go:24.36,26.2 1 1
 github.com/david-saint/cmm/pkg/modules/logs.go:28.43,30.2 1 1
