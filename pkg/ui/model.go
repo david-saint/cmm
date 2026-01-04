@@ -11,16 +11,19 @@ import (
 
 type state int
 
-const (
-	stateSelecting state = iota
-	stateScanning
-	stateResults
-)
-
 type Config struct {
 	DryRun bool
 	Force  bool
 }
+
+const (
+	stateSelecting state = iota
+	stateScanning
+	stateResults
+	stateConfirming
+	stateExecuting
+	stateFinished
+)
 
 type Model struct {
 	scanner  *cmm.Scanner
@@ -31,6 +34,7 @@ type Model struct {
 	results  []cmm.ModuleResult
 	err      error
 	config   Config
+	freed    int64
 }
 
 func NewModel(scanner *cmm.Scanner, modules []cmm.Module, config Config) Model {
@@ -48,6 +52,7 @@ func (m Model) Init() tea.Cmd {
 }
 
 type scanMsg []cmm.ModuleResult
+type executeMsg int64
 type errMsg error
 
 func (m Model) runScan() tea.Msg {
@@ -62,6 +67,15 @@ func (m Model) runScan() tea.Msg {
 		return errMsg(err)
 	}
 	return scanMsg(results)
+}
+
+func (m Model) runExecute() tea.Msg {
+	engine := cmm.NewExecutionEngine(m.config.DryRun)
+	freed, err := engine.Execute(m.results)
+	if err != nil {
+		return errMsg(err)
+	}
+	return executeMsg(freed)
 }
 
 func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
@@ -87,7 +101,30 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				return m, m.runScan
 			}
 			if m.state == stateResults {
+				if m.config.DryRun {
+					return m, tea.Quit
+				}
+				m.state = stateConfirming
+				return m, nil
+			}
+			if m.state == stateConfirming {
+				m.state = stateExecuting
+				return m, m.runExecute
+			}
+			if m.state == stateFinished || m.err != nil {
 				return m, tea.Quit
+			}
+
+		case "y", "Y":
+			if m.state == stateConfirming {
+				m.state = stateExecuting
+				return m, m.runExecute
+			}
+
+		case "n", "N":
+			if m.state == stateConfirming {
+				m.state = stateResults
+				return m, nil
 			}
 
 		case " ":
@@ -106,9 +143,14 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.state = stateResults
 		return m, nil
 
+	case executeMsg:
+		m.freed = int64(msg)
+		m.state = stateFinished
+		return m, nil
+
 	case errMsg:
 		m.err = msg
-		m.state = stateResults
+		// If we were executing, we might want to stay in a state that shows the partial results
 		return m, nil
 	}
 
@@ -124,6 +166,12 @@ func (m Model) View() string {
 		b.WriteString(lipgloss.NewStyle().Foreground(warningColor).Render(" (DRY RUN MODE - No files will be deleted) "))
 	}
 	b.WriteString("\n\n")
+
+	if m.err != nil {
+		b.WriteString(lipgloss.NewStyle().Foreground(errorColor).Render(fmt.Sprintf("Error: %v", m.err)))
+		b.WriteString(helpStyle.Render("\n\nenter/q: quit"))
+		return b.String()
+	}
 
 	switch m.state {
 	case stateSelecting:
@@ -149,11 +197,7 @@ func (m Model) View() string {
 			b.WriteString(fmt.Sprintf("%s %s %s\n", cursor, checked, name))
 		}
 
-		if len(m.selected) > 0 {
-			b.WriteString(helpStyle.Render("\n↑/↓: move • space: select • enter: scan • q: quit"))
-		} else {
-			b.WriteString(helpStyle.Render("\n↑/↓: move • space: select • q: quit"))
-		}
+		b.WriteString(helpStyle.Render("\n↑/↓: move • space: select • enter: scan • q: quit"))
 
 	case stateScanning:
 		b.WriteString(headerStyle.Render("Scanning..."))
@@ -161,25 +205,66 @@ func (m Model) View() string {
 		b.WriteString("Please wait while we look for removable files.")
 
 	case stateResults:
-		if m.err != nil {
-			b.WriteString(lipgloss.NewStyle().Foreground(errorColor).Render(fmt.Sprintf("Error: %v", m.err)))
-		} else {
-			b.WriteString(headerStyle.Render("Scan Results"))
-			b.WriteString("\n\n")
+		b.WriteString(headerStyle.Render("Scan Results"))
+		b.WriteString("\n\n")
 
-			var totalBytes int64
-			for _, res := range m.results {
-				var moduleBytes int64
-				for _, item := range res.Items {
-					moduleBytes += item.Size
-				}
-				totalBytes += moduleBytes
-				b.WriteString(fmt.Sprintf("%s: %d items found (%s)\n", res.Module.Name(), len(res.Items), formatSize(moduleBytes)))
+		var totalBytes int64
+		for _, res := range m.results {
+			var moduleBytes int64
+			for _, item := range res.Items {
+				moduleBytes += item.Size
 			}
-
-			b.WriteString("\n")
-			b.WriteString(titleStyle.Render(fmt.Sprintf(" Total Space Reclaimable: %s ", formatSize(totalBytes))))
+			totalBytes += moduleBytes
+			b.WriteString(fmt.Sprintf("%s: %d items found (%s)\n", res.Module.Name(), len(res.Items), formatSize(moduleBytes)))
 		}
+
+		b.WriteString("\n")
+		b.WriteString(titleStyle.Render(fmt.Sprintf(" Total Space Reclaimable: %s ", formatSize(totalBytes))))
+		
+		if m.config.DryRun {
+			b.WriteString(helpStyle.Render("\n\nenter/q: quit"))
+		} else {
+			b.WriteString(helpStyle.Render("\n\nenter: proceed to cleanup • q: quit"))
+		}
+
+	case stateConfirming:
+		hasHarsh := false
+		for i := range m.selected {
+			if m.choices[i].Category() == "Harsh" {
+				hasHarsh = true
+				break
+			}
+		}
+
+		if hasHarsh {
+			b.WriteString(lipgloss.NewStyle().
+				Foreground(lipgloss.Color("#FFFDFE")).
+				Background(errorColor).
+				Padding(0, 1).
+				Bold(true).
+				Render("☢️  WARNING: HARSH CLEANUP DETECTED"))
+			b.WriteString("\n\n")
+			b.WriteString("Some of the selected modules are marked as 'Harsh'.\n")
+			b.WriteString("These might delete data that is harder to reconstruct (like local snapshots).\n\n")
+		} else {
+			b.WriteString(lipgloss.NewStyle().Foreground(accentColor).Bold(true).Render("⚠️  CONFIRMATION REQUIRED"))
+			b.WriteString("\n\n")
+		}
+
+		b.WriteString("Are you sure you want to delete the files found by the selected modules?\n")
+		b.WriteString("This action cannot be undone.\n\n")
+		b.WriteString(lipgloss.NewStyle().Foreground(accentColor).Render("Type 'y' to confirm or 'n' to cancel."))
+		b.WriteString(helpStyle.Render("\n\ny/n: confirm/cancel • q: quit"))
+
+	case stateExecuting:
+		b.WriteString(headerStyle.Render("Executing Cleanup..."))
+		b.WriteString("\n\n")
+		b.WriteString("Please wait while we delete the files.")
+
+	case stateFinished:
+		b.WriteString(headerStyle.Render("Cleanup Complete!"))
+		b.WriteString("\n\n")
+		b.WriteString(fmt.Sprintf("Successfully reclaimed %s of disk space.", formatSize(m.freed)))
 		b.WriteString(helpStyle.Render("\n\nenter/q: quit"))
 	}
 
