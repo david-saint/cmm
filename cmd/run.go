@@ -7,8 +7,10 @@ package cmd
 import (
 	"fmt"
 
+	tea "github.com/charmbracelet/bubbletea"
 	"github.com/david-saint/cmm/pkg/cmm"
 	"github.com/david-saint/cmm/pkg/modules"
+	"github.com/david-saint/cmm/pkg/ui"
 	"github.com/spf13/cobra"
 )
 
@@ -19,28 +21,18 @@ func NewRunCmd() *cobra.Command {
 		Short: "Start the interactive cleanup flow",
 		Long:  `Starts the interactive terminal UI to selectively clean up disk space.`,
 		Run: func(cmd *cobra.Command, args []string) {
-			fmt.Fprintln(cmd.OutOrStdout(), "Scanning for removable files...")
-			
 			scanner := cmm.NewScanner()
-			scanner.Register(modules.NewXcodeModule())
-			scanner.Register(modules.NewCachesModule())
-			scanner.Register(modules.NewTimeMachineModule())
-
-			results, err := scanner.Scan()
-			if err != nil {
-				fmt.Fprintf(cmd.OutOrStderr(), "Error during scan: %v\n", err)
-				return
+			
+			// Register modules
+			availableModules := []cmm.Module{
+				modules.NewXcodeModule(),
+				modules.NewCachesModule(),
+				modules.NewTimeMachineModule(),
 			}
 
-			for _, res := range results {
-				fmt.Fprintf(cmd.OutOrStdout(), "\nModule: %s (%s)\n", res.Module.Name(), res.Module.Category())
-				if len(res.Items) == 0 {
-					fmt.Fprintln(cmd.OutOrStdout(), "  No items found.")
-					continue
-				}
-				for _, item := range res.Items {
-					fmt.Fprintf(cmd.OutOrStdout(), "  - %s (%d bytes)\n", item.Path, item.Size)
-				}
+			p := tea.NewProgram(ui.NewModel(scanner, availableModules))
+			if _, err := p.Run(); err != nil {
+				fmt.Printf("Error running program: %v\n", err)
 			}
 		},
 	}

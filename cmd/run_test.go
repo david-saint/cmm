@@ -1,23 +1,21 @@
 package cmd
 
 import (
-	"bytes"
 	"testing"
 )
 
 func TestRunCommand(t *testing.T) {
-	rootCmd := NewRootCmd()
-	b := bytes.NewBufferString("")
-	rootCmd.SetOut(b)
-	rootCmd.SetArgs([]string{"run"})
+	runCmd := NewRunCmd()
 
-	err := rootCmd.Execute()
-	if err != nil {
-		t.Fatalf("Execute() failed: %v", err)
+	if runCmd.Use != "run" {
+		t.Errorf("expected Use 'run', got %q", runCmd.Use)
 	}
 
-	out := b.String()
-	if out == "" {
-		t.Errorf("expected non-empty output")
+	if runCmd.Short == "" {
+		t.Errorf("expected Short description to be set")
+	}
+
+	if runCmd.Long == "" {
+		t.Errorf("expected Long description to be set")
 	}
 }
