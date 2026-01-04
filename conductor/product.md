@@ -17,6 +17,7 @@
 - **Automated Modules:** Specialized logic for Time Machine snapshots, User caches, Xcode Derived Data, and System logs.
 - **Interactive Mode:** A rich terminal interface allowing users to hand-pick tasks or choose predefined maintenance paths.
 - **Dry Run Capability:** Transparency through previews, showing exactly what will be deleted before any action is taken.
+- **Detailed File Previews:** Interactive accordion-style lists showing the path, size, and type of every file targeted for deletion, sorted by size.
 - **Safety Warnings:** High-visibility warnings for "Harsh" cleanup modules.
 
 ## Safety & Trust
@@ -27,3 +28,4 @@
 ## User Experience (UX)
 - **Guided & Educational:** Provides context and clear warnings, explaining the *why* and *how* behind each cleanup step.
 - **Modern Terminal UI:** Utilizes interactive menus, progress bars, and spinners for a polished, professional feel.
+- **Enhanced Navigation:** Intuitive navigation flow allowing users to move forward and back through the cleanup stages seamlessly.

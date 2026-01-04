@@ -1,0 +1,8 @@
+{
+  "track_id": "back_nav_file_details_20260104",
+  "type": "feature",
+  "status": "new",
+  "created_at": "2026-01-04T12:00:00Z",
+  "updated_at": "2026-01-04T12:00:00Z",
+  "description": "Ability to go back to the previous step in the process and list the files that'll be deleted in a human readable format."
+}
