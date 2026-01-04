@@ -11,10 +11,13 @@ type XcodeModule struct {
 	DerivedDataPath string
 }
 
-func NewXcodeModule() *XcodeModule {
-	home, _ := os.UserHomeDir()
+func NewXcodeModule(basePath string) *XcodeModule {
+	if basePath == "" {
+		home, _ := os.UserHomeDir()
+		basePath = filepath.Join(home, "Library/Developer/Xcode/DerivedData")
+	}
 	return &XcodeModule{
-		DerivedDataPath: filepath.Join(home, "Library/Developer/Xcode/DerivedData"),
+		DerivedDataPath: basePath,
 	}
 }
 

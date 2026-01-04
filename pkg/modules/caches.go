@@ -11,10 +11,13 @@ type CachesModule struct {
 	CachesPath string
 }
 
-func NewCachesModule() *CachesModule {
-	home, _ := os.UserHomeDir()
+func NewCachesModule(basePath string) *CachesModule {
+	if basePath == "" {
+		home, _ := os.UserHomeDir()
+		basePath = filepath.Join(home, "Library/Caches")
+	}
 	return &CachesModule{
-		CachesPath: filepath.Join(home, "Library/Caches"),
+		CachesPath: basePath,
 	}
 }
 

@@ -14,8 +14,9 @@ import (
 type state int
 
 type Config struct {
-	DryRun bool
-	Force  bool
+	DryRun   bool
+	Force    bool
+	TestMode bool
 }
 
 const (
@@ -174,6 +175,10 @@ func (m Model) View() string {
 
 	b.WriteString(titleStyle.Render(" cmm - Clean My Mac CLI "))
 	b.WriteString("\n")
+	if m.config.TestMode {
+		b.WriteString(lipgloss.NewStyle().Foreground(lipgloss.Color("#7D56F4")).Bold(true).Render(" (TEST MODE - Using local directory) "))
+		b.WriteString("\n")
+	}
 	if m.config.DryRun {
 		b.WriteString(lipgloss.NewStyle().Foreground(warningColor).Render(" (DRY RUN MODE - No files will be deleted) "))
 	}
