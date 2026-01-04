@@ -3,7 +3,7 @@
 ## Phase 1: Foundation
 - [x] Task: Initialize Go module and setup Cobra CLI structure f951059
 - [x] Task: Define the `Module` interface and shared data structures 62027cb
-- [ ] Task: Implement a basic "Hello World" Cobra command for `cmm`
+- [x] Task: Implement a basic "Hello World" Cobra command for `cmm` a709689
 - [ ] Task: Conductor - User Manual Verification 'Foundation' (Protocol in workflow.md)
 
 ## Phase 2: Scanning Engine & Initial Modules
