@@ -1,10 +1,10 @@
 # Plan - Back Navigation and File Details
 
-## Phase 1: Navigation Infrastructure
+## Phase 1: Navigation Infrastructure [checkpoint: d5e43e9]
 - [x] Task: Implement 'Back' navigation state in the UI model (d52af56)
     - [x] Create test for state transition when 'Esc' is pressed
     - [x] Update `Update` function in `pkg/ui/model.go` to handle `esc` key
-- [ ] Task: Conductor - User Manual Verification 'Phase 1: Navigation Infrastructure' (Protocol in workflow.md)
+- [x] Task: Conductor - User Manual Verification 'Phase 1: Navigation Infrastructure' (d5e43e9)
 
 ## Phase 2: Data Model and Sorting Logic
 - [ ] Task: Update Module/Scanner data structures to include detailed file info
