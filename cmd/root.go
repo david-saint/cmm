@@ -41,6 +41,8 @@ Xcode Derived Data, User Caches, and Time Machine snapshots.`,
 
 	cmd.Flags().BoolP("toggle", "t", false, "Help message for toggle")
 
+	cmd.AddCommand(NewRunCmd())
+
 	return cmd
 }
 
