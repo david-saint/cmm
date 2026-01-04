@@ -1,0 +1,34 @@
+# Plan - Back Navigation and File Details
+
+## Phase 1: Navigation Infrastructure
+- [x] Task: Implement 'Back' navigation state in the UI model (d52af56)
+    - [x] Create test for state transition when 'Esc' is pressed
+    - [x] Update `Update` function in `pkg/ui/model.go` to handle `esc` key
+- [ ] Task: Conductor - User Manual Verification 'Phase 1: Navigation Infrastructure' (Protocol in workflow.md)
+
+## Phase 2: Data Model and Sorting Logic
+- [ ] Task: Update Module/Scanner data structures to include detailed file info
+    - [ ] Modify `ModuleResult` or equivalent to store a list of file details (path, size, type)
+    - [ ] Implement sorting logic to order files by size descending
+    - [ ] Write unit tests for sorting logic in `pkg/cmm/scanner_test.go`
+- [ ] Task: Conductor - User Manual Verification 'Phase 2: Data Model and Sorting Logic' (Protocol in workflow.md)
+
+## Phase 3: TUI Implementation for File Details
+- [ ] Task: Implement inline toggle logic in the View model
+    - [ ] Add `Expanded` state to category/result items in the UI model
+    - [ ] Update `Update` function to toggle `Expanded` state on `enter` or `space`
+    - [ ] Write tests for toggle state changes
+- [ ] Task: Implement Detailed File List View
+    - [ ] Create a sub-view function to render the list of files under an expanded category
+    - [ ] Format file sizes for human readability
+    - [ ] Add icons/visual indicators for file types using `Lip Gloss`
+    - [ ] Ensure the view handles large lists efficiently (e.g., within a viewport or truncated)
+- [ ] Task: Conductor - User Manual Verification 'Phase 3: TUI Implementation for File Details' (Protocol in workflow.md)
+
+## Phase 4: Final Polishing and Integration
+- [ ] Task: Refine Styles and Layout
+    - [ ] Update `pkg/ui/styles.go` with specific styles for the detailed list
+    - [ ] Ensure consistent indentation and visual hierarchy for the accordion view
+- [ ] Task: Final End-to-End Verification
+    - [ ] Perform a full dry-run scan and verify navigation and detail viewing
+- [ ] Task: Conductor - User Manual Verification 'Phase 4: Final Polishing and Integration' (Protocol in workflow.md)
