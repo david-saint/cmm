@@ -14,9 +14,9 @@
 - [x] Task: Conductor - User Manual Verification 'Scanning Engine & Initial Modules' (Protocol in workflow.md) 170858d
 
 ## Phase 3: Interactive TUI (Bubble Tea)
-- [ ] Task: Implement a basic Bubble Tea model for module selection
-- [ ] Task: Add multi-select capability to the TUI
-- [ ] Task: Style the TUI using Lip Gloss (Headers, semantic coloring)
+- [x] Task: Implement a basic Bubble Tea model for module selection c2bdac6
+- [x] Task: Add multi-select capability to the TUI c2bdac6
+- [~] Task: Style the TUI using Lip Gloss (Headers, semantic coloring)
 - [ ] Task: Connect the Scanning Engine to the TUI to show real-time progress/results
 - [ ] Task: Conductor - User Manual Verification 'Interactive TUI' (Protocol in workflow.md)
 
