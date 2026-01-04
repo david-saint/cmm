@@ -13,12 +13,12 @@
 - [x] Task: Create the Scanner Engine to orchestrate multiple modules 6010cfc
 - [x] Task: Conductor - User Manual Verification 'Scanning Engine & Initial Modules' (Protocol in workflow.md) 170858d
 
-## Phase 3: Interactive TUI (Bubble Tea)
+## Phase 3: Interactive TUI (Bubble Tea) [checkpoint: ac7af4d]
 - [x] Task: Implement a basic Bubble Tea model for module selection c2bdac6
 - [x] Task: Add multi-select capability to the TUI c2bdac6
 - [x] Task: Style the TUI using Lip Gloss (Headers, semantic coloring) 6d2bc2b
 - [x] Task: Connect the Scanning Engine to the TUI to show real-time progress/results 2368c60
-- [ ] Task: Conductor - User Manual Verification 'Interactive TUI' (Protocol in workflow.md)
+- [x] Task: Conductor - User Manual Verification 'Interactive TUI' (Protocol in workflow.md) ac7af4d
 
 ## Phase 4: Execution Engine & Safety
 - [ ] Task: Implement "Dry Run" logic to preview deletions
