@@ -11,8 +11,8 @@ func TestRunFlags(t *testing.T) {
 	if err != nil {
 		t.Fatalf("dry-run flag not found: %v", err)
 	}
-	if !dryRun {
-		t.Errorf("expected dry-run to be true by default")
+	if dryRun {
+		t.Errorf("expected dry-run to be false by default")
 	}
 
 	force, err := cmd.Flags().GetBool("force")

@@ -72,7 +72,7 @@ func NewRunCmd() *cobra.Command {
 		},
 	}
 
-	cmd.Flags().Bool("dry-run", true, "Preview changes without deleting")
+	cmd.Flags().Bool("dry-run", false, "Preview changes without deleting")
 	cmd.Flags().Bool("force", false, "Bypass confirmations")
 	cmd.Flags().Bool("test-mode", false, "Use a local temporary directory for safe testing")
 
