@@ -1,0 +1,8 @@
+{
+  "track_id": "logs_homebrew_modules_20260104",
+  "type": "feature",
+  "status": "new",
+  "created_at": "2026-01-04T12:00:00Z",
+  "updated_at": "2026-01-04T12:00:00Z",
+  "description": "New modules for system logs and homebrew. For homebrew, it'll only show up if the user has homebrew installed."
+}
