@@ -14,10 +14,10 @@
 - [x] Task: Conductor - User Manual Verification 'Phase 2: Data Model and Sorting Logic' (67e2a78)
 
 ## Phase 3: TUI Implementation for File Details
-- [ ] Task: Implement inline toggle logic in the View model
-    - [ ] Add `Expanded` state to category/result items in the UI model
-    - [ ] Update `Update` function to toggle `Expanded` state on `enter` or `space`
-    - [ ] Write tests for toggle state changes
+- [x] Task: Implement inline toggle logic in the View model (eaeaccc)
+    - [x] Add `Expanded` state to category/result items in the UI model
+    - [x] Update `Update` function to toggle `Expanded` state on `enter` or `space`
+    - [x] Write tests for toggle state changes
 - [ ] Task: Implement Detailed File List View
     - [ ] Create a sub-view function to render the list of files under an expanded category
     - [ ] Format file sizes for human readability
