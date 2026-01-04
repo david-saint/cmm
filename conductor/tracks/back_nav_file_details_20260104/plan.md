@@ -6,12 +6,12 @@
     - [x] Update `Update` function in `pkg/ui/model.go` to handle `esc` key
 - [x] Task: Conductor - User Manual Verification 'Phase 1: Navigation Infrastructure' (d5e43e9)
 
-## Phase 2: Data Model and Sorting Logic
+## Phase 2: Data Model and Sorting Logic [checkpoint: 67e2a78]
 - [x] Task: Update Module/Scanner data structures to include detailed file info (7e1fd6b)
     - [x] Modify `ModuleResult` or equivalent to store a list of file details (path, size, type)
     - [x] Implement sorting logic to order files by size descending
     - [x] Write unit tests for sorting logic in `pkg/cmm/scanner_test.go`
-- [ ] Task: Conductor - User Manual Verification 'Phase 2: Data Model and Sorting Logic' (Protocol in workflow.md)
+- [x] Task: Conductor - User Manual Verification 'Phase 2: Data Model and Sorting Logic' (67e2a78)
 
 ## Phase 3: TUI Implementation for File Details
 - [ ] Task: Implement inline toggle logic in the View model
