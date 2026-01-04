@@ -19,9 +19,6 @@ This phase adds support for cleaning up Homebrew artifacts.
 ## Phase 3: Integration and Registration
 Register the new modules and ensure they are available in the CLI.
 
-- [ ] **Task 3.1: Register New Modules in CLI**
-    - Update `cmd/run.go` to include `LogsModule` and `HomebrewModule` in the `availableModules` list.
-    - Ensure `HomebrewModule` is only added if detected.
-- [ ] **Task 3.2: Verify Selection UI**
-    - Run `cmm run` (in test mode) and verify the new modules appear in the selection list.
+- [x] **Task 3.1: Register New Modules in CLI** [2a5aee3]
+- [x] **Task 3.2: Verify Selection UI** [2a5aee3]
 - [ ] **Task 3.3: Conductor - User Manual Verification 'Phase 3: Integration and Registration' (Protocol in workflow.md)**
