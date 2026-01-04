@@ -17,6 +17,11 @@ const (
 	stateResults
 )
 
+type Config struct {
+	DryRun bool
+	Force  bool
+}
+
 type Model struct {
 	scanner  *cmm.Scanner
 	choices  []cmm.Module
@@ -25,14 +30,16 @@ type Model struct {
 	state    state
 	results  []cmm.ModuleResult
 	err      error
+	config   Config
 }
 
-func NewModel(scanner *cmm.Scanner, modules []cmm.Module) Model {
+func NewModel(scanner *cmm.Scanner, modules []cmm.Module, config Config) Model {
 	return Model{
 		scanner:  scanner,
 		choices:  modules,
 		selected: make(map[int]struct{}),
 		state:    stateSelecting,
+		config:   config,
 	}
 }
 
@@ -112,6 +119,10 @@ func (m Model) View() string {
 	var b strings.Builder
 
 	b.WriteString(titleStyle.Render(" cmm - Clean My Mac CLI "))
+	b.WriteString("\n")
+	if m.config.DryRun {
+		b.WriteString(lipgloss.NewStyle().Foreground(warningColor).Render(" (DRY RUN MODE - No files will be deleted) "))
+	}
 	b.WriteString("\n\n")
 
 	switch m.state {

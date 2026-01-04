@@ -21,7 +21,7 @@
 - [x] Task: Conductor - User Manual Verification 'Interactive TUI' (Protocol in workflow.md) ac7af4d
 
 ## Phase 4: Execution Engine & Safety
-- [ ] Task: Implement "Dry Run" logic to preview deletions
+- [~] Task: Implement "Dry Run" logic to preview deletions
 - [ ] Task: Implement the Execution Engine with safety confirmations
 - [ ] Task: Add "Nuclear/Harsh" warning prompts for specific modules
 - [ ] Task: Implement the actual deletion logic for the initial modules

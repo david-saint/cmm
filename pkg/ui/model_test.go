@@ -22,7 +22,7 @@ func TestInitialModel(t *testing.T) {
 		mockModule{name: "Module 1"},
 		mockModule{name: "Module 2"},
 	}
-	m := NewModel(nil, modules)
+	m := NewModel(nil, modules, Config{})
 
 	if len(m.choices) != 2 {
 		t.Errorf("expected 2 choices, got %d", len(m.choices))
@@ -38,7 +38,7 @@ func TestModel_Update(t *testing.T) {
 		mockModule{name: "Module 1"},
 		mockModule{name: "Module 2"},
 	}
-	m := NewModel(nil, modules)
+	m := NewModel(nil, modules, Config{})
 
 	// Test cursor movement
 	msg := tea.KeyMsg{Type: tea.KeyDown}
