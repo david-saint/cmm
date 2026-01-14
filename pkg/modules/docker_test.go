@@ -30,29 +30,70 @@ func TestDockerModule_Scan_NotInstalled(t *testing.T) {
 		t.Fatalf("Scan() failed: %v", err)
 	}
 
-	if len(items) != 0 {
-		t.Errorf("expected 0 items when Docker is not installed, got %d", len(items))
+	if items != nil {
+		t.Errorf("expected nil items when Docker is not installed, got %v", items)
 	}
 }
 
-func TestDockerModule_Scan_Installed(t *testing.T) {
-	// This test assumes Scan returns empty list for now (as implementation is not done),
-	// but we want to ensure it DOESN'T return early if installed.
-	// Since we haven't implemented the actual scan logic, we can't easily distinguish 
-	// "returned early" from "returned empty list".
-	// However, we can verify that the check IS called.
-	
-	called := false
+func TestDockerModule_Scan_Parsing(t *testing.T) {
+	mockOutput := "Images\t10.5GB\t1.2GB (11%)\n" +
+		"Containers\t500MB\t100MB (20%)\n" +
+		"Local Volumes\t2.0GB\t500MB\n" +
+		"Build Cache\t5.5GB\t2.0GB (36%)"
+
 	m := &DockerModule{
-		isDockerInstalled: func() bool { 
-			called = true
-			return true 
+		isDockerInstalled: func() bool { return true },
+		runCommand: func(name string, arg ...string) (string, error) {
+			if name == "docker" && len(arg) > 1 && arg[0] == "system" && arg[1] == "df" {
+				return mockOutput, nil
+			}
+			return "", nil
 		},
 	}
 
-	_, _ = m.Scan()
+	items, err := m.Scan()
+	if err != nil {
+		t.Fatalf("Scan() failed: %v", err)
+	}
 
-	if !called {
-		t.Error("expected isDockerInstalled check to be called")
+	if len(items) != 4 {
+		t.Fatalf("expected 4 items, got %d", len(items))
+	}
+
+	expectedPaths := map[string]bool{
+		"Images":        true,
+		"Containers":    true,
+		"Local Volumes": true,
+		"Build Cache":   true,
+	}
+
+	for _, item := range items {
+		if !expectedPaths[item.Path] {
+			t.Errorf("unexpected item path: %s", item.Path)
+		}
+		if item.Size == 0 {
+			t.Errorf("expected non-zero size for %s", item.Path)
+		}
+	}
+}
+
+func TestParseDockerSize(t *testing.T) {
+	tests := []struct {
+		input    string
+		expected int64
+	}{
+		{"0B", 0},
+		{"100B", 100},
+		{"1KB", 1024},
+		{"1.5MB", 1572864},
+		{"1.2GB", 1288490188},
+		{"  1.2GB (10%) ", 1288490188}, // Test strings.Index branch indirectly if called via Scan
+	}
+
+	for _, tt := range tests {
+		got, _ := parseDockerSize(tt.input)
+		if got != tt.expected {
+			t.Errorf("parseDockerSize(%q) = %d, want %d", tt.input, got, tt.expected)
+		}
 	}
 }
