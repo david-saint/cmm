@@ -24,7 +24,7 @@
     - [x] Return the total size of items successfully pruned
 - [x] Task: Conductor - User Manual Verification 'Cleanup Execution' (Protocol in workflow.md) 8475494
 
-## Phase 4: Integration & Registry
-- [ ] Task: Register `DockerModule` in the main module list
-    - [ ] Update module initialization logic to include the new Docker module
-- [ ] Task: Conductor - User Manual Verification 'Integration & Registry' (Protocol in workflow.md)
+## Phase 4: Integration & Registry [checkpoint: c140ce6]
+- [x] Task: Register `DockerModule` in the main module list 0b931eb
+    - [x] Update module initialization logic to include the new Docker module
+- [x] Task: Conductor - User Manual Verification 'Integration & Registry' (Protocol in workflow.md) c140ce6
