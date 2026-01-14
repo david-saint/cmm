@@ -1,7 +1,11 @@
 package modules
 
 import (
+	"fmt"
+	"strings"
 	"testing"
+
+	"github.com/david-saint/cmm/pkg/cmm"
 )
 
 func TestDockerModule_Basics(t *testing.T) {
@@ -87,13 +91,52 @@ func TestParseDockerSize(t *testing.T) {
 		{"1KB", 1024},
 		{"1.5MB", 1572864},
 		{"1.2GB", 1288490188},
-		{"  1.2GB (10%) ", 1288490188}, // Test strings.Index branch indirectly if called via Scan
+		{"  1.2GB (10%) ", 1288490188},
 	}
 
 	for _, tt := range tests {
 		got, _ := parseDockerSize(tt.input)
 		if got != tt.expected {
 			t.Errorf("parseDockerSize(%q) = %d, want %d", tt.input, got, tt.expected)
+		}
+	}
+}
+
+func TestDockerModule_Delete(t *testing.T) {
+	commands := []string{}
+	m := &DockerModule{
+		runCommand: func(name string, arg ...string) (string, error) {
+			commands = append(commands, fmt.Sprintf("%s %s", name, strings.Join(arg, " ")))
+			return "", nil
+		},
+	}
+
+	items := []cmm.FileItem{
+		{Path: "Images", Size: 1000},
+		{Path: "Containers", Size: 500},
+	}
+
+	freed, err := m.Delete(items)
+	if err != nil {
+		t.Fatalf("Delete() failed: %v", err)
+	}
+
+	if freed != 1500 {
+		t.Errorf("expected 1500 freed, got %d", freed)
+	}
+
+	expectedCommands := []string{
+		"docker system prune -f",
+		"docker volume prune -f",
+	}
+
+	if len(commands) != len(expectedCommands) {
+		t.Fatalf("expected %d commands, got %d", len(expectedCommands), len(commands))
+	}
+
+	for i, cmd := range expectedCommands {
+		if commands[i] != cmd {
+			t.Errorf("expected command %d to be %q, got %q", i, cmd, commands[i])
 		}
 	}
 }
