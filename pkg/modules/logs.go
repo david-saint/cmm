@@ -33,6 +33,10 @@ func (m *LogsModule) Category() string {
 	return "Recommended"
 }
 
+func (m *LogsModule) Available() bool {
+	return true
+}
+
 func (m *LogsModule) Scan() ([]cmm.FileItem, error) {
 	var items []cmm.FileItem
 

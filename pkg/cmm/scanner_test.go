@@ -12,6 +12,7 @@ type scannerMockModule struct {
 func (m *scannerMockModule) Name() string                     { return m.name }
 func (m *scannerMockModule) Description() string              { return "mock" }
 func (m *scannerMockModule) Category() string                 { return "Recommended" }
+func (m *scannerMockModule) Available() bool                  { return true }
 func (m *scannerMockModule) Scan() ([]FileItem, error)        { return m.items, nil }
 func (m *scannerMockModule) Delete([]FileItem) (int64, error) { return 0, nil }
 

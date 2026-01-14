@@ -32,6 +32,14 @@ func (m *HomebrewModule) Category() string {
 	return "Recommended"
 }
 
+func (m *HomebrewModule) Available() bool {
+	// If the module was created, brew was found.
+	// But strictly speaking, NewHomebrewModule returns nil if not found.
+	// However, if we instantiate it differently, we might want to check here too.
+	// For now, consistent with others.
+	return true
+}
+
 func (m *HomebrewModule) Scan() ([]cmm.FileItem, error) {
 	// Homebrew cleanup dry-run can be slow and output is complex.
 	// We provide a summary item.

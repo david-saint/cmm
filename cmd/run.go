@@ -46,15 +46,24 @@ func NewRunCmd() *cobra.Command {
 			scanner := cmm.NewScanner()
 			
 			// Register modules
-			availableModules := []cmm.Module{
+			rawModules := []cmm.Module{
 				modules.NewXcodeModule(xcodePath),
 				modules.NewCachesModule(cachesPath),
 				modules.NewLogsModule(),
-				modules.NewTimeMachineModule(), // Time Machine is tricky to mock easily in integration, keeping as is (harsh warning applies)
+				modules.NewTimeMachineModule(),
+				modules.NewDockerModule(),
 			}
 
 			if hb := modules.NewHomebrewModule(); hb != nil {
-				availableModules = append(availableModules, hb)
+				rawModules = append(rawModules, hb)
+			}
+			
+			// Filter out modules that are not available on this system
+			var availableModules []cmm.Module
+			for _, m := range rawModules {
+				if m.Available() {
+					availableModules = append(availableModules, m)
+				}
 			}
 
 			config := ui.Config{

@@ -9,6 +9,7 @@ type executionMockModule struct {
 func (m *executionMockModule) Name() string                     { return "mock" }
 func (m *executionMockModule) Description() string              { return "mock" }
 func (m *executionMockModule) Category() string                 { return "Recommended" }
+func (m *executionMockModule) Available() bool                  { return true }
 func (m *executionMockModule) Scan() ([]FileItem, error)        { return nil, nil }
 func (m *executionMockModule) Delete([]FileItem) (int64, error) { return m.freed, nil }
 

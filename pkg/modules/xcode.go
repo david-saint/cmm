@@ -33,6 +33,10 @@ func (m *XcodeModule) Category() string {
 	return "Recommended"
 }
 
+func (m *XcodeModule) Available() bool {
+	return true
+}
+
 func (m *XcodeModule) Scan() ([]cmm.FileItem, error) {
 	entries, err := os.ReadDir(m.DerivedDataPath)
 	if err != nil {

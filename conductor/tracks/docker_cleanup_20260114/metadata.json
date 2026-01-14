@@ -1,0 +1,8 @@
+{
+  "track_id": "docker_cleanup_20260114",
+  "type": "feature",
+  "status": "new",
+  "created_at": "2026-01-14T15:30:00Z",
+  "updated_at": "2026-01-14T15:30:00Z",
+  "description": "Add a new module to reclaim storage from Docker using system and volume prune."
+}

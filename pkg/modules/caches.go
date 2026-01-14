@@ -33,6 +33,10 @@ func (m *CachesModule) Category() string {
 	return "Recommended"
 }
 
+func (m *CachesModule) Available() bool {
+	return true
+}
+
 func (m *CachesModule) Scan() ([]cmm.FileItem, error) {
 	entries, err := os.ReadDir(m.CachesPath)
 	if err != nil {

@@ -31,11 +31,23 @@ func (m *DockerModule) Category() string {
 	return "Advanced/Optional"
 }
 
+func (m *DockerModule) Available() bool {
+	if m.isDockerInstalled != nil {
+		return m.isDockerInstalled()
+	}
+	return false
+}
+
 func (m *DockerModule) Scan() ([]cmm.FileItem, error) {
-	if m.isDockerInstalled != nil && !m.isDockerInstalled() {
+	if !m.Available() {
 		return nil, nil
 	}
 	
 	// TODO: Implement actual scanning
 	return []cmm.FileItem{}, nil
+}
+
+func (m *DockerModule) Delete(items []cmm.FileItem) (int64, error) {
+	// TODO: Implement deletion
+	return 0, nil
 }

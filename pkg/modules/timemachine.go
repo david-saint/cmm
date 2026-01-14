@@ -40,6 +40,10 @@ func (m *TimeMachineModule) Category() string {
 	return "Harsh"
 }
 
+func (m *TimeMachineModule) Available() bool {
+	return true
+}
+
 func (m *TimeMachineModule) Scan() ([]cmm.FileItem, error) {
 	// tmutil listlocalsnapshots /
 	out, err := m.runner.Run("tmutil", "listlocalsnapshots", "/")

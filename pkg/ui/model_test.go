@@ -14,6 +14,7 @@ type mockModule struct {
 func (m mockModule) Name() string                         { return m.name }
 func (m mockModule) Description() string                  { return "desc" }
 func (m mockModule) Category() string                     { return "Recommended" }
+func (m mockModule) Available() bool                      { return true }
 func (m mockModule) Scan() ([]cmm.FileItem, error)        { return nil, nil }
 func (m mockModule) Delete([]cmm.FileItem) (int64, error) { return 0, nil }
 

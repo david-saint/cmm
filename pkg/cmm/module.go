@@ -12,6 +12,7 @@ type Module interface {
 	Name() string
 	Description() string
 	Category() string // Recommended, Harsh
+	Available() bool  // Returns true if the module is applicable to the current system
 	Scan() ([]FileItem, error)
 	Delete([]FileItem) (int64, error) // Returns bytes freed
 }
