@@ -6,12 +6,12 @@
 - [x] Task: Conductor - User Manual Verification 'Module Foundation & Detection' (Protocol in workflow.md) 0ed0c9d
 
 ## Phase 2: Scanning & Estimation
-- [ ] Task: Write tests for `Scan()` method
-    - [ ] Mock `docker system df` output parsing
-    - [ ] Verify `FileItem` generation for each category (Images, Containers, Volumes, etc.)
-- [ ] Task: Implement `Scan()` logic
-    - [ ] Execute `docker system df --format '{{.Type}}	{{.Size}}	{{.Reclaimable}}'`
-    - [ ] Parse output and calculate total reclaimable space
+- [x] Task: Write tests for `Scan()` method 264e073
+    - [x] Mock `docker system df` output parsing
+    - [x] Verify `FileItem` generation for each category (Images, Containers, Volumes, etc.)
+- [x] Task: Implement `Scan()` logic 264e073
+    - [x] Execute `docker system df --format '{{.Type}}	{{.Size}}	{{.Reclaimable}}'`
+    - [x] Parse output and calculate total reclaimable space
 - [ ] Task: Conductor - User Manual Verification 'Scanning & Estimation' (Protocol in workflow.md)
 
 ## Phase 3: Cleanup Execution
