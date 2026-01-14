@@ -5,14 +5,14 @@
 - [x] Task: Implement Docker installation detection b0b7992
 - [x] Task: Conductor - User Manual Verification 'Module Foundation & Detection' (Protocol in workflow.md) 0ed0c9d
 
-## Phase 2: Scanning & Estimation
+## Phase 2: Scanning & Estimation [checkpoint: 64af566]
 - [x] Task: Write tests for `Scan()` method 264e073
     - [x] Mock `docker system df` output parsing
     - [x] Verify `FileItem` generation for each category (Images, Containers, Volumes, etc.)
 - [x] Task: Implement `Scan()` logic 264e073
     - [x] Execute `docker system df --format '{{.Type}}	{{.Size}}	{{.Reclaimable}}'`
     - [x] Parse output and calculate total reclaimable space
-- [ ] Task: Conductor - User Manual Verification 'Scanning & Estimation' (Protocol in workflow.md)
+- [x] Task: Conductor - User Manual Verification 'Scanning & Estimation' (Protocol in workflow.md) 64af566
 
 ## Phase 3: Cleanup Execution
 - [ ] Task: Write tests for `Delete()` method
