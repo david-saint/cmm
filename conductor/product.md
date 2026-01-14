@@ -14,7 +14,7 @@
 - **Customizable Control:** Offer flexible "flows" (Quick, Deep, Custom) to suit different needs and risk tolerances.
 
 ## Key Features
-- **Automated Modules:** Specialized logic for Time Machine snapshots, User caches, Xcode Derived Data, System logs, and Homebrew artifacts.
+- **Automated Modules:** Specialized logic for Time Machine snapshots, User caches, Xcode Derived Data, System logs, Homebrew artifacts, and Docker resources.
 - **Interactive Mode:** A rich terminal interface allowing users to hand-pick tasks or choose predefined maintenance paths.
 - **Dry Run Capability:** Transparency through previews, showing exactly what will be deleted before any action is taken.
 - **Detailed File Previews:** Interactive accordion-style lists showing the path, size, and type of every file targeted for deletion, sorted by size.
