@@ -15,13 +15,13 @@
 - [x] Task: Conductor - User Manual Verification 'Scanning & Estimation' (Protocol in workflow.md) 64af566
 
 ## Phase 3: Cleanup Execution
-- [ ] Task: Write tests for `Delete()` method
-    - [ ] Mock execution of `docker system prune` and `docker volume prune`
-    - [ ] Verify total bytes freed calculation
-- [ ] Task: Implement `Delete()` logic
-    - [ ] Execute `docker system prune -f`
-    - [ ] Execute `docker volume prune -f`
-    - [ ] Return the total size of items successfully pruned
+- [x] Task: Write tests for `Delete()` method 88b44c7
+    - [x] Mock execution of `docker system prune` and `docker volume prune`
+    - [x] Verify total bytes freed calculation
+- [x] Task: Implement `Delete()` logic 88b44c7
+    - [x] Execute `docker system prune -f`
+    - [x] Execute `docker volume prune -f`
+    - [x] Return the total size of items successfully pruned
 - [ ] Task: Conductor - User Manual Verification 'Cleanup Execution' (Protocol in workflow.md)
 
 ## Phase 4: Integration & Registry
