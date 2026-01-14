@@ -1,13 +1,9 @@
 # Plan: Docker Cleanup Module
 
-## Phase 1: Module Foundation & Detection
+## Phase 1: Module Foundation & Detection [checkpoint: 0ed0c9d]
 - [x] Task: Initialize Docker module structure in `pkg/modules/docker.go` 7d9f453
-    - [ ] Create `DockerModule` struct
-    - [ ] Implement `Name()`, `Description()`, and `Category()` (Advanced/Optional)
 - [x] Task: Implement Docker installation detection b0b7992
-    - [ ] Create `isDockerInstalled()` helper function
-    - [ ] Ensure `Scan()` returns early if Docker is missing
-- [ ] Task: Conductor - User Manual Verification 'Module Foundation & Detection' (Protocol in workflow.md)
+- [x] Task: Conductor - User Manual Verification 'Module Foundation & Detection' (Protocol in workflow.md) 0ed0c9d
 
 ## Phase 2: Scanning & Estimation
 - [ ] Task: Write tests for `Scan()` method
