@@ -16,7 +16,7 @@
 - [x] Task: Children rules: Maestro temp output (age filter) and Cursor failed-update leftovers 95b105e
 - [x] Task: Old CLI versions rule (keep newest, linked and in-use; links and in-use state re-read at apply time) 4bb94c8
 - [x] Task: Xcode build folders: DerivedData stale rule (3-level recency, workspace gone, unmounted volume, in-use) 87ed850
-- [ ] Task: Lane-local Xcode build folders (layout check, same staleness)
+- [x] Task: Lane-local Xcode build folders (layout check, same staleness) 58fa5f9
 - [ ] Task: Lanes: idle dependencies and build output (root package.json, idle test, symlinks, nested paths refused)
 - [ ] Task: Simulators: unavailable devices via simctl with every guard
 - [ ] Task: Homebrew: `brew cleanup` planner (named formulae, Python flag, exit code handling)
