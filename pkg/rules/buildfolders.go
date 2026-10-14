@@ -36,11 +36,18 @@ const (
 // a disk that is not plugged in, that name no usable workspace, that something has open or whose last use
 // cannot be established are left alone and reported.
 //
-// Only direct children of Root named like Xcode's own project folders are ever claimed.
+// Only direct children of Root are ever claimed, and only those that pass the test for the rule's flavour
+// (see Layout). A symbolic link is never a build folder.
 type BuildFoldersRule struct {
-	RuleID    string
-	Label     string
-	Root      string        // "~/Library/Developer/Xcode/DerivedData"
+	RuleID string
+	Label  string
+	Root   string // "~/Library/Developer/Xcode/DerivedData" or "~/lane-builds"
+	// Layout chooses how a child of Root is recognised. False: by its name, which must be one of Xcode's own
+	// (<Name>-<28 lowercase letters>) and the folder must hold an info.plist, as in DerivedData. True: by its
+	// contents, whatever it is called, for folders made with xcodebuild -derivedDataPath next to project
+	// checkouts: an info.plist naming a workspace, a Build folder, Index.noindex or Logs, and neither a
+	// package.json nor a .git (those make it a project, not build output).
+	Layout    bool
 	IdleFor   time.Duration // untouched this long: stale
 	GoneAfter time.Duration // workspace gone and untouched this long: stale (never longer than IdleFor)
 	Tier      Tier          // empty means TierSafe
@@ -92,9 +99,8 @@ func tilde(d Deps, p string) string {
 	return p
 }
 
-// workspace reads the workspace path Xcode recorded in the folder's info.plist. An empty or relative answer
-// is not usable and reported as an error.
-func (r *BuildFoldersRule) workspace(ctx context.Context, d Deps, dir string) (string, error) {
+// readWorkspace reads the workspace path Xcode recorded in the folder's info.plist (whatever it says).
+func readWorkspace(ctx context.Context, d Deps, dir string) (string, error) {
 	res, err := d.Env.Runner.Run(ctx, "plutil", "-extract", "WorkspacePath", "raw", filepath.Join(dir, "info.plist"))
 	if err != nil {
 		return "", err
@@ -102,11 +108,60 @@ func (r *BuildFoldersRule) workspace(ctx context.Context, d Deps, dir string) (s
 	if res.ExitCode != 0 {
 		return "", fmt.Errorf("plutil exited with status %d", res.ExitCode)
 	}
-	ws := strings.TrimRight(res.Stdout, "\r\n")
+	return strings.TrimRight(res.Stdout, "\r\n"), nil
+}
+
+// workspace is readWorkspace, but an empty or relative answer is not usable and reported as an error.
+func workspace(ctx context.Context, d Deps, dir string) (string, error) {
+	ws, err := readWorkspace(ctx, d, dir)
+	if err != nil {
+		return "", err
+	}
 	if !filepath.IsAbs(ws) {
 		return "", fmt.Errorf("%q is not an absolute path", ws)
 	}
 	return ws, nil
+}
+
+func isDir(p string) bool {
+	st, err := os.Stat(p)
+	return err == nil && st.IsDir()
+}
+
+// absent reports whether nothing at all (not even a dangling link) is at p; a path that cannot be looked at
+// counts as present.
+func absent(p string) bool {
+	_, err := os.Lstat(p)
+	return errors.Is(err, fs.ErrNotExist)
+}
+
+// looksLikeDerivedData is the content test for the Layout flavour: the shape of an Xcode DerivedData folder
+// and none of the marks of a project. The cheap file checks run first so plutil only runs for real candidates.
+func looksLikeDerivedData(ctx context.Context, d Deps, dir string) bool {
+	if st, err := os.Lstat(dir); err != nil || !st.IsDir() {
+		return false // a link, a file or nothing
+	}
+	if !hasInfoPlist(dir) || !isDir(filepath.Join(dir, "Build")) {
+		return false
+	}
+	if !isDir(filepath.Join(dir, "Index.noindex")) && !isDir(filepath.Join(dir, "Logs")) {
+		return false
+	}
+	for _, mark := range []string{"package.json", ".git"} {
+		if !absent(filepath.Join(dir, mark)) {
+			return false
+		}
+	}
+	_, err := readWorkspace(ctx, d, dir)
+	return err == nil
+}
+
+// isBuildFolder is the content test for a child of Root, according to the rule's flavour.
+func (r *BuildFoldersRule) isBuildFolder(ctx context.Context, d Deps, dir string) bool {
+	if r.Layout {
+		return looksLikeDerivedData(ctx, d, dir)
+	}
+	return hasInfoPlist(dir)
 }
 
 // unmountedVolume returns the volume a workspace lives on when that disk is not plugged in, or "".
@@ -148,7 +203,7 @@ func (r *BuildFoldersRule) check(ctx context.Context, d Deps, dir string) (*stal
 		return nil, ""
 	}
 
-	ws, err := r.workspace(ctx, d, dir)
+	ws, err := workspace(ctx, d, dir)
 	if err != nil {
 		return skip("no usable workspace path recorded (%v)", err)
 	}
@@ -206,15 +261,19 @@ func (r *BuildFoldersRule) Plan(ctx context.Context, d Deps) ([]Candidate, []Ski
 	var skips []Skip
 	for _, e := range entries {
 		name := e.Name()
-		if !projectFolderRE.MatchString(name) {
+		if !r.Layout && !projectFolderRE.MatchString(name) {
 			continue
 		}
 		if e.Type()&fs.ModeSymlink != 0 {
-			skips = append(skips, Skip{Reason: fmt.Sprintf("%s %s: is a symbolic link, left alone", buildFolderNoun, name)})
+			// in a folder of project checkouts a link is none of this rule's business; among Xcode's own
+			// project folders it is worth a word
+			if !r.Layout {
+				skips = append(skips, Skip{Reason: fmt.Sprintf("%s %s: is a symbolic link, left alone", buildFolderNoun, name)})
+			}
 			continue
 		}
 		p := filepath.Join(root, name)
-		if !e.IsDir() || !hasInfoPlist(p) {
+		if !e.IsDir() || !r.isBuildFolder(ctx, d, p) {
 			continue
 		}
 		if err := d.Policy.CheckNoSymlinks(p); err != nil {
@@ -246,20 +305,29 @@ func (r *BuildFoldersRule) Plan(ctx context.Context, d Deps) ([]Candidate, []Ski
 	return items, skips, nil
 }
 
-// Allows implements Rule: only direct children of Root named like Xcode's project folders.
+// allowsTimeout bounds the one command the Layout flavour's content test may run.
+const allowsTimeout = 30 * time.Second
+
+// Allows implements Rule: only direct children of Root that pass the rule's test (by name for Xcode's own
+// project folders, by contents for the Layout flavour, which looks at the disk each time it is asked).
 func (r *BuildFoldersRule) Allows(d Deps, p string) bool {
 	root, ok := expandRoot(d, r.Root)
 	if !ok || p == "" || filepath.Clean(p) != p || !policy.ChildOf(p, root) {
 		return false
 	}
-	return projectFolderRE.MatchString(filepath.Base(p))
+	if !r.Layout {
+		return projectFolderRE.MatchString(filepath.Base(p))
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), allowsTimeout)
+	defer cancel()
+	return looksLikeDerivedData(ctx, d, p)
 }
 
 // Recheck implements Rule: everything is judged again, because a build can start between planning and applying.
 func (r *BuildFoldersRule) Recheck(ctx context.Context, d Deps, c Candidate) error {
 	name := filepath.Base(c.Path)
-	if !hasInfoPlist(c.Path) {
-		return fmt.Errorf("%s %s: no longer has an info.plist", buildFolderNoun, name)
+	if !r.isBuildFolder(ctx, d, c.Path) {
+		return fmt.Errorf("%s %s: no longer looks like an Xcode build folder", buildFolderNoun, name)
 	}
 	found, reason := r.check(ctx, d, c.Path)
 	switch {

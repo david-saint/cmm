@@ -98,8 +98,12 @@ func BuiltinWithMin(cacheMin, xcodeMin int64) []Rule {
 	}
 }
 
-// idleFor is how long a project or lane must be untouched before its build output counts as abandoned.
-const idleFor = 5 * 24 * time.Hour
+const (
+	// idleFor is how long a project or lane must be untouched before its build output counts as abandoned.
+	idleFor = 5 * 24 * time.Hour
+	// goneAfter is the shorter wait for a build folder whose workspace no longer exists.
+	goneAfter = 3 * 24 * time.Hour
+)
 
 // staleDerivedData removes the build folders Xcode keeps in DerivedData for projects nobody has used for
 // five days (or whose workspace is gone and that were not used for three), unless something has them open.
@@ -109,7 +113,21 @@ func staleDerivedData() *BuildFoldersRule {
 		Label:     "Stale Xcode build output (DerivedData)",
 		Root:      "~/Library/Developer/Xcode/DerivedData",
 		IdleFor:   idleFor,
-		GoneAfter: 3 * 24 * time.Hour,
+		GoneAfter: goneAfter,
+	}
+}
+
+// laneLocalBuildFolders is the same for the build folders made with xcodebuild -derivedDataPath next to the
+// project checkouts in ~/lane-builds. They are recognised by their contents, never by name, and a folder that
+// is a project (package.json, .git) is never one of them.
+func laneLocalBuildFolders() *BuildFoldersRule {
+	return &BuildFoldersRule{
+		RuleID:    "lane-local-build",
+		Label:     "Stale lane-local Xcode build folders",
+		Root:      "~/lane-builds",
+		Layout:    true,
+		IdleFor:   idleFor,
+		GoneAfter: goneAfter,
 	}
 }
 
