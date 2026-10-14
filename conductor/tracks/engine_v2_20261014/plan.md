@@ -1,6 +1,6 @@
 # Track Plan: engine_v2_20261014
 
-## Phase 1: Safety Foundation, Engine Core and First Rules
+## Phase 1: Safety Foundation, Engine Core and First Rules [checkpoint: cbccf6e]
 - [x] Task: `pkg/sys`: command Runner (real exec + fake), Env (home, per-user temp dir from `getconf`, clock) and the `systest.Sandbox` test-isolation helper (`RequireInside`) 9295616
 - [x] Task: `pkg/sizer`: allocated size, same device only, hard links once, symlinks not followed 8e8edb2
 - [x] Task: `pkg/guard`: in-use (lsof), process-running (pgrep), recency walk, terminal check; fail-safe exit-code semantics from the spec, each tested on a fake runner b12d253
@@ -9,7 +9,7 @@
 - [x] Task: JSON schema v1 for plans with a golden test 66f0fda
 - [x] Task: Path rule kind and the first built-in rules (Go, npm, CocoaPods, bun, uv, Jest, Xcode module caches) 27ef4e3
 - [x] Task: CLI `cmm plan [--json]` and `cmm apply [--dry-run] [--yes]` with the no-terminal guard, Return gate and EOF/Ctrl-D cancel; warning banner on legacy `run`; git-ignore `cmm_test_data/` 6cc485d
-- [~] Task: Conductor - User Manual Verification 'Phase 1' (Protocol in workflow.md)
+- [x] Task: Conductor - User Manual Verification 'Phase 1' (Protocol in workflow.md) cbccf6e
 
 ## Phase 2: Parity Rules
 - [ ] Task: Children rules: Maestro temp output (age filter) and Cursor failed-update leftovers
