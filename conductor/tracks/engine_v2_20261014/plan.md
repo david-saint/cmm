@@ -14,7 +14,7 @@
 ## Phase 2: Parity Rules
 - [x] Task: Symlink hardening: refuse a target when any folder between its root (home or temp dir) and it is a symlink, at plan and apply time; `PathRule` skips symlinked parents 0d015d0
 - [x] Task: Children rules: Maestro temp output (age filter) and Cursor failed-update leftovers 95b105e
-- [ ] Task: Old CLI versions rule (keep newest, linked and in-use; links and in-use state re-read at apply time)
+- [x] Task: Old CLI versions rule (keep newest, linked and in-use; links and in-use state re-read at apply time) 4bb94c8
 - [ ] Task: Xcode build folders: DerivedData stale rule (3-level recency, workspace gone, unmounted volume, in-use)
 - [ ] Task: Lane-local Xcode build folders (layout check, same staleness)
 - [ ] Task: Lanes: idle dependencies and build output (root package.json, idle test, symlinks, nested paths refused)
