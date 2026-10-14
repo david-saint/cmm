@@ -78,10 +78,7 @@ func (r *BuildFoldersRule) idleWords() string {
 	return fmt.Sprintf("not used for %d+ days", int(r.IdleFor/(24*time.Hour)))
 }
 
-func hasInfoPlist(dir string) bool {
-	st, err := os.Stat(filepath.Join(dir, "info.plist"))
-	return err == nil && st.Mode().IsRegular()
-}
+func hasInfoPlist(dir string) bool { return regularFile(filepath.Join(dir, "info.plist")) }
 
 // projectName is the folder name without Xcode's trailing "-<hash>".
 func projectName(folder string) string {

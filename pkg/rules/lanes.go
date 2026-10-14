@@ -54,8 +54,7 @@ func isLane(dir string) bool {
 	if st, err := os.Lstat(dir); err != nil || !st.IsDir() {
 		return false
 	}
-	st, err := os.Stat(filepath.Join(dir, "package.json"))
-	return err == nil && st.Mode().IsRegular()
+	return regularFile(filepath.Join(dir, "package.json"))
 }
 
 // usedWithin reports whether anyone worked in the lane within the idle limit. An answer that cannot be given

@@ -131,6 +131,16 @@ func laneLocalBuildFolders() *BuildFoldersRule {
 	}
 }
 
+// simulators deletes the simulator devices whose runtime has been removed, through simctl.
+func simulators() *SimulatorsRule {
+	return &SimulatorsRule{
+		RuleID:  "simulators",
+		Label:   "Simulators whose runtime was removed",
+		Devices: "~/Library/Developer/CoreSimulator/Devices",
+		Settle:  3 * 24 * time.Hour,
+	}
+}
+
 // laneDeps removes node_modules and ios/Pods from lanes in ~/lane-builds that nobody has worked in for five
 // days; npm ci and pod install bring them back.
 func laneDeps() *LaneRule {
