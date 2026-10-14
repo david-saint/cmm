@@ -9,7 +9,7 @@
 - [x] Task: JSON schema v1 for plans with a golden test 66f0fda
 - [x] Task: Path rule kind and the first built-in rules (Go, npm, CocoaPods, bun, uv, Jest, Xcode module caches) 27ef4e3
 - [x] Task: CLI `cmm plan [--json]` and `cmm apply [--dry-run] [--yes]` with the no-terminal guard, Return gate and EOF/Ctrl-D cancel; warning banner on legacy `run`; git-ignore `cmm_test_data/` 6cc485d
-- [ ] Task: Conductor - User Manual Verification 'Phase 1' (Protocol in workflow.md)
+- [~] Task: Conductor - User Manual Verification 'Phase 1' (Protocol in workflow.md)
 
 ## Phase 2: Parity Rules
 - [ ] Task: Children rules: Maestro temp output (age filter) and Cursor failed-update leftovers
