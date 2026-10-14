@@ -19,7 +19,7 @@
 - [x] Task: Lane-local Xcode build folders (layout check, same staleness) 58fa5f9
 - [x] Task: Lanes: idle dependencies and build output (root package.json, idle test, symlinks, nested paths refused) dbbe35d
 - [x] Task: Simulators: unavailable devices via simctl with every guard 1238980
-- [ ] Task: Homebrew: `brew cleanup` planner (named formulae, Python flag, exit code handling)
+- [x] Task: Homebrew: `brew cleanup` planner (named formulae, Python flag, exit code handling) 7064f79
 - [ ] Task: Built-in registry in dev-cleanup order, `Engine.Allowed` (a rule allows it, policy accepts it, no symlink below the root) and the 96 allow-list cases ported as a table test; tests proving no rule reaches a real tool (unstubbed fake runner, no `os/exec` import outside `pkg/sys`)
 - [ ] Task: `scripts/parity.sh`: compare `cmm plan --json` with a patched copy of dev-cleanup on the real disk; fails closed (marker check, dump header, `--dry-run` hard-coded, compare by path, non-zero exit on mismatch) and reports categories that had nothing to compare
 - [ ] Task: Conductor - User Manual Verification 'Phase 2' (Protocol in workflow.md)
