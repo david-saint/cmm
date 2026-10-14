@@ -98,6 +98,21 @@ func BuiltinWithMin(cacheMin, xcodeMin int64) []Rule {
 	}
 }
 
+// idleFor is how long a project or lane must be untouched before its build output counts as abandoned.
+const idleFor = 5 * 24 * time.Hour
+
+// staleDerivedData removes the build folders Xcode keeps in DerivedData for projects nobody has used for
+// five days (or whose workspace is gone and that were not used for three), unless something has them open.
+func staleDerivedData() *BuildFoldersRule {
+	return &BuildFoldersRule{
+		RuleID:    "deriveddata-stale",
+		Label:     "Stale Xcode build output (DerivedData)",
+		Root:      "~/Library/Developer/Xcode/DerivedData",
+		IdleFor:   idleFor,
+		GoneAfter: 3 * 24 * time.Hour,
+	}
+}
+
 // maestroTemp removes the per-run output folders Maestro's XCTest runner leaves in the temp dir (hundreds of
 // them pile up), once they are more than an hour old and neither Maestro nor xcodebuild is running.
 func maestroTemp() *ChildrenRule {
