@@ -1,7 +1,7 @@
 # Track Plan: engine_v2_20261014
 
 ## Phase 1: Safety Foundation, Engine Core and First Rules
-- [ ] Task: `pkg/sys`: command Runner (real exec + fake), Env (home, per-user temp dir from `getconf`, clock) and the `TestEnv`/`RequireIsolated` test-isolation helper
+- [x] Task: `pkg/sys`: command Runner (real exec + fake), Env (home, per-user temp dir from `getconf`, clock) and the `TestEnv`/`RequireIsolated` test-isolation helper 9295616
 - [ ] Task: `pkg/sizer`: allocated size, same device only, hard links once, symlinks not followed
 - [ ] Task: `pkg/guard`: in-use (lsof), process-running (pgrep), recency walk, terminal check; fail-safe exit-code semantics from the spec, each tested on a fake runner
 - [ ] Task: `pkg/policy`: target validation (absolute, clean, allowed roots, no broad directories, no symlink target)
