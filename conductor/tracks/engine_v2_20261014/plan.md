@@ -1,14 +1,14 @@
 # Track Plan: engine_v2_20261014
 
 ## Phase 1: Safety Foundation, Engine Core and First Rules
-- [ ] Task: `pkg/sys`: command Runner (real exec + fake) and Env (home, per-user temp dir, clock)
+- [ ] Task: `pkg/sys`: command Runner (real exec + fake), Env (home, per-user temp dir from `getconf`, clock) and the `TestEnv`/`RequireIsolated` test-isolation helper
 - [ ] Task: `pkg/sizer`: allocated size, same device only, hard links once, symlinks not followed
-- [ ] Task: `pkg/guard`: in-use (lsof), process-running (pgrep), recency walk, terminal check; all fail safe
+- [ ] Task: `pkg/guard`: in-use (lsof), process-running (pgrep), recency walk, terminal check; fail-safe exit-code semantics from the spec, each tested on a fake runner
 - [ ] Task: `pkg/policy`: target validation (absolute, clean, allowed roots, no broad directories, no symlink target)
-- [ ] Task: `pkg/rules` and `pkg/engine` core: Rule interface, Plan, Apply (re-checks, dry-run, per-item errors, log, free space)
+- [ ] Task: `pkg/rules` and `pkg/engine` core: Rule interface, Plan, Apply with safety invariants 1-6 (re-check Allows/policy/guards right before each delete, dry-run never deletes, continue past errors with a non-zero exit) and free-space reading
 - [ ] Task: JSON schema v1 for plans with a golden test
 - [ ] Task: Path rule kind and the first built-in rules (Go, npm, CocoaPods, bun, uv, Jest, Xcode module caches)
-- [ ] Task: CLI `cmm plan [--json]` and `cmm apply [--dry-run] [--yes]` with the no-terminal guard and Return gate; warning banner on legacy `run`
+- [ ] Task: CLI `cmm plan [--json]` and `cmm apply [--dry-run] [--yes]` with the no-terminal guard, Return gate and EOF/Ctrl-D cancel; warning banner on legacy `run`; git-ignore `cmm_test_data/`
 - [ ] Task: Conductor - User Manual Verification 'Phase 1' (Protocol in workflow.md)
 
 ## Phase 2: Parity Rules
@@ -24,7 +24,7 @@
 - [ ] Task: Conductor - User Manual Verification 'Phase 2' (Protocol in workflow.md)
 
 ## Phase 3: Safe Apply, TUI and Legacy Removal
-- [ ] Task: Apply hardening: guards re-checked per item, continue on errors, non-zero exit on failures, cleanup log and last-run stamp
+- [ ] Task: Apply polish: cleanup log and last-run stamp (the safety invariants already shipped in Phase 1)
 - [ ] Task: Rewire `cmm run` to the engine (preview-only unless `--apply`); remove unguarded Caches/Logs modules and the no-op `--force`; keep Time Machine as a manual legacy module
 - [ ] Task: Documentation: README, tech-stack, product docs
 - [ ] Task: Conductor - User Manual Verification 'Phase 3' (Protocol in workflow.md)

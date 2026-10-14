@@ -25,16 +25,17 @@ plan. This is Milestone 1 of turning cmm into the engine behind a clickable macO
 
 ## Safety Invariants (each one is a test)
 1. **Allow-list, not deny-list.** A path is deletable only if some rule's `Allows` claims it AND
-   `policy.ValidateTarget` accepts it. Broad rules (child-of-root patterns) are evaluated last-match-safe:
-   a path claimed by no rule is refused, never "falls through".
+   `policy.ValidateTarget` accepts it; a path no rule claims is refused. The risk in Go is one rule's `Allows`
+   being too broad, so every rule has negative tests for its parent, its siblings and nested paths.
 2. **Policy backstop.** Targets must be absolute and clean (no `..`, no `//`), inside an allowed root
    (the user's home or per-user temp dir), not a broad directory (`/`, `/Users`, `$HOME`, `~/Library`,
    `~/Library/Caches`, `~/Library/Application Support`, `~/Documents`, `~/Desktop`, `~/Downloads`, ...),
    and the final element must not be a symlink.
 3. **Re-check at apply time.** Immediately before each deletion: re-run `Allows`, `ValidateTarget`, the
    rule's process guards and the in-use check. If anything changed, skip with a reason.
-4. **Guards fail safe.** If `lsof`/`pgrep` cannot answer (error, timeout), the item is skipped, never
-   treated as "not in use".
+4. **Guards fail safe.** `lsof`: exit 1 with empty stdout = not in use; non-empty stdout = in use; a spawn
+   failure, a timeout or any other exit code = cannot answer, so the item is skipped. `pgrep`: exit 0 = running,
+   exit 1 = none; exit 2 or more, or a spawn failure = cannot answer, so skip. Each case has a test on a fake runner.
 5. **No human, no deletion.** `apply` without `--yes` requires stdin to be a terminal and a Return keypress;
    EOF or Ctrl-D cancels. `--dry-run` never deletes. `plan` never writes anything.
 6. **Errors do not abort the run.** Every item is attempted; failures are reported and the exit code is non-zero.
@@ -43,6 +44,18 @@ plan. This is Milestone 1 of turning cmm into the engine behind a clickable macO
 8. **Recency in minutes.** All "idle for N days" checks use `now - mtime < N*24h` (BSD `find -mtime` rounds
    up and would treat 4.5 days as 5).
 9. **Plans are metadata.** The JSON plan contains paths, sizes, tiers and reasons only, never file contents.
+10. **One path form.** The per-user temp dir comes from `getconf DARWIN_USER_TEMP_DIR` (must match
+    `/var/folders/*/*/T`), never from `$TMPDIR` or `os.TempDir()`, which callers can override. Roots and targets
+    are compared as cleaned, unresolved paths; symlinks are never resolved on one side only (`/var` links to
+    `/private/var`).
+
+## Test Isolation (running the tests must never touch real files)
+- Tests build an `Env` with `sys.TestEnv(t)`, whose home and temp dir live under `t.TempDir()`, and call
+  `RequireIsolated` to fail if `Env.Home` is not under the test's temp dir. `DefaultEnv` is never called by a test.
+- No test calls the real `lsof`, `pgrep`, `simctl`, `brew`, `tmutil` or `rm` on real paths: all of them go through
+  `FakeRunner`. The single allowed exception is one optional read-only `lsof` check on a temp dir.
+- Legacy tests were audited on 2026-10-14: every one uses temp dirs or mocks.
+- `cmm run --test-mode` writes `cmm_test_data/` into the working directory, so it is git-ignored.
 
 ## Architecture
 New packages (the legacy `pkg/cmm`, `pkg/modules`, `pkg/ui` stay until Phase 3):
@@ -118,9 +131,10 @@ the Claude panel, and **retiring `dev-cleanup` / editing the weekly reminder** (
 the owner's explicit yes).
 
 ## Acceptance Criteria
-1. `scripts/parity.sh` shows `cmm plan --json` equals `dev-cleanup --dry-run` on the real disk: same groups,
-   same item paths (against a patched copy of dev-cleanup that dumps its planned paths), sizes within
-   max(2%, 5 MB), same skips.
+1. `scripts/parity.sh` shows `cmm plan --json` equals `dev-cleanup --dry-run` on the real disk: same rule IDs,
+   same item paths, sizes within max(2%, 5 MB). Skip wording is not compared. The reference is a patched copy of
+   dev-cleanup (kept outside the repo, run with `--dry-run` only) that dumps its planned paths; the installed
+   script is never modified.
 2. Go tests carry over all 96 `dev-cleanup --self-test` allow-list checks and every fixture scenario
    (4.5 vs 5.5 day edges, nested recency, DerivedData look-alike inside a lane, nested `lane/sub/android/...`,
    symlinks, unmounted volume, workspace gone 4 days vs just now).
@@ -128,3 +142,9 @@ the owner's explicit yes).
 4. The JSON plan schema is covered by a golden test.
 5. `cmm run` no longer reaches an unguarded module; `--force` no longer exists as a no-op.
 6. New packages have >80% statement coverage.
+
+## Verification Rules
+- Never `go install` (it would overwrite the owner's `~/go/bin/cmm`); use `go run .` or build into a scratch dir.
+- The agent never runs a real `apply` on the owner's disk, not even to look; `apply` is tested against temp trees.
+- Manual verification steps handed to the owner are read-only: `cmm plan`, `cmm plan --json`,
+  `cmm apply --dry-run`, and `cmm apply </dev/null` refusing. A real `apply` is the owner's call.
