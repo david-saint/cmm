@@ -5,7 +5,7 @@
 - [x] Task: `pkg/sizer`: allocated size, same device only, hard links once, symlinks not followed 8e8edb2
 - [x] Task: `pkg/guard`: in-use (lsof), process-running (pgrep), recency walk, terminal check; fail-safe exit-code semantics from the spec, each tested on a fake runner b12d253
 - [x] Task: `pkg/policy`: target validation (absolute, clean, allowed roots, no broad directories, no symlink target) 59d82d6
-- [ ] Task: `pkg/rules` and `pkg/engine` core: Rule interface, Plan, Apply with safety invariants 1-6 (re-check Allows/policy/guards right before each delete, dry-run never deletes, continue past errors with a non-zero exit) and free-space reading
+- [x] Task: `pkg/rules` and `pkg/engine` core: Rule interface, Plan, Apply with safety invariants 1-6 (re-check Allows/policy/guards right before each delete, dry-run never deletes, continue past errors with a non-zero exit) and free-space reading 4a37691
 - [ ] Task: JSON schema v1 for plans with a golden test
 - [ ] Task: Path rule kind and the first built-in rules (Go, npm, CocoaPods, bun, uv, Jest, Xcode module caches)
 - [ ] Task: CLI `cmm plan [--json]` and `cmm apply [--dry-run] [--yes]` with the no-terminal guard, Return gate and EOF/Ctrl-D cancel; warning banner on legacy `run`; git-ignore `cmm_test_data/`
