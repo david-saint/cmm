@@ -3,7 +3,7 @@
 ## Phase 1: Safety Foundation, Engine Core and First Rules
 - [x] Task: `pkg/sys`: command Runner (real exec + fake), Env (home, per-user temp dir from `getconf`, clock) and the `TestEnv`/`RequireIsolated` test-isolation helper 9295616
 - [x] Task: `pkg/sizer`: allocated size, same device only, hard links once, symlinks not followed 8e8edb2
-- [ ] Task: `pkg/guard`: in-use (lsof), process-running (pgrep), recency walk, terminal check; fail-safe exit-code semantics from the spec, each tested on a fake runner
+- [x] Task: `pkg/guard`: in-use (lsof), process-running (pgrep), recency walk, terminal check; fail-safe exit-code semantics from the spec, each tested on a fake runner b12d253
 - [ ] Task: `pkg/policy`: target validation (absolute, clean, allowed roots, no broad directories, no symlink target)
 - [ ] Task: `pkg/rules` and `pkg/engine` core: Rule interface, Plan, Apply with safety invariants 1-6 (re-check Allows/policy/guards right before each delete, dry-run never deletes, continue past errors with a non-zero exit) and free-space reading
 - [ ] Task: JSON schema v1 for plans with a golden test
