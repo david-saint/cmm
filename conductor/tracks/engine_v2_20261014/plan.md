@@ -7,7 +7,7 @@
 - [x] Task: `pkg/policy`: target validation (absolute, clean, allowed roots, no broad directories, no symlink target) 59d82d6
 - [x] Task: `pkg/rules` and `pkg/engine` core: Rule interface, Plan, Apply with safety invariants 1-6 (re-check Allows/policy/guards right before each delete, dry-run never deletes, continue past errors with a non-zero exit) and free-space reading 4a37691
 - [x] Task: JSON schema v1 for plans with a golden test 66f0fda
-- [ ] Task: Path rule kind and the first built-in rules (Go, npm, CocoaPods, bun, uv, Jest, Xcode module caches)
+- [x] Task: Path rule kind and the first built-in rules (Go, npm, CocoaPods, bun, uv, Jest, Xcode module caches) 27ef4e3
 - [ ] Task: CLI `cmm plan [--json]` and `cmm apply [--dry-run] [--yes]` with the no-terminal guard, Return gate and EOF/Ctrl-D cancel; warning banner on legacy `run`; git-ignore `cmm_test_data/`
 - [ ] Task: Conductor - User Manual Verification 'Phase 1' (Protocol in workflow.md)
 
