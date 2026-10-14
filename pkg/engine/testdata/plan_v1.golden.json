@@ -1,0 +1,46 @@
+{
+  "schema_version": 1,
+  "generated_at": "2026-10-14T12:00:00Z",
+  "host": {
+    "volume": "/System/Volumes/Data",
+    "free_bytes": 27583119360
+  },
+  "items": [
+    {
+      "rule": "go-build",
+      "group": "Go build cache",
+      "path": "/Users/test/Library/Caches/go-build",
+      "bytes": 3715000000,
+      "tier": "safe",
+      "action": "delete"
+    },
+    {
+      "rule": "homebrew",
+      "group": "Homebrew: old versions of installed formulae (brew cleanup)",
+      "path": "homebrew: cleanup",
+      "bytes": 704000000,
+      "tier": "safe",
+      "action": "command",
+      "note": "boost 1.85.0, 0.5 GB; python@3.14 3.14.7, 81 MB"
+    }
+  ],
+  "groups": [
+    {
+      "group": "Go build cache",
+      "bytes": 3715000000,
+      "count": 1
+    },
+    {
+      "group": "Homebrew: old versions of installed formulae (brew cleanup)",
+      "bytes": 704000000,
+      "count": 1
+    }
+  ],
+  "skipped": [
+    {
+      "rule": "uv-cache",
+      "reason": "uv is running"
+    }
+  ],
+  "total_bytes": 4419000000
+}
