@@ -17,7 +17,7 @@
 - [x] Task: Old CLI versions rule (keep newest, linked and in-use; links and in-use state re-read at apply time) 4bb94c8
 - [x] Task: Xcode build folders: DerivedData stale rule (3-level recency, workspace gone, unmounted volume, in-use) 87ed850
 - [x] Task: Lane-local Xcode build folders (layout check, same staleness) 58fa5f9
-- [ ] Task: Lanes: idle dependencies and build output (root package.json, idle test, symlinks, nested paths refused)
+- [x] Task: Lanes: idle dependencies and build output (root package.json, idle test, symlinks, nested paths refused) dbbe35d
 - [ ] Task: Simulators: unavailable devices via simctl with every guard
 - [ ] Task: Homebrew: `brew cleanup` planner (named formulae, Python flag, exit code handling)
 - [ ] Task: Built-in registry in dev-cleanup order, `Engine.Allowed` (a rule allows it, policy accepts it, no symlink below the root) and the 96 allow-list cases ported as a table test; tests proving no rule reaches a real tool (unstubbed fake runner, no `os/exec` import outside `pkg/sys`)
