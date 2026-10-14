@@ -1,6 +1,10 @@
 package rules
 
-import "github.com/david-saint/cmm/pkg/guard"
+import (
+	"time"
+
+	"github.com/david-saint/cmm/pkg/guard"
+)
 
 const mb = 1 << 20
 
@@ -18,6 +22,10 @@ var (
 	procXcB     = guard.ProcSpec{Exact: "xcodebuild"}
 	procSwiftF  = guard.ProcSpec{Exact: "swift-frontend"}
 	procSwiftB  = guard.ProcSpec{Exact: "swift-build"}
+
+	procMaestro       = guard.ProcSpec{Pattern: `[m]aestro`}
+	procCursorApp     = guard.ProcSpec{Pattern: `/Applications/Cursor.app/Contents`}
+	procCursorUpdater = guard.ProcSpec{Pattern: `[c]om.todesktop.230313mzl4w4u92.ShipIt`}
 )
 
 // Builtin returns the built-in rules in the order the dev-cleanup script used.
@@ -87,5 +95,33 @@ func BuiltinWithMin(cacheMin, xcodeMin int64) []Rule {
 			Block:      []guard.ProcSpec{procJest},
 			BlockedMsg: "jest is running",
 		},
+	}
+}
+
+// maestroTemp removes the per-run output folders Maestro's XCTest runner leaves in the temp dir (hundreds of
+// them pile up), once they are more than an hour old and neither Maestro nor xcodebuild is running.
+func maestroTemp() *ChildrenRule {
+	return &ChildrenRule{
+		RuleID:     "maestro-temp",
+		Label:      "Maestro test output (older than 1 hour)",
+		Root:       "{tmp}",
+		Pattern:    "maestro_xctestrunner_xcodebuild_output*",
+		OlderThan:  time.Hour,
+		Block:      []guard.ProcSpec{procMaestro, procXcB},
+		BlockedMsg: "Maestro or xcodebuild is running",
+	}
+}
+
+// cursorUpdate removes the staged copy of an auto-update that Cursor's updater (ShipIt) gave up on, plus its
+// state file, when neither Cursor nor the updater is running.
+func cursorUpdate() *ChildrenRule {
+	return &ChildrenRule{
+		RuleID:     "cursor-update",
+		Label:      "Cursor's failed update (staged copy)",
+		Root:       "~/Library/Caches/com.todesktop.230313mzl4w4u92.ShipIt",
+		Pattern:    "update.*",
+		Also:       []string{"ShipItState.plist"},
+		Block:      []guard.ProcSpec{procCursorApp, procCursorUpdater},
+		BlockedMsg: "Cursor or its updater is running",
 	}
 }

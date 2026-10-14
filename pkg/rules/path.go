@@ -6,7 +6,6 @@ import (
 	"os"
 	"path/filepath"
 	"slices"
-	"strings"
 
 	"github.com/david-saint/cmm/pkg/guard"
 	"github.com/david-saint/cmm/pkg/sizer"
@@ -41,17 +40,6 @@ func (r *PathRule) tier() Tier {
 	return r.Tier
 }
 
-// expand turns a template into a path, or reports that the template is not acceptable.
-func expand(d Deps, tmpl string) (string, bool) {
-	switch {
-	case strings.HasPrefix(tmpl, "~/") && len(tmpl) > 2 && d.Env.Home != "":
-		return filepath.Join(d.Env.Home, tmpl[2:]), true
-	case strings.HasPrefix(tmpl, "{tmp}/") && len(tmpl) > 6 && d.Env.TmpDir != "":
-		return filepath.Join(d.Env.TmpDir, tmpl[6:]), true
-	}
-	return "", false
-}
-
 func (r *PathRule) resolved(d Deps) []string {
 	out := make([]string, 0, len(r.Targets))
 	for _, t := range r.Targets {
@@ -72,17 +60,7 @@ func (r *PathRule) Allows(d Deps, path string) bool {
 
 // processGuard returns an error with the reason if a blocking process runs or cannot be checked.
 func (r *PathRule) processGuard(ctx context.Context, d Deps) error {
-	if len(r.Block) == 0 {
-		return nil
-	}
-	running, _, err := d.Guard.AnyRunning(ctx, r.Block...)
-	if err != nil {
-		return fmt.Errorf("%s: could not check whether the tools using it are running (%v)", r.Label, err)
-	}
-	if running {
-		return fmt.Errorf("%s: %s", r.Label, r.BlockedMsg)
-	}
-	return nil
+	return blockedBy(ctx, d, r.Label, r.Block, r.BlockedMsg)
 }
 
 func (r *PathRule) inUseGuard(ctx context.Context, d Deps, path string) error {
