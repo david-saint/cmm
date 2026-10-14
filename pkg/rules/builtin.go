@@ -33,10 +33,15 @@ var (
 // Builtin returns the built-in rules in the order the dev-cleanup script used.
 func Builtin() []Rule { return BuiltinWithMin(50*mb, 100*mb) }
 
-// BuiltinWithMin is Builtin with its two size thresholds replaced, so tests can use tiny files.
-// cacheMin applies to the cache rules; xcodeMin to the Xcode module and compilation caches.
+// BuiltinWithMin is Builtin with its size thresholds replaced, so tests can use tiny files.
+// cacheMin applies to the cache rules and the lanes; xcodeMin to the Xcode module and compilation caches.
 func BuiltinWithMin(cacheMin, xcodeMin int64) []Rule {
+	deps, output := laneDeps(), laneBuildOutput()
+	deps.MinBytes, output.MinBytes = cacheMin, cacheMin
+
 	return []Rule{
+		simulators(),
+		staleDerivedData(),
 		&PathRule{
 			RuleID: "xcode-module-cache",
 			Label:  "Xcode module/compilation cache (rebuilds on the next build)",
@@ -97,6 +102,14 @@ func BuiltinWithMin(cacheMin, xcodeMin int64) []Rule {
 			Block:      []guard.ProcSpec{procJest},
 			BlockedMsg: "jest is running",
 		},
+		maestroTemp(),
+		cursorUpdate(),
+		claudeVersions(),
+		cursorAgentVersions(),
+		deps,
+		output,
+		laneLocalBuildFolders(),
+		homebrew(),
 	}
 }
 

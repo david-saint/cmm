@@ -113,6 +113,22 @@ func (e *Engine) permit(r rules.Rule, c rules.Candidate) error {
 	return nil
 }
 
+// Allowed reports whether cmm could ever delete path: some rule claims it, the policy accepts it and no folder
+// between the home folder (or temp dir) and it is a symbolic link. It never plans, re-checks or acts; it is the
+// allow-list question on its own, so the limits of the rules can be tested without a machine to clean. The
+// action names of command rules ("homebrew: cleanup") are not paths and are never allowed here.
+func (e *Engine) Allowed(path string) bool {
+	if e.Deps.Policy.ValidateTarget(path) != nil || e.Deps.Policy.CheckNoSymlinks(path) != nil {
+		return false
+	}
+	for _, r := range e.Rules {
+		if r.Allows(e.Deps, path) {
+			return true
+		}
+	}
+	return false
+}
+
 // Plan asks every rule what it would remove. A rule that cannot run becomes a skip; a rule that plans
 // something it is not allowed to is a bug and fails the whole plan.
 func (e *Engine) Plan(ctx context.Context) (*Plan, error) {

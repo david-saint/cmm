@@ -4,6 +4,7 @@ import (
 	"context"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/david-saint/cmm/pkg/engine"
@@ -20,6 +21,17 @@ func engineFor(sb *systest.Sandbox, rs []rules.Rule) *engine.Engine {
 	e := engine.New(rules.Deps{Env: sb.Env, Guard: guard.New(sb.Env), Policy: policy.New(sb.Env)}, rs)
 	e.Free = func() (string, int64, error) { return "/sandbox", 1 << 30, nil }
 	return e
+}
+
+// pathRules keeps only the fixed-folder rules (the caches); the tests below seed nothing else.
+func pathRules(rs []rules.Rule) []rules.Rule {
+	var out []rules.Rule
+	for _, r := range rs {
+		if _, ok := r.(*rules.PathRule); ok {
+			out = append(out, r)
+		}
+	}
+	return out
 }
 
 func TestBuiltin_Definitions(t *testing.T) {
@@ -84,13 +96,41 @@ func TestBuiltin_OrderMatchesDevCleanup(t *testing.T) {
 	for _, r := range rules.Builtin() {
 		ids = append(ids, r.ID())
 	}
-	want := []string{"xcode-module-cache", "go-build", "npm-cache", "cocoapods", "bun-cache", "uv-cache", "jest-temp"}
-	if len(ids) != len(want) {
-		t.Fatalf("rule order = %v, want %v", ids, want)
+	want := []string{
+		"simulators", "deriveddata-stale", "xcode-module-cache",
+		"go-build", "npm-cache", "cocoapods", "bun-cache", "uv-cache", "jest-temp", "maestro-temp",
+		"cursor-update", "claude-versions", "cursor-agent-versions",
+		"lane-deps", "lane-build-output", "lane-local-build",
+		"homebrew",
 	}
-	for i := range want {
-		if ids[i] != want[i] {
-			t.Fatalf("rule order = %v, want %v", ids, want)
+	if strings.Join(ids, " ") != strings.Join(want, " ") {
+		t.Fatalf("rule order =\n%v\nwant\n%v", ids, want)
+	}
+}
+
+func TestBuiltin_EveryRuleHasADistinctIdAndAGroup(t *testing.T) {
+	seen := map[string]bool{}
+	for _, r := range rules.Builtin() {
+		if r.ID() == "" || r.Group() == "" {
+			t.Errorf("rule %T needs an id and a group", r)
+		}
+		if seen[r.ID()] {
+			t.Errorf("duplicate rule id %s", r.ID())
+		}
+		seen[r.ID()] = true
+	}
+}
+
+func TestBuiltin_TheSizeThresholdAppliesToTheLanesToo(t *testing.T) {
+	const mb = 1 << 20
+	for _, r := range rules.Builtin() {
+		if l, ok := r.(*rules.LaneRule); ok && l.MinBytes != 50*mb {
+			t.Errorf("%s: lanes leave out anything under 50 MB, got %d", l.ID(), l.MinBytes)
+		}
+	}
+	for _, r := range rules.BuiltinWithMin(7, 9) {
+		if l, ok := r.(*rules.LaneRule); ok && l.MinBytes != 7 {
+			t.Errorf("%s: BuiltinWithMin must set the lane threshold to the cache one, got %d", l.ID(), l.MinBytes)
 		}
 	}
 }
@@ -120,7 +160,7 @@ func TestBuiltin_EndToEndInASandbox(t *testing.T) {
 	sb.Runner.StubPrefix(sys.Result{ExitCode: 1}, nil, "pgrep") // nothing running
 	sb.Runner.Stub(sys.Result{ExitCode: 1}, nil, "lsof", "-w", "+D", paths["uv-cache"])
 
-	e := engineFor(sb, rules.BuiltinWithMin(1, 1))
+	e := engineFor(sb, pathRules(rules.BuiltinWithMin(1, 1)))
 	plan, err := e.Plan(ctx)
 	if err != nil {
 		t.Fatalf("Plan() failed: %v", err)
@@ -156,7 +196,7 @@ func TestBuiltin_ARunningToolOnlyBlocksItsOwnRule(t *testing.T) {
 	sb.Runner.StubPrefix(sys.Result{ExitCode: 1}, nil, "pgrep")
 	sb.Runner.Stub(sys.Result{ExitCode: 1}, nil, "lsof", "-w", "+D", paths["uv-cache"])
 
-	e := engineFor(sb, rules.BuiltinWithMin(1, 1))
+	e := engineFor(sb, pathRules(rules.BuiltinWithMin(1, 1)))
 	plan, err := e.Plan(ctx)
 	if err != nil {
 		t.Fatal(err)
@@ -177,7 +217,7 @@ func TestBuiltin_DryRunLeavesEverythingInPlace(t *testing.T) {
 	sb.Runner.StubPrefix(sys.Result{ExitCode: 1}, nil, "pgrep")
 	sb.Runner.Stub(sys.Result{ExitCode: 1}, nil, "lsof", "-w", "+D", paths["uv-cache"])
 
-	e := engineFor(sb, rules.BuiltinWithMin(1, 1))
+	e := engineFor(sb, pathRules(rules.BuiltinWithMin(1, 1)))
 	plan, _ := e.Plan(ctx)
 	rep, _ := e.Apply(ctx, plan, engine.ApplyOptions{DryRun: true})
 	if rep.Deleted != 0 {
