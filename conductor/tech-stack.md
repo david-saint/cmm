@@ -16,3 +16,9 @@
 ## Testing & Quality
 - **Go Testing Framework:** Standard `testing` package for unit and integration tests.
 - **Testify:** For more expressive assertions and mocking.
+
+## Changes
+- **2026-10-14 (track engine_v2_20261014):** `github.com/mattn/go-isatty` is now a direct dependency. It is the
+  terminal check behind the no-human-no-deletion guard in `cmm apply` (`/dev/null` and pipes must not count as
+  terminals). New internal packages: `pkg/sys` (+`systest`), `pkg/sizer`, `pkg/guard`, `pkg/policy`, `pkg/rules`,
+  `pkg/engine`. Tests use the standard library only (Testify is not used).

@@ -36,6 +36,9 @@ plan. This is Milestone 1 of turning cmm into the engine behind a clickable macO
 4. **Guards fail safe.** `lsof`: exit 1 with empty stdout = not in use; non-empty stdout = in use; a spawn
    failure, a timeout or any other exit code = cannot answer, so the item is skipped. `pgrep`: exit 0 = running,
    exit 1 = none; exit 2 or more, or a spawn failure = cannot answer, so skip. Each case has a test on a fake runner.
+    Platform note (verified 2026-10-14): BSD `pgrep` never reports ancestors of the calling process, so a tool
+    that launched cmm (`go run`, `make`, a shell script) is invisible to the process guards. That is harmless for
+    cleanup, but it means a guard cannot be demonstrated by running cmm under the very tool it guards.
 5. **No human, no deletion.** `apply` without `--yes` requires stdin to be a terminal and a Return keypress;
    EOF or Ctrl-D cancels. `--dry-run` never deletes. `plan` never writes anything.
 6. **Errors do not abort the run.** Every item is attempted; failures are reported and the exit code is non-zero.
@@ -50,8 +53,12 @@ plan. This is Milestone 1 of turning cmm into the engine behind a clickable macO
     `/private/var`).
 
 ## Test Isolation (running the tests must never touch real files)
-- Tests build an `Env` with `sys.TestEnv(t)`, whose home and temp dir live under `t.TempDir()`, and call
-  `RequireIsolated` to fail if `Env.Home` is not under the test's temp dir. `DefaultEnv` is never called by a test.
+- Tests build their `Env` with `systest.NewSandbox(t)` (package `pkg/sys/systest`), whose home and temp dir live
+  under `t.TempDir()`. Its helpers (`WriteFile`, `Age`, `BackdateTree`) call `RequireInside` and fail the test for
+  any path outside the sandbox. `DefaultEnv` is called only by its own test, which merely reads the home
+  directory and `getconf`.
+- While a test binary runs, the engine's delete function panics for any path outside a temporary directory
+  (a `testing.Testing()` safety net that also covers injected remove functions).
 - No test calls the real `lsof`, `pgrep`, `simctl`, `brew`, `tmutil` or `rm` on real paths: all of them go through
   `FakeRunner`. The single allowed exception is one optional read-only `lsof` check on a temp dir.
 - Legacy tests were audited on 2026-10-14: every one uses temp dirs or mocks.
