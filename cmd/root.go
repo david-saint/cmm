@@ -31,6 +31,10 @@ import (
 
 // NewRootCmd represents the base command when called without any subcommands
 func NewRootCmd() *cobra.Command {
+	return newRootCmd(defaultDeps())
+}
+
+func newRootCmd(d *deps) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:     "cmm",
 		Version: "0.2.0",
@@ -42,6 +46,8 @@ Xcode Derived Data, User Caches, and Time Machine snapshots.`,
 
 	cmd.Flags().BoolP("toggle", "t", false, "Help message for toggle")
 
+	cmd.AddCommand(NewPlanCmd(d))
+	cmd.AddCommand(NewApplyCmd(d))
 	cmd.AddCommand(NewRunCmd())
 
 	return cmd

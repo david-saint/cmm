@@ -23,6 +23,7 @@ func NewRunCmd() *cobra.Command {
 		Short: "Start the interactive cleanup flow",
 		Long:  `Starts the interactive terminal UI to selectively clean up disk space.`,
 		Run: func(cmd *cobra.Command, args []string) {
+			fmt.Fprint(cmd.ErrOrStderr(), legacyRunWarning())
 			dryRun, _ := cmd.Flags().GetBool("dry-run")
 			force, _ := cmd.Flags().GetBool("force")
 			testMode, _ := cmd.Flags().GetBool("test-mode")
