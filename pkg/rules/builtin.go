@@ -23,6 +23,8 @@ var (
 	procSwiftF  = guard.ProcSpec{Exact: "swift-frontend"}
 	procSwiftB  = guard.ProcSpec{Exact: "swift-build"}
 
+	procBrew = guard.ProcSpec{Pattern: `[b]rew (install|upgrade|update|reinstall|uninstall|cleanup|bundle|services|link|unlink)( |$)`}
+
 	procMaestro       = guard.ProcSpec{Pattern: `[m]aestro`}
 	procCursorApp     = guard.ProcSpec{Pattern: `/Applications/Cursor.app/Contents`}
 	procCursorUpdater = guard.ProcSpec{Pattern: `[c]om.todesktop.230313mzl4w4u92.ShipIt`}
@@ -128,6 +130,14 @@ func laneLocalBuildFolders() *BuildFoldersRule {
 		Layout:    true,
 		IdleFor:   idleFor,
 		GoneAfter: goneAfter,
+	}
+}
+
+// homebrew runs Homebrew's own cleanup of old formula versions, planned from `brew cleanup -n`.
+func homebrew() *HomebrewRule {
+	return &HomebrewRule{
+		RuleID: "homebrew",
+		Label:  "Homebrew: old versions of installed formulae (brew cleanup)",
 	}
 }
 
