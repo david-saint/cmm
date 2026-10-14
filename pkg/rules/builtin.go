@@ -131,6 +131,31 @@ func laneLocalBuildFolders() *BuildFoldersRule {
 	}
 }
 
+// laneDeps removes node_modules and ios/Pods from lanes in ~/lane-builds that nobody has worked in for five
+// days; npm ci and pod install bring them back.
+func laneDeps() *LaneRule {
+	return &LaneRule{
+		RuleID:   "lane-deps",
+		Label:    "Idle lane dependencies (untouched 5+ days; rebuild with npm ci / pod install)",
+		Root:     "~/lane-builds",
+		Subs:     []string{"node_modules", "ios/Pods"},
+		IdleFor:  idleFor,
+		MinBytes: 50 * mb,
+	}
+}
+
+// laneBuildOutput removes the iOS and Android build folders of idle lanes; the next build recreates them.
+func laneBuildOutput() *LaneRule {
+	return &LaneRule{
+		RuleID:   "lane-build-output",
+		Label:    "Idle lane build output (untouched 5+ days; rebuilds on the next build)",
+		Root:     "~/lane-builds",
+		Subs:     []string{"ios/build", "android/build", "android/.gradle", "android/app/build", "android/app/.cxx"},
+		IdleFor:  idleFor,
+		MinBytes: 50 * mb,
+	}
+}
+
 // maestroTemp removes the per-run output folders Maestro's XCTest runner leaves in the temp dir (hundreds of
 // them pile up), once they are more than an hour old and neither Maestro nor xcodebuild is running.
 func maestroTemp() *ChildrenRule {
