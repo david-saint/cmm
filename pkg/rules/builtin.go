@@ -125,3 +125,24 @@ func cursorUpdate() *ChildrenRule {
 		BlockedMsg: "Cursor or its updater is running",
 	}
 }
+
+// claudeVersions removes old copies of the claude command line tool (it updates itself and keeps every
+// version it ever downloaded), keeping the newest, the one linked in ~/.local/bin and any in use.
+func claudeVersions() *VersionsRule {
+	return &VersionsRule{
+		RuleID:  "claude-versions",
+		Label:   "Old claude CLI versions",
+		Dir:     "~/.local/share/claude/versions",
+		LinkDir: "~/.local/bin",
+	}
+}
+
+// cursorAgentVersions is the same for the cursor-agent command line tool.
+func cursorAgentVersions() *VersionsRule {
+	return &VersionsRule{
+		RuleID:  "cursor-agent-versions",
+		Label:   "Old cursor-agent versions",
+		Dir:     "~/.local/share/cursor-agent/versions",
+		LinkDir: "~/.local/bin",
+	}
+}
