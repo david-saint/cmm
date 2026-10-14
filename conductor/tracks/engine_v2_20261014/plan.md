@@ -12,15 +12,16 @@
 - [x] Task: Conductor - User Manual Verification 'Phase 1' (Protocol in workflow.md) cbccf6e
 
 ## Phase 2: Parity Rules
+- [ ] Task: Symlink hardening: refuse a target when any folder between its root (home or temp dir) and it is a symlink, at plan and apply time; `PathRule` skips symlinked parents
 - [ ] Task: Children rules: Maestro temp output (age filter) and Cursor failed-update leftovers
-- [ ] Task: Old CLI versions rule (keep newest, linked and in-use)
+- [ ] Task: Old CLI versions rule (keep newest, linked and in-use; links and in-use state re-read at apply time)
 - [ ] Task: Xcode build folders: DerivedData stale rule (3-level recency, workspace gone, unmounted volume, in-use)
 - [ ] Task: Lane-local Xcode build folders (layout check, same staleness)
 - [ ] Task: Lanes: idle dependencies and build output (root package.json, idle test, symlinks, nested paths refused)
 - [ ] Task: Simulators: unavailable devices via simctl with every guard
 - [ ] Task: Homebrew: `brew cleanup` planner (named formulae, Python flag, exit code handling)
-- [ ] Task: Built-in registry in dev-cleanup order and the 96 allow-list cases ported as a table test
-- [ ] Task: `scripts/parity.sh`: compare `cmm plan --json` with a patched copy of dev-cleanup on the real disk
+- [ ] Task: Built-in registry in dev-cleanup order, `Engine.Allowed` (a rule allows it, policy accepts it, no symlink below the root) and the 96 allow-list cases ported as a table test; tests proving no rule reaches a real tool (unstubbed fake runner, no `os/exec` import outside `pkg/sys`)
+- [ ] Task: `scripts/parity.sh`: compare `cmm plan --json` with a patched copy of dev-cleanup on the real disk; fails closed (marker check, dump header, `--dry-run` hard-coded, compare by path, non-zero exit on mismatch) and reports categories that had nothing to compare
 - [ ] Task: Conductor - User Manual Verification 'Phase 2' (Protocol in workflow.md)
 
 ## Phase 3: Safe Apply, TUI and Legacy Removal
