@@ -101,7 +101,7 @@ func TestPathRule_SymlinkTargetIsSkipped(t *testing.T) {
 		t.Fatal(err)
 	}
 	items, skips, _ := testRule().Plan(ctx, depsFor(sb))
-	if len(items) != 0 || len(skips) != 1 || !strings.Contains(skips[0].Reason, "symlink") {
+	if len(items) != 0 || len(skips) != 1 || !strings.Contains(skips[0].Reason, "symbolic link") {
 		t.Errorf("a symlink must be skipped with a reason: %v %v", items, skips)
 	}
 }
@@ -273,5 +273,27 @@ func TestPathRule_IdentityAndTier(t *testing.T) {
 	items, _, _ := r.Plan(ctx, depsFor(sb))
 	if len(items) != 1 || items[0].Tier != TierReview {
 		t.Errorf("an explicit tier should be used: %+v", items)
+	}
+}
+
+func TestPathRule_TargetBelowASymlinkedFolderIsSkipped(t *testing.T) {
+	// ~/.npm is a link to a folder on another disk that really holds _cacache
+	sb := systest.NewSandbox(t)
+	real := filepath.Join(sb.Root, "ssd", "npm")
+	sb.WriteFile(t, filepath.Join(real, "_cacache", "data"), 200_000, 0)
+	if err := os.MkdirAll(sb.Env.Home, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Symlink(real, sb.Home(".npm")); err != nil {
+		t.Fatal(err)
+	}
+	r := &PathRule{RuleID: "npm-cache", Label: "npm download cache", Targets: []string{"~/.npm/_cacache"}, MinBytes: 1}
+
+	items, skips, err := r.Plan(ctx, depsFor(sb))
+	if err != nil || len(items) != 0 || len(skips) != 1 || !strings.Contains(skips[0].Reason, "symbolic link") {
+		t.Fatalf("a symlinked parent must be skipped with a reason: %v %v %v", items, skips, err)
+	}
+	if _, err := os.Stat(filepath.Join(real, "_cacache", "data")); err != nil {
+		t.Errorf("the real cache must be untouched: %v", err)
 	}
 }

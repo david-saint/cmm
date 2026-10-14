@@ -10,6 +10,7 @@ package policy
 import (
 	"errors"
 	"fmt"
+	"io/fs"
 	"os"
 	"path/filepath"
 	"strings"
@@ -119,7 +120,54 @@ func (p *Policy) validateUnderHome(path string) error {
 	return nil
 }
 
-// CheckNotSymlink refuses a path whose last element is a symbolic link. A missing path is not an error:
+// rootOf returns the allowed root path lies strictly inside, or "" if there is none.
+func (p *Policy) rootOf(path string) string {
+	switch {
+	case p.Home != "" && Under(path, p.Home):
+		return p.Home
+	case p.TmpDir != "" && Under(path, p.TmpDir):
+		return p.TmpDir
+	}
+	return ""
+}
+
+// CheckNoSymlinks refuses a path if the path itself, or any folder between its root (the home or the per-user
+// temp directory) and it, is a symbolic link. Without this, ~/lane-builds/x being a link to a real project
+// would make a delete of x/node_modules remove the real project's folder.
+//
+// Folders above the root are deliberately not checked: /var is a link to /private/var and every per-user temp
+// path goes through it. Missing components end the check: nothing below a missing folder exists.
+func (p *Policy) CheckNoSymlinks(path string) error {
+	if path == "" || !filepath.IsAbs(path) || filepath.Clean(path) != path {
+		return refuse(path, "not a clean absolute path")
+	}
+	root := p.rootOf(path)
+	if root == "" {
+		return refuse(path, "outside the allowed roots (home and the per-user temp dir)")
+	}
+	rel, err := filepath.Rel(root, path)
+	if err != nil {
+		return refuse(path, "cannot relate to %s", root)
+	}
+	cur := root
+	for _, part := range strings.Split(rel, string(filepath.Separator)) {
+		cur = filepath.Join(cur, part)
+		info, err := os.Lstat(cur)
+		if err != nil {
+			if errors.Is(err, fs.ErrNotExist) {
+				return nil
+			}
+			return refuse(path, "cannot stat %s: %v", cur, err)
+		}
+		if info.Mode()&os.ModeSymlink != 0 {
+			return refuse(path, "%s is a symbolic link", cur)
+		}
+	}
+	return nil
+}
+
+// CheckNotSymlink refuses a path whose last element is a symbolic link. Prefer Policy.CheckNoSymlinks, which
+// also covers every folder above it. A missing path is not an error:
 // there is nothing to delete.
 func CheckNotSymlink(path string) error {
 	info, err := os.Lstat(path)

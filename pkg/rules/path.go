@@ -104,12 +104,11 @@ func (r *PathRule) Plan(ctx context.Context, d Deps) ([]Candidate, []Skip, error
 	var skips []Skip
 	var existing []string
 	for _, p := range r.resolved(d) {
-		info, err := os.Lstat(p)
-		if err != nil {
+		if _, err := os.Lstat(p); err != nil {
 			continue // nothing there, nothing to say
 		}
-		if info.Mode()&os.ModeSymlink != 0 {
-			skips = append(skips, Skip{Reason: fmt.Sprintf("%s: %s is a symlink", r.Label, p)})
+		if err := d.Policy.CheckNoSymlinks(p); err != nil {
+			skips = append(skips, Skip{Reason: fmt.Sprintf("%s: %v", r.Label, err)})
 			continue
 		}
 		existing = append(existing, p)

@@ -13,7 +13,6 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/david-saint/cmm/pkg/policy"
 	"github.com/david-saint/cmm/pkg/rules"
 )
 
@@ -104,7 +103,7 @@ func (e *Engine) permit(r rules.Rule, c rules.Candidate) error {
 		if err := e.Deps.Policy.ValidateTarget(c.Path); err != nil {
 			return err
 		}
-		if err := policy.CheckNotSymlink(c.Path); err != nil {
+		if err := e.Deps.Policy.CheckNoSymlinks(c.Path); err != nil {
 			return err
 		}
 	}

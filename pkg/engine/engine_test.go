@@ -531,3 +531,53 @@ func TestRemove_SafetyNetAlsoCoversInjectedRemoveFunctions(t *testing.T) {
 		t.Errorf("inside a temp dir the injected function should run: err=%v called=%v exists=%v", err, called, exists(dir))
 	}
 }
+
+// ---- symlinks anywhere below the root ----
+
+func TestPlan_RefusesATargetBelowASymlinkedFolder(t *testing.T) {
+	f := newFixture(t)
+	ssd := filepath.Join(f.sb.Root, "ssd", "x")
+	f.sb.WriteFile(t, filepath.Join(ssd, "node_modules", "pkg"), 10, 0)
+	if err := os.MkdirAll(f.sb.Home("lane-builds"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Symlink(ssd, f.sb.Home("lane-builds", "x")); err != nil {
+		t.Fatal(err)
+	}
+	target := f.sb.Home("lane-builds", "x", "node_modules")
+	f.eng.Rules = []rules.Rule{&fakeRule{id: "deps", group: "Deps", items: []rules.Candidate{cand("", "Deps", target, 1)}}}
+
+	_, err := f.eng.Plan(ctx)
+	if !errors.Is(err, ErrRuleBug) || !errors.Is(err, policy.ErrRefused) {
+		t.Fatalf("a rule must never plan below a symlinked folder, got %v", err)
+	}
+}
+
+// The lane was a real folder when planned; before apply ran it became a link to a real project.
+func TestApply_ParentReplacedByASymlinkAfterPlanningIsNeverFollowed(t *testing.T) {
+	f := newFixture(t)
+	nm := filepath.Dir(f.laneFile(t, "x", "node_modules/pkg", 10))
+	f.eng.Rules = []rules.Rule{&fakeRule{id: "deps", group: "Deps", items: []rules.Candidate{cand("", "Deps", nm, 10)}}}
+	plan, err := f.eng.Plan(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	precious := f.sb.Home("precious", "x")
+	f.sb.WriteFile(t, filepath.Join(precious, "node_modules", "keep.txt"), 5, 0)
+	lane := f.sb.Home("lane-builds", "x")
+	if err := os.RemoveAll(lane); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Symlink(precious, lane); err != nil {
+		t.Fatal(err)
+	}
+
+	rep, _ := f.eng.Apply(ctx, plan, ApplyOptions{})
+	if !exists(filepath.Join(precious, "node_modules", "keep.txt")) {
+		t.Fatal("the real project behind the symlink was deleted")
+	}
+	if rep.Results[0].Status != StatusSkipped || !strings.Contains(rep.Results[0].Reason, "symbolic link") {
+		t.Errorf("the item must be skipped because of the link: %+v", rep.Results[0])
+	}
+}

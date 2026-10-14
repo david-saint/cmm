@@ -4,9 +4,11 @@ import (
 	"errors"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/david-saint/cmm/pkg/sys"
+	"github.com/david-saint/cmm/pkg/sys/systest"
 )
 
 const (
@@ -233,6 +235,123 @@ func TestCheckNotSymlink(t *testing.T) {
 	for _, l := range []string{link, dirLink} {
 		if err := CheckNotSymlink(l); !errors.Is(err, ErrRefused) {
 			t.Errorf("CheckNotSymlink(%q) should be refused, got %v", l, err)
+		}
+	}
+}
+
+// ---- CheckNoSymlinks: a link anywhere below the root would make a delete follow it ----
+
+func mkdirs(t *testing.T, paths ...string) {
+	t.Helper()
+	for _, p := range paths {
+		if err := os.MkdirAll(p, 0o755); err != nil {
+			t.Fatal(err)
+		}
+	}
+}
+
+func link(t *testing.T, target, name string) {
+	t.Helper()
+	if err := os.MkdirAll(filepath.Dir(name), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Symlink(target, name); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func TestCheckNoSymlinks_PlainDirectoriesPass(t *testing.T) {
+	sb := systest.NewSandbox(t)
+	mkdirs(t, sb.Home("lane-builds", "a", "node_modules"), sb.Tmp("jest_dx"))
+	p := New(sb.Env)
+	for _, path := range []string{sb.Home("lane-builds", "a", "node_modules"), sb.Tmp("jest_dx")} {
+		if err := p.CheckNoSymlinks(path); err != nil {
+			t.Errorf("CheckNoSymlinks(%q) = %v, want nil", path, err)
+		}
+	}
+}
+
+func TestCheckNoSymlinks_ASymlinkedLaneIsRefused(t *testing.T) {
+	// ~/lane-builds/x is a link to a real project somewhere else (the SSD, say)
+	sb := systest.NewSandbox(t)
+	ssd := filepath.Join(sb.Root, "ssd", "x")
+	mkdirs(t, filepath.Join(ssd, "node_modules"))
+	link(t, ssd, sb.Home("lane-builds", "x"))
+
+	err := New(sb.Env).CheckNoSymlinks(sb.Home("lane-builds", "x", "node_modules"))
+	if !errors.Is(err, ErrRefused) || !strings.Contains(err.Error(), "symbolic link") {
+		t.Fatalf("a target below a symlinked lane must be refused, got %v", err)
+	}
+}
+
+func TestCheckNoSymlinks_AMiddleFolderThatIsALinkIsRefused(t *testing.T) {
+	sb := systest.NewSandbox(t)
+	realIOS := filepath.Join(sb.Root, "elsewhere", "ios")
+	mkdirs(t, filepath.Join(realIOS, "Pods"), sb.Home("lane-builds", "a"))
+	link(t, realIOS, sb.Home("lane-builds", "a", "ios"))
+
+	if err := New(sb.Env).CheckNoSymlinks(sb.Home("lane-builds", "a", "ios", "Pods")); !errors.Is(err, ErrRefused) {
+		t.Fatalf("a symlinked ios folder must be refused, got %v", err)
+	}
+}
+
+func TestCheckNoSymlinks_TheLastElementCounts(t *testing.T) {
+	sb := systest.NewSandbox(t)
+	mkdirs(t, filepath.Join(sb.Root, "elsewhere", "cache"))
+	link(t, filepath.Join(sb.Root, "elsewhere", "cache"), sb.Home(".npm", "_cacache"))
+
+	if err := New(sb.Env).CheckNoSymlinks(sb.Home(".npm", "_cacache")); !errors.Is(err, ErrRefused) {
+		t.Fatalf("a symlink as the target itself must be refused, got %v", err)
+	}
+}
+
+func TestCheckNoSymlinks_MissingPathsAreFine(t *testing.T) {
+	sb := systest.NewSandbox(t)
+	p := New(sb.Env)
+	if err := p.CheckNoSymlinks(sb.Home("no", "such", "thing")); err != nil {
+		t.Errorf("a path that does not exist has nothing to follow: %v", err)
+	}
+	mkdirs(t, sb.Home("lane-builds"))
+	if err := p.CheckNoSymlinks(sb.Home("lane-builds", "ghost", "node_modules")); err != nil {
+		t.Errorf("a missing parent is fine: %v", err)
+	}
+}
+
+// /var is a symlink to /private/var and every per-user temp path goes through it: only components BELOW the
+// root are checked, otherwise every temp-dir target would be refused.
+func TestCheckNoSymlinks_FoldersAboveTheRootMayBeLinks(t *testing.T) {
+	base := t.TempDir()
+	real := filepath.Join(base, "real")
+	mkdirs(t, filepath.Join(real, "home", ".npm", "_cacache"))
+	linked := filepath.Join(base, "linked")
+	link(t, real, linked)
+
+	p := New(&sys.Env{Home: filepath.Join(linked, "home"), TmpDir: ""})
+	if err := p.CheckNoSymlinks(filepath.Join(linked, "home", ".npm", "_cacache")); err != nil {
+		t.Errorf("a link above the home directory must not matter: %v", err)
+	}
+}
+
+func TestCheckNoSymlinks_TempDirTargetsAreCheckedToo(t *testing.T) {
+	sb := systest.NewSandbox(t)
+	mkdirs(t, filepath.Join(sb.Root, "elsewhere", "jest_dx"))
+	link(t, filepath.Join(sb.Root, "elsewhere", "jest_dx"), sb.Tmp("jest_dx"))
+	if err := New(sb.Env).CheckNoSymlinks(sb.Tmp("jest_dx")); !errors.Is(err, ErrRefused) {
+		t.Fatalf("a symlink under the temp dir must be refused, got %v", err)
+	}
+}
+
+func TestCheckNoSymlinks_RefusesWhatItCannotPlaceUnderARoot(t *testing.T) {
+	sb := systest.NewSandbox(t)
+	p := New(sb.Env)
+	for name, path := range map[string]string{
+		"outside":  "/Applications/Xcode.app",
+		"the root": sb.Env.Home,
+		"relative": "lane-builds/x",
+		"unclean":  sb.Env.Home + "/a/../b",
+	} {
+		if err := p.CheckNoSymlinks(path); !errors.Is(err, ErrRefused) {
+			t.Errorf("%s: %q should be refused, got %v", name, path, err)
 		}
 	}
 }
