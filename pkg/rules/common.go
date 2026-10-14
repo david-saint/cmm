@@ -10,16 +10,30 @@ import (
 )
 
 // expand turns a path template into a path, or reports that the template is not acceptable. Templates must
-// start with "~/" (the home directory) or "{tmp}/" (the per-user temp directory); anything else is refused,
-// so no rule can name a path outside those two roots.
+// start with "~/" (the home directory) or "{tmp}/" (the per-user temp directory) and continue with a plain
+// relative path (no empty, "." or ".." elements); anything else is refused, so no rule can name a path outside
+// those two roots, not even by climbing out of them.
 func expand(d Deps, tmpl string) (string, bool) {
 	switch {
-	case strings.HasPrefix(tmpl, "~/") && len(tmpl) > 2 && d.Env.Home != "":
+	case strings.HasPrefix(tmpl, "~/") && d.Env.Home != "" && plainRelative(tmpl[2:]):
 		return filepath.Join(d.Env.Home, tmpl[2:]), true
-	case strings.HasPrefix(tmpl, "{tmp}/") && len(tmpl) > 6 && d.Env.TmpDir != "":
+	case strings.HasPrefix(tmpl, "{tmp}/") && d.Env.TmpDir != "" && plainRelative(tmpl[6:]):
 		return filepath.Join(d.Env.TmpDir, tmpl[6:]), true
 	}
 	return "", false
+}
+
+// plainRelative reports whether rel is a non-empty slash-separated path whose elements are all real names.
+func plainRelative(rel string) bool {
+	if rel == "" {
+		return false
+	}
+	for _, part := range strings.Split(rel, "/") {
+		if part == "" || part == "." || part == ".." {
+			return false
+		}
+	}
+	return true
 }
 
 // expandRoot is expand for a folder whose children are the targets: it also accepts the bare "{tmp}".
