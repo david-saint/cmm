@@ -165,3 +165,43 @@ func TestApplyText_AFailedItemInsideSaysNothingWasFreed(t *testing.T) {
 		t.Errorf("done = %v", done)
 	}
 }
+
+func TestHistoryText_ARunThatFreedSpaceInsideSaysSoInsteadOfLookingLikeAFailure(t *testing.T) {
+	a := newApp(t)
+	a.withHistory()
+	withInside(a)
+	if o := a.run("", "apply", "--yes", "--only", "inside-thing"); o.err != nil {
+		t.Fatal(o.err)
+	}
+	o := a.run("", "history")
+	if o.err != nil {
+		t.Fatal(o.err)
+	}
+	if !strings.Contains(o.stdout, "freed 0 KB") || !strings.Contains(o.stdout, "+ 2.0 GB inside "+insideWhere) {
+		t.Errorf("the disk got nothing back, and the line says where the 2.0 GB went:\n%s", o.stdout)
+	}
+}
+
+func TestHistoryText_NoInsideNoSuffix(t *testing.T) {
+	a := newApp(t)
+	a.withHistory()
+	if o := a.run("", "apply", "--yes"); o.err != nil {
+		t.Fatal(o.err)
+	}
+	if o := a.run("", "history"); strings.Contains(o.stdout, "inside") {
+		t.Errorf("nothing was freed inside anything:\n%s", o.stdout)
+	}
+}
+
+func TestHistoryText_TwoItemsInTheSameStorageNameItOnce(t *testing.T) {
+	a := newApp(t)
+	a.withHistory()
+	withInside(a, insideRule{two: true})
+	if o := a.run("", "apply", "--yes", "--only", "inside-thing"); o.err != nil {
+		t.Fatal(o.err)
+	}
+	o := a.run("", "history")
+	if !strings.Contains(o.stdout, "+ 4.0 GB inside "+insideWhere+"\n") || strings.Contains(o.stdout, insideWhere+" and") {
+		t.Errorf("one mention, with the total:\n%s", o.stdout)
+	}
+}

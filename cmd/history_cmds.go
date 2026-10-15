@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"strings"
 	"time"
 
 	"github.com/david-saint/cmm/pkg/engine"
@@ -149,8 +150,8 @@ func writeHistory(w io.Writer, rep *engine.HistoryReport, days int, loc *time.Lo
 			if r.Stopped {
 				stopped = ", stopped early"
 			}
-			fmt.Fprintf(w, "  %s  freed %-8s %d deleted, %d skipped, %d failed%s\n",
-				r.FinishedAt.In(loc).Format("2006-01-02 15:04"), formatBytes(r.FreedBytes), r.Deleted, r.Skipped, r.Failed, stopped)
+			fmt.Fprintf(w, "  %s  freed %-8s %d deleted, %d skipped, %d failed%s%s\n",
+				r.FinishedAt.In(loc).Format("2006-01-02 15:04"), formatBytes(r.FreedBytes), r.Deleted, r.Skipped, r.Failed, stopped, insideSuffix(r))
 		}
 	}
 
@@ -174,4 +175,30 @@ func writeHistory(w io.Writer, rep *engine.HistoryReport, days int, loc *time.Lo
 		formatBytes(first.FreeBytes), first.T.In(loc).Format("2006-01-02"),
 		formatBytes(last.FreeBytes), last.T.In(loc).Format("2006-01-02"),
 		formatBytes(low.FreeBytes), low.T.In(loc).Format("2006-01-02"))
+}
+
+// insideSuffix says how much a run freed inside another program's own storage (the disk got it back later, if at
+// all), so "freed 0 KB" after a Docker prune does not look like a failure.
+func insideSuffix(r engine.Run) string {
+	if r.FreedInsideBytes <= 0 {
+		return ""
+	}
+	var places []string
+	for _, it := range r.Items {
+		if it.FreesInside == "" {
+			continue
+		}
+		seen := false
+		for _, p := range places {
+			seen = seen || p == it.FreesInside
+		}
+		if !seen {
+			places = append(places, it.FreesInside)
+		}
+	}
+	where := "another program's storage"
+	if len(places) > 0 {
+		where = strings.Join(places, " and ")
+	}
+	return fmt.Sprintf("  + %s inside %s", formatBytes(r.FreedInsideBytes), where)
 }
