@@ -203,7 +203,7 @@ final class AppModelTests: XCTestCase {
         let single = try XCTUnwrap(model.selection?.groups.first?.items.first)
         model.toggle(single)
         model.requestClean()
-        XCTAssertEqual(model.confirmation?.prompt, "Delete 1 item (838.1 MB)?")
+        XCTAssertEqual(model.confirmation?.prompt, "Delete 1 item (0.8 GB)?")
     }
 
     func testRequestCleanWithNothingTickedDoesNothing() async throws {
@@ -390,6 +390,64 @@ final class AppModelTests: XCTestCase {
         fake.finish()
         await cleaning.value
         XCTAssertEqual(model.phase, .done)
+    }
+
+    func testTheConfirmedQueueAndTheStartingNumbersAreKeptForTheCleaningScreen() async throws {
+        let fake = FakeCmmClient(plan: plan)
+        fake.script(.live)
+        let (model, _) = await readyModel(fake: fake)
+        model.requestClean()
+        let confirmation = try XCTUnwrap(model.confirmation)
+        let cleaning = Task { await model.confirmClean(confirmation) }
+        _ = await fake.waitForApply()
+
+        XCTAssertEqual(model.progress.queue.map(\.path), confirmation.selection.paths, "the items the person confirmed, in order")
+        XCTAssertEqual(model.progress.selectedBytes, 3_081_535_488)
+        XCTAssertEqual(model.progress.startFree, 27_633_246_208, "the plan's free space until cmm says its own")
+
+        fake.send(Events.start(selected: 4, bytes: 3_081_535_488, free: 27_000_000_000))
+        await eventuallyOnMain { model.progress.selected == 4 }
+        XCTAssertEqual(model.progress.startFree, 27_000_000_000)
+        XCTAssertEqual(model.progress.inFlight?.path, confirmation.selection.paths.first)
+
+        fake.send(Events.done())
+        fake.finish()
+        await cleaning.value
+    }
+
+    func testReviewBytesThatAreNotTickedStayDottedOnTheBand() async throws {
+        let board = try TestPlans.fixture("plan-c.json")
+        let fake = FakeCmmClient(plan: board)
+        let (model, _) = await readyModel(fake: fake)
+        model.requestClean()
+        await model.confirmClean(try XCTUnwrap(model.confirmation))
+        XCTAssertEqual(model.progress.reviewHeld, 9_000_000_000, "Docker was not ticked")
+        XCTAssertEqual(model.summary?.reviewHeld, 9_000_000_000)
+
+        let fake2 = FakeCmmClient(plan: board)
+        let (model2, _) = await readyModel(fake: fake2)
+        model2.toggle(try XCTUnwrap(model2.selection?.groups.first { $0.section == .review }))
+        model2.requestClean()
+        await model2.confirmClean(try XCTUnwrap(model2.confirmation))
+        XCTAssertEqual(model2.progress.reviewHeld, 0, "Docker was ticked, so nothing is held back for review")
+        XCTAssertEqual(fake2.applyCalls.first?.count, 12)
+    }
+
+    func testTheSummaryRemembersWhenItFinished() async throws {
+        let moment = Date(timeIntervalSince1970: 1_792_065_780)
+        let fake = FakeCmmClient(plan: plan)
+        let model = AppModel(client: fake, now: { moment })
+        await model.scan()
+        model.requestClean()
+        await model.confirmClean(try XCTUnwrap(model.confirmation))
+        XCTAssertEqual(model.summary?.finishedAt, moment)
+    }
+
+    func testTheConfirmationRemembersTheFreeSpaceItWasAskedAbout() async throws {
+        let (model, _) = await readyModel()
+        model.requestClean()
+        XCTAssertEqual(model.confirmation?.freeBefore, 27_633_246_208)
+        XCTAssertEqual(model.confirmation?.afterText, "Free space afterwards: about 30.7 GB.")
     }
 
     func testTheDoneEventBecomesTheSummary() async throws {

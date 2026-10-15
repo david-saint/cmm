@@ -1,32 +1,46 @@
 import Foundation
 import Observation
 
-/// The question the confirmation sheet asks: the frozen selection, its count and its size.
+/// The question the confirmation card asks: the frozen selection, its count and its size.
 ///
 /// Only the model makes one (`AppModel.requestClean`), and `confirmClean` accepts only the one that is currently
 /// pending for the current plan. That is safety rule 3: `cmm apply` cannot start without the person having seen
-/// exactly this item count and size and answering "Clean".
+/// exactly this item count and size and answering "Delete".
 public struct CleanConfirmation: Identifiable, Equatable, Sendable {
     public let id: UUID
     public let selection: ApplySelection
     /// Which plan this was asked about; a rescan makes it stale.
     let generation: Int
+    /// The free space of the plan this was asked about, for the "Free space afterwards" line.
+    public let freeBefore: Int64?
 
-    init(selection: ApplySelection, generation: Int) {
+    init(selection: ApplySelection, generation: Int, freeBefore: Int64? = nil) {
         self.id = UUID()
         self.selection = selection
         self.generation = generation
+        self.freeBefore = freeBefore
     }
 
     public var itemCount: Int { selection.count }
     public var bytes: Int64 { selection.bytes }
 
-    /// `Delete 4 items (3.1 GB)?`
-    public var prompt: String { "Delete \(Plural.items(itemCount)) (\(ByteFormat.string(bytes)))?" }
+    /// `Delete 9 items (8.4 GB)?`
+    public var prompt: String { "Delete \(Plural.items(itemCount)) (\(SizeText.string(bytes)))?" }
     public var detail: String { "Each item is checked again right before it is removed." }
+
+    /// `Free space afterwards: about 28.2 GB.` (about: what cmm frees is what it measures when it is done)
+    public var afterText: String? {
+        freeBefore.map { "Free space afterwards: about \(SizeText.string($0 + bytes))." }
+    }
+
+    public var cancelTitle: String { "Cancel" }
+    /// `Delete 9 Items`
+    public var deleteTitle: String { itemCount == 1 ? "Delete 1 Item" : "Delete \(itemCount) Items" }
+    public var accessibilityLabel: String { "Delete \(Plural.items(itemCount)), \(SizeText.string(bytes))" }
 }
 
-/// What a running cleanup has reported so far.
+/// What a running cleanup has reported so far, and what the person confirmed, so the screen can say what is being
+/// removed and how much is still to go.
 public struct CleanProgress: Equatable, Sendable {
     /// How many items the person confirmed.
     public internal(set) var expected: Int
@@ -37,9 +51,21 @@ public struct CleanProgress: Equatable, Sendable {
     public internal(set) var stopRequested = false
     /// Lines cmm printed that could not be understood.
     public internal(set) var unreadableLines = 0
+    /// The confirmed items in the plan's order, which is the order cmm takes them in.
+    public internal(set) var queue: [PlanItem]
+    /// Bytes of the confirmed items.
+    public internal(set) var selectedBytes: Int64
+    /// Review-tier bytes that were not ticked (they stay dotted on the band).
+    public internal(set) var reviewHeld: Int64
+    /// Free space when the cleanup began: the plan's, replaced by cmm's own once its `start` event is in.
+    public internal(set) var startFree: Int64
 
-    init(expected: Int) {
+    init(expected: Int, queue: [PlanItem] = [], selectedBytes: Int64 = 0, reviewHeld: Int64 = 0, startFree: Int64 = 0) {
         self.expected = expected
+        self.queue = queue
+        self.selectedBytes = selectedBytes
+        self.reviewHeld = reviewHeld
+        self.startFree = startFree
     }
 
     public var deleted: Int { items.filter { $0.status == .deleted }.count }
@@ -56,6 +82,24 @@ public struct CleanProgress: Equatable, Sendable {
         guard total > 0 else { return 0 }
         return min(1, max(0, Double(items.count) / Double(total)))
     }
+
+    /// The item cmm is most likely working on: the first confirmed one it has not reported yet. cmm reports an
+    /// item when it is finished and takes them in plan order, so this is an inference, not an event.
+    public var inFlight: PlanItem? {
+        let reported = Set(items.map(\.path))
+        return queue.first { !reported.contains($0.path) }
+    }
+
+    /// What was confirmed minus everything cmm has reported on, whatever became of it: a skipped or failed item is
+    /// not "still to go", it is done with. Never negative.
+    public var toGoBytes: Int64 {
+        let planned = Dictionary(queue.map { ($0.path, $0.bytes) }, uniquingKeysWith: { first, _ in first })
+        let reported = items.reduce(Int64(0)) { $0 + (planned[$1.path] ?? $1.bytes) }
+        return max(selectedBytes - reported, 0)
+    }
+
+    /// Free space now, as far as cmm has said: what it was at the start plus what cmm reports freed since.
+    public var freeNow: Int64 { startFree + freedBytes }
 }
 
 /// What a finished cleanup reports: cmm's own `done` event and the items it reported on the way.
@@ -63,6 +107,10 @@ public struct CleanSummary: Equatable, Sendable {
     public let done: DoneEvent
     public let items: [ItemEvent]
     public let unreadableLines: Int
+    /// Review-tier bytes that were not ticked.
+    public let reviewHeld: Int64
+    /// When the app received cmm's `done` event.
+    public let finishedAt: Date
 
     public var stopped: Bool { done.stopped }
 }
@@ -109,11 +157,13 @@ public final class AppModel {
     public private(set) var failure: AppFailure?
 
     @ObservationIgnored private let client: any CmmClient
+    @ObservationIgnored private let now: @Sendable () -> Date
     /// Counts plans. A confirmation belongs to one plan; internal so tests can age one.
     @ObservationIgnored var planGeneration = 0
 
-    public init(client: any CmmClient) {
+    public init(client: any CmmClient, now: @escaping @Sendable () -> Date = { Date() }) {
         self.client = client
+        self.now = now
     }
 
     // MARK: scanning
@@ -161,7 +211,9 @@ public final class AppModel {
     /// "Clean N items…": freezes the current selection into a confirmation for the sheet. Starts nothing.
     public func requestClean() {
         guard phase == .ready, let selection, selection.selectedCount > 0 else { return }
-        confirmation = CleanConfirmation(selection: selection.applySelection, generation: planGeneration)
+        confirmation = CleanConfirmation(
+            selection: selection.applySelection, generation: planGeneration, freeBefore: selection.plan.host.freeBytes
+        )
     }
 
     /// Cancel on the sheet. Runs nothing.
@@ -181,7 +233,14 @@ public final class AppModel {
         self.confirmation = nil
         summary = nil
         failure = nil
-        progress = CleanProgress(expected: confirmation.selection.count)
+        let planned = Dictionary((plan?.items ?? []).map { ($0.path, $0) }, uniquingKeysWith: { first, _ in first })
+        progress = CleanProgress(
+            expected: confirmation.selection.count,
+            queue: confirmation.selection.paths.compactMap { planned[$0] },
+            selectedBytes: confirmation.selection.bytes,
+            reviewHeld: max((selection?.reviewBytes ?? 0) - (selection?.selectedReviewBytes ?? 0), 0),
+            startFree: plan?.host.freeBytes ?? 0
+        )
         phase = .cleaning
 
         var finished: DoneEvent?
@@ -191,6 +250,7 @@ public final class AppModel {
                 case .start(let start):
                     progress.selected = start.selected
                     progress.matched = start.matched
+                    progress.startFree = start.freeBytes
                 case .item(let item):
                     progress.items.append(item)
                 case .done(let done):
@@ -213,7 +273,10 @@ public final class AppModel {
             phase = .failed
             return
         }
-        summary = CleanSummary(done: finished, items: progress.items, unreadableLines: progress.unreadableLines)
+        summary = CleanSummary(
+            done: finished, items: progress.items, unreadableLines: progress.unreadableLines,
+            reviewHeld: progress.reviewHeld, finishedAt: now()
+        )
         phase = .done
     }
 
