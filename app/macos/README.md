@@ -61,9 +61,9 @@ narrow that fresh plan.
 ## Known limits (v0)
 
 - **Quitting during a cleanup** (⌘Q, or closing the window) sends cmm the same stop request as the Stop button and the
-  app exits at once, so cmm has nobody to report to: it ends at its next line of output (a broken pipe), after the item
-  it is on. cmm records every item it has finished in its log as it goes, so those lines are written; its last-run
-  stamp may not be. Press Stop and wait for the result if that matters.
+  app exits at once, so cmm has nobody to report to. It finishes the item it is on and ends; the broken pipe does not
+  matter (cmm ignores SIGPIPE in `--json` mode), and its log and last-run stamp are written as usual. You just do not
+  see the result screen; press Stop and wait if you want it.
 - The app is built for the architecture of the Mac that builds it (no universal binary) and is signed ad hoc.
 - The scan and the cleanup each run one `cmm` at a time; the window offers no way to start a second.
 

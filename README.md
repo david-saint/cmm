@@ -124,7 +124,17 @@ cmm apply --yes --json --select-file selection.json   # selection.json: ["<path 
 
 `cmm` plans again and keeps only the selected paths that are in that fresh plan, so **a selection can only narrow a plan, never widen it**; any other path is reported as skipped. Every item is still checked again right before it is removed. `--json` prints one event per line on stdout (`start`, one `item` per path, `done`) and nothing else; it needs `--yes` (the caller has a person's confirmation for exactly this selection) or `--dry-run`. The events are described in the [app track's spec](conductor/tracks/app_v0_20261015/spec.md).
 
-`cmm` looks tools up on a `PATH` that includes `/opt/homebrew/bin` and `/usr/local/bin`, so a copy started from Finder still finds `brew`.
+`cmm` looks tools up on a `PATH` that includes `/opt/homebrew/bin` and `/usr/local/bin`, so a copy started from Finder still finds `brew`. A reader that goes away (an app quitting) does not stop a confirmed cleaning half way; `SIGINT` does.
+
+### The app
+
+`app/macos` holds a small SwiftUI app (macOS 14 or later) on top of that interface: it shows the plan, lets you tick what you want gone and cleans exactly that through `cmm`. It never deletes anything itself.
+
+```bash
+cd app/macos && ./build-app.sh && open build/Cmm.app
+```
+
+See [app/macos/README.md](app/macos/README.md) for what it does and does not do, its safety rules and its tests.
 
 ---
 
