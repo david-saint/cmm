@@ -62,7 +62,10 @@ plan. This is Milestone 1 of turning cmm into the engine behind a clickable macO
 - No test calls the real `lsof`, `pgrep`, `simctl`, `brew`, `tmutil` or `rm` on real paths: all of them go through
   `FakeRunner`. The single allowed exception is one optional read-only `lsof` check on a temp dir.
 - Legacy tests were audited on 2026-10-14: every one uses temp dirs or mocks.
-- `cmm run --test-mode` writes `cmm_test_data/` into the working directory, so it is git-ignored.
+- The journal (cleanup log and last-run stamp) is fenced like deletion: while a test binary runs, writing outside a
+  temporary directory panics.
+- `cmm run` is tested by driving the screen's model with key messages; the Time Machine module is a fake in
+  those tests (no test calls `tmutil`).
 
 ## Architecture
 New packages (the legacy `pkg/cmm`, `pkg/modules`, `pkg/ui` stay until Phase 3):
@@ -129,8 +132,21 @@ Tiers: `safe` (regenerable), `review` (reserved for M2+), `manual` (needs admin,
 ## CLI
 - `cmm plan [--json]`: read-only.
 - `cmm apply [--dry-run] [--yes] [--only <rule,...>]`: show plan, Return gate, apply.
-- `cmm run` (legacy TUI): Phase 1 adds a warning banner; Phase 3 rewires it to the engine (preview-only
-  unless `--apply`) and removes the unguarded Caches/Logs modules and the no-op `--force`.
+- `cmm run [--apply] [--dry-run]`: the interactive screen on the engine's plan. A preview unless `--apply`
+  (which needs a terminal and a typed `y`; Return never confirms); `--dry-run` is accepted and wins. Delivered in
+  Phase 3: the unguarded Caches, Logs, Xcode and Homebrew modules, the no-op `--force` and `--test-mode` are gone;
+  the manual Time Machine module remains (offered last, flagged Harsh, never part of the plan). Deletion goes
+  through `Engine.Apply`, and the finished screen reports what was really freed, skipped and failed.
+
+## State (written by a real apply only)
+`~/.local/state/cmm/` (created 0700, files 0600), cmm's own folder; `~/.local/state/dev-cleanup` is never touched:
+- `cleanup.log`: append-only, one line per item, written after the item is confirmed gone:
+  `YYYY-MM-DD HH:MM:SS deleted <path>`, `... ran <rule> <path>` (command actions) or `... FAILED <path>: <reason>`.
+  Control characters and line separators are quoted; the log is never written through a symlink.
+- `last-run`: epoch seconds, replaced atomically, written when at least one item was deleted (also if the run was
+  cut short). `plan`, `apply` and `run` print `Last cleanup: <date> (N days ago)` on stderr; it is not in the JSON.
+- `plan`, previews, dry runs, refusals and cancellations write nothing. A journal error is a warning on stderr and
+  never stops or skips a deletion.
 
 ## Out of Scope
 User-defined rule files, history snapshots, Time Machine/sudo flows (stay a legacy manual module), the macOS app,
