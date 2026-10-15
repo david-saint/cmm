@@ -13,6 +13,7 @@ struct RootView: View {
     var env = ViewEnvironment()
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @State private var pillFrame: CGRect = .zero
+    @State private var cardSize = ConfirmCard.size
 
     var body: some View {
         let motion = MotionStyle.resolve(reduceMotion: reduceMotion)
@@ -26,7 +27,7 @@ struct RootView: View {
                     .accessibilityHidden(model.confirmation != nil)
 
                 if let confirmation = model.confirmation {
-                    let placement = CardPlacement(pill: pillFrame, card: ConfirmCard.size, window: geometry.size)
+                    let placement = CardPlacement(pill: pillFrame, card: cardSize, window: geometry.size)
                     ConfirmCard(
                         confirmation: confirmation,
                         cancel: { model.cancelClean() },
@@ -47,6 +48,7 @@ struct RootView: View {
         .ignoresSafeArea()
         .coordinateSpace(name: "window")
         .onPreferenceChange(PillFrameKey.self) { pillFrame = $0 }
+        .onPreferenceChange(CardSizeKey.self) { if $0.height > 0 { cardSize = $0 } }
         .animation(motion.animation, value: model.confirmation != nil)
         .animation(.easeInOut(duration: 0.25), value: model.phase)
         .environment(\.cmm, env)

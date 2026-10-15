@@ -55,7 +55,8 @@
       "bytes": 6200000000,
       "tier": "review",
       "action": "command",
-      "note": "docker image prune -a: images you built must be rebuilt, the rest are pulled again; frees space inside Docker's disk image"
+      "note": "docker image prune -a: images you built must be rebuilt, the rest are pulled again; frees space inside Docker's disk image",
+      "frees_inside": "Docker's disk image"
     },
     {
       "rule": "docker",
@@ -64,7 +65,8 @@
       "bytes": 800000000,
       "tier": "review",
       "action": "command",
-      "note": "docker container prune: anything kept only inside a stopped container is lost, volumes are never touched; frees space inside Docker's disk image"
+      "note": "docker container prune: anything kept only inside a stopped container is lost, volumes are never touched; frees space inside Docker's disk image",
+      "frees_inside": "Docker's disk image"
     },
     {
       "rule": "docker",
@@ -73,7 +75,8 @@
       "bytes": 2000000000,
       "tier": "review",
       "action": "command",
-      "note": "docker builder prune: the next builds are slower once; frees space inside Docker's disk image"
+      "note": "docker builder prune: the next builds are slower once; frees space inside Docker's disk image",
+      "frees_inside": "Docker's disk image"
     },
     {
       "rule": "lane-deps",

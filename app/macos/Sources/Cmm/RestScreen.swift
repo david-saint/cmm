@@ -46,7 +46,7 @@ struct RestScreen: View {
 
             BandBlock(
                 band: copy.band, caption: copy.caption, sentence: copy.bandSentence, layout: layout,
-                heldLine: open ? nil : copy.heldLine, covered: covered
+                insideLine: copy.insideLine, heldLine: open ? nil : copy.heldLine, covered: covered
             )
             .offset(x: layout.bandLeading, y: layout.bandTop)
 

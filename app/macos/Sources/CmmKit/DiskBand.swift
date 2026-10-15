@@ -174,9 +174,11 @@ public enum BandText {
 
     // MARK: what VoiceOver reads (the band is one element)
 
-    /// "Disk 228 GB: 19.8 GB free, 8.4 GB safe to remove, 9.0 GB needs your review"
+    /// "Disk 228 GB: 19.8 GB free, 8.4 GB safe to remove, 9.0 GB needs your review". `selected` is what the disk gets
+    /// back; what is ticked but freed inside another program's storage is said last, as such.
     public static func restSentence(
-        capacity: Int64?, free: Int64, selected: Int64, safeTotal: Int64, reviewUnselected: Int64
+        capacity: Int64?, free: Int64, selected: Int64, safeTotal: Int64, reviewUnselected: Int64,
+        inside: [InsideBytes] = []
     ) -> String {
         var parts = ["\(SizeText.string(free)) free"]
         if selected > 0 {
@@ -184,6 +186,9 @@ public enum BandText {
         }
         if reviewUnselected > 0 {
             parts.append("\(SizeText.string(reviewUnselected)) needs your review")
+        }
+        if let spoken = Inside.spoken(inside) {
+            parts.append(spoken)
         }
         return sentence(capacity: capacity, free: free, parts: parts)
     }

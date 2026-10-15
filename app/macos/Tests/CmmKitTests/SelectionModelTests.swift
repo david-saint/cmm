@@ -10,9 +10,10 @@ enum TestPlans {
         bytes: Int64 = 1_000,
         tier: Tier = .safe,
         action: ItemAction = .delete,
-        note: String? = nil
+        note: String? = nil,
+        freesInside: String? = nil
     ) -> PlanItem {
-        PlanItem(rule: rule, group: group, path: path, bytes: bytes, tier: tier, action: action, note: note)
+        PlanItem(rule: rule, group: group, path: path, bytes: bytes, tier: tier, action: action, note: note, freesInside: freesInside)
     }
 
     static func plan(

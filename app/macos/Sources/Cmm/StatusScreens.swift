@@ -48,7 +48,7 @@ struct CleaningScreen: View {
                 .padding(.leading, layout.leading)
                 .padding(.top, layout.top)
 
-                BandBlock(band: p.band, caption: p.caption, sentence: p.bandSentence, layout: layout)
+                BandBlock(band: p.band, caption: p.caption, sentence: p.bandSentence, layout: layout, insideLine: p.insideLine)
                     .offset(x: layout.bandLeading, y: layout.bandTop)
             }
         }
@@ -173,6 +173,18 @@ struct DoneScreen: View {
             .frame(height: 18 * s) // the boards' line box; SwiftUI's own is a point taller
             .padding(.top, 10 * s)
 
+            // What went inside another program's storage is not in the figures above; it is said once, quietly.
+            if let inside = p.insideSentence {
+                Text(inside)
+                    .font(Typeface.ui(13 * s))
+                    .foregroundStyle(Theme.ink2)
+                    .monospacedDigit()
+                    .lineLimit(2)
+                    .fixedSize(horizontal: false, vertical: true)
+                    .frame(maxWidth: 720 * s, alignment: .leading)
+                    .padding(.top, 6 * s)
+            }
+
             HStack(spacing: 18 * s) {
                 Counter(symbol: "checkmark.circle.fill", text: p.deletedText, color: Theme.accentText)
                 Counter(symbol: "hand.raised.fill", text: p.skippedText, color: Theme.skip)
@@ -181,7 +193,7 @@ struct DoneScreen: View {
             .font(Typeface.ui(13 * s, .semibold))
             .monospacedDigit()
             .frame(height: 16 * s)
-            .padding(.top, 26 * s)
+            .padding(.top, (p.insideSentence == nil ? 26 : 18) * s)
 
             VStack(alignment: .leading, spacing: 0) {
                 ForEach(p.issues) { issue in

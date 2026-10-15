@@ -103,10 +103,10 @@ final class AppViewsTests: XCTestCase {
 
     enum Scenario: String, CaseIterable {
         case scanning
-        case rest, restReview, restUnticked, restNoCapacity
+        case rest, restReview, restUnticked, restNoCapacity, restDockerTicked
         case details, detailsExpanded, detailsReviewExpanded
-        case sheet
-        case cleaning, done, doneProblems, doneStopped
+        case sheet, sheetDockerTicked
+        case cleaning, cleaningInside, done, doneProblems, doneStopped, doneInside
         case empty
         case errorScan, errorClean, errorMissing
     }
@@ -154,7 +154,12 @@ final class AppViewsTests: XCTestCase {
         func event(_ path: String, _ status: ItemStatus, reason: String = "") throws -> ApplyEvent {
             let planned = try item(path)
             return .item(ItemEvent(rule: planned.rule, group: planned.group, path: planned.path, status: status, reason: reason,
-                                   bytes: planned.bytes, freedBytes: status == .deleted ? planned.bytes : 0))
+                                   bytes: planned.bytes, freedBytes: status == .deleted ? planned.bytes : 0,
+                                   freesInside: planned.freesInside))
+        }
+        /// The board's data with Docker's 6.2 GB of unused images ticked: removed, but freed inside Docker's disk image.
+        func tickDockerImages(_ model: AppModel) throws {
+            model.toggle(try XCTUnwrap(model.selection?.groups.first { $0.section == .review }?.items.first { $0.path == "docker: unused images" }))
         }
 
         switch scenario {
@@ -181,6 +186,11 @@ final class AppViewsTests: XCTestCase {
             model.toggle(try XCTUnwrap(model.selection?.groups.first { $0.rule == "uv-cache" }))
             return Rig(model: model, window: WindowState())
 
+        case .restDockerTicked:
+            let (model, _) = await readyModel(board)
+            try tickDockerImages(model)
+            return Rig(model: model, window: WindowState())
+
         case .restNoCapacity:
             let plan = TestPlans.plan(safe, skipped: board.skipped, freeBytes: board.host.freeBytes, capacityBytes: nil)
             let (model, _) = await readyModel(plan)
@@ -203,6 +213,12 @@ final class AppViewsTests: XCTestCase {
 
         case .sheet:
             let (model, _) = await readyModel(board)
+            model.requestClean()
+            return Rig(model: model, window: WindowState())
+
+        case .sheetDockerTicked:
+            let (model, _) = await readyModel(board)
+            try tickDockerImages(model)
             model.requestClean()
             return Rig(model: model, window: WindowState())
 
@@ -231,6 +247,50 @@ final class AppViewsTests: XCTestCase {
                 fake.finish()
                 await task.value
             })
+
+        case .cleaningInside:
+            // Docker's images are confirmed with the safe items. cmm has gone through go-build, npm, bun, uv (skipped),
+            // Homebrew and the images; the lane directories are next.
+            let fake = FakeCmmClient(plan: board)
+            fake.script(.live)
+            let model = AppModel(client: fake, now: { BoardClock.finished })
+            await model.scan()
+            try tickDockerImages(model)
+            model.requestClean()
+            let confirmation = try XCTUnwrap(model.confirmation)
+            let task = Task { await model.confirmClean(confirmation) }
+            _ = await fake.waitForApply()
+            fake.send(Events.start(selected: 10, bytes: gb(14.6), free: gb(19.8)))
+            for (path, status, reason) in [
+                ("/Users/test/Library/Caches/go-build", ItemStatus.deleted, ""),
+                ("/Users/test/.npm/_cacache", .deleted, ""),
+                ("/Users/test/.bun/install/cache", .deleted, ""),
+                ("/Users/test/.cache/uv", .skipped, "uv is running"),
+                ("homebrew: cleanup", .deleted, ""),
+                ("docker: unused images", .deleted, ""),
+            ] {
+                fake.send(try event(path, status, reason: reason))
+            }
+            await eventuallyOnMain { model.progress.items.count == 6 }
+            return Rig(model: model, window: WindowState(), finish: {
+                fake.send(Events.done(deleted: 5, skipped: 1, freed: self.gb(2.3), freedInside: self.gb(6.2)))
+                fake.finish()
+                await task.value
+            })
+
+        case .doneInside:
+            var events: [ApplyEvent] = [Events.start(selected: 10, bytes: gb(14.6), free: gb(19.8))]
+            for planned in safe { events.append(try event(planned.path, .deleted)) }
+            events.append(try event("docker: unused images", .deleted))
+            events.append(Events.done(
+                deleted: 10, freed: gb(8.4), freedInside: gb(6.2), before: gb(19.8),
+                log: "/Users/test/.local/state/cmm/cleanup.log"
+            ))
+            let (model, _) = await readyModel(board, script: .replay(events, error: nil))
+            try tickDockerImages(model)
+            model.requestClean()
+            await model.confirmClean(try XCTUnwrap(model.confirmation))
+            return Rig(model: model, window: WindowState())
 
         case .done, .doneProblems, .doneStopped:
             let problems = scenario != .done
@@ -324,13 +384,14 @@ final class AppViewsTests: XCTestCase {
         let expected: [Scenario: AppModel.Phase] = [
             .scanning: .scanning, .rest: .ready, .restReview: .ready, .restUnticked: .ready, .restNoCapacity: .ready,
             .details: .ready, .detailsExpanded: .ready, .detailsReviewExpanded: .ready, .sheet: .ready,
+            .restDockerTicked: .ready, .sheetDockerTicked: .ready, .cleaningInside: .cleaning, .doneInside: .done,
             .cleaning: .cleaning, .done: .done, .doneProblems: .done, .doneStopped: .done, .empty: .empty,
             .errorScan: .failed, .errorClean: .failed, .errorMissing: .failed,
         ]
         for scenario in Scenario.allCases {
             let rig = try await rig(for: scenario)
             XCTAssertEqual(rig.model.phase, expected[scenario], "\(scenario)")
-            if scenario == .sheet { XCTAssertNotNil(rig.model.confirmation) }
+            if scenario == .sheet || scenario == .sheetDockerTicked { XCTAssertNotNil(rig.model.confirmation) }
             await rig.finish()
         }
     }

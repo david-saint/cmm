@@ -1,6 +1,16 @@
 import CmmKit
 import SwiftUI
 
+/// How big the card turned out, so the placement can keep a taller card (the sentence about space freed inside Docker's
+/// disk image wraps to a second line) inside the window.
+struct CardSizeKey: PreferenceKey {
+    static let defaultValue: CGSize = .zero
+    static func reduce(value: inout CGSize, nextValue: () -> CGSize) {
+        let next = nextValue()
+        if next != .zero { value = next }
+    }
+}
+
 /// "Delete 9 items (8.4 GB)?" on a glass card that grows out of the Clean pill.
 ///
 /// Cancel is the filled default on the left and carries `.defaultAction`, so Return presses it; Delete is the red
@@ -38,6 +48,17 @@ struct ConfirmCard: View {
                     .frame(minHeight: 20, alignment: .leading)
                     .padding(.top, 2)
             }
+            // What stays inside another program's storage is said once, under the figure it is not part of.
+            if let inside = confirmation.insideText {
+                Text(inside)
+                    .font(Typeface.ui(13))
+                    .foregroundStyle(Theme.ink2)
+                    .monospacedDigit()
+                    .lineSpacing(4)
+                    .fixedSize(horizontal: false, vertical: true)
+                    .frame(minHeight: 20, alignment: .leading)
+                    .padding(.top, 2)
+            }
 
             HStack(spacing: 10) {
                 Button(action: cancel) {
@@ -68,6 +89,9 @@ struct ConfirmCard: View {
         .padding(.horizontal, 24)
         .padding(.bottom, 20)
         .frame(width: CardPlacement.width, alignment: .leading)
+        .background(GeometryReader { proxy in
+            Color.clear.preference(key: CardSizeKey.self, value: proxy.size)
+        })
         .glassSurface(radius: 28, tint: Theme.cardTint, shadow: Theme.cardShadow, nearShadow: Theme.cardNearShadow)
         .accessibilityElement(children: .contain)
         .accessibilityAddTraits(.isModal)

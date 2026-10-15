@@ -22,16 +22,21 @@ public struct CleanConfirmation: Identifiable, Equatable, Sendable {
     }
 
     public var itemCount: Int { selection.count }
+    /// Everything that will be removed.
     public var bytes: Int64 { selection.bytes }
 
-    /// `Delete 9 items (8.4 GB)?`
+    /// `Delete 9 items (8.4 GB)?` counts everything that will be removed.
     public var prompt: String { "Delete \(Plural.items(itemCount)) (\(SizeText.string(bytes)))?" }
     public var detail: String { "Each item is checked again right before it is removed." }
 
-    /// `Free space afterwards: about 28.2 GB.` (about: what cmm frees is what it measures when it is done)
+    /// `Free space afterwards: about 28.2 GB.` (about: what cmm frees is what it measures when it is done). Only what
+    /// the disk gets back is added: items that free space inside another program's own storage are not.
     public var afterText: String? {
-        freeBefore.map { "Free space afterwards: about \(SizeText.string($0 + bytes))." }
+        freeBefore.map { "Free space afterwards: about \(SizeText.string($0 + selection.volumeBytes))." }
     }
+
+    /// `6.2 GB is freed inside Docker's disk image; the disk shows it later, if at all.`; nil when nothing is.
+    public var insideText: String? { Inside.cardSentence(selection.inside) }
 
     public var cancelTitle: String { "Cancel" }
     /// `Delete 9 Items`
@@ -53,17 +58,24 @@ public struct CleanProgress: Equatable, Sendable {
     public internal(set) var unreadableLines = 0
     /// The confirmed items in the plan's order, which is the order cmm takes them in.
     public internal(set) var queue: [PlanItem]
-    /// Bytes of the confirmed items.
+    /// Bytes of the confirmed items, all of them.
     public internal(set) var selectedBytes: Int64
+    /// The part of `selectedBytes` that is freed inside another program's own storage (Docker's disk image) and so is
+    /// never "still to go" for the disk.
+    public internal(set) var selectedInsideBytes: Int64
     /// Review-tier bytes that were not ticked (they stay dotted on the band).
     public internal(set) var reviewHeld: Int64
     /// Free space when the cleanup began: the plan's, replaced by cmm's own once its `start` event is in.
     public internal(set) var startFree: Int64
 
-    init(expected: Int, queue: [PlanItem] = [], selectedBytes: Int64 = 0, reviewHeld: Int64 = 0, startFree: Int64 = 0) {
+    init(
+        expected: Int, queue: [PlanItem] = [], selectedBytes: Int64 = 0, reviewHeld: Int64 = 0, startFree: Int64 = 0,
+        selectedInsideBytes: Int64 = 0
+    ) {
         self.expected = expected
         self.queue = queue
         self.selectedBytes = selectedBytes
+        self.selectedInsideBytes = selectedInsideBytes
         self.reviewHeld = reviewHeld
         self.startFree = startFree
     }
@@ -71,7 +83,21 @@ public struct CleanProgress: Equatable, Sendable {
     public var deleted: Int { items.filter { $0.status == .deleted }.count }
     public var skipped: Int { items.filter { $0.status == .skipped }.count }
     public var failed: Int { items.filter { $0.status == .failed }.count }
-    public var freedBytes: Int64 { items.reduce(0) { $0 + $1.freedBytes } }
+
+    /// What the disk has got back so far: the freed bytes of the items cmm reported, leaving out the ones that free
+    /// space inside another program's own storage (those are `insideFreed`).
+    public var freedBytes: Int64 {
+        items.reduce(0) { $1.freesInside == nil ? $0 + $1.freedBytes : $0 }
+    }
+
+    /// What was freed inside another program's own storage so far, by place (the disk shows it later, if at all).
+    public var insideFreed: [InsideBytes] {
+        var places: [InsideBytes] = []
+        for event in items where event.status == .deleted {
+            if let place = event.freesInside { Inside.add(event.freedBytes, to: place, in: &places) }
+        }
+        return places
+    }
 
     /// How many items cmm will report on: its own count once the `start` event is in, the confirmed count before.
     public var total: Int { selected ?? expected }
@@ -90,15 +116,28 @@ public struct CleanProgress: Equatable, Sendable {
         return queue.first { !reported.contains($0.path) }
     }
 
-    /// What was confirmed minus everything cmm has reported on, whatever became of it: a skipped or failed item is
-    /// not "still to go", it is done with. Never negative.
+    /// What the disk is still to get: what was confirmed (less what is freed inside another program's storage) minus
+    /// everything cmm has reported on, whatever became of it. A skipped or failed item is not "still to go", it is done
+    /// with. Never negative.
     public var toGoBytes: Int64 {
-        let planned = Dictionary(queue.map { ($0.path, $0.bytes) }, uniquingKeysWith: { first, _ in first })
-        let reported = items.reduce(Int64(0)) { $0 + (planned[$1.path] ?? $1.bytes) }
-        return max(selectedBytes - reported, 0)
+        let planned = Dictionary(queue.map { ($0.path, $0) }, uniquingKeysWith: { first, _ in first })
+        var reported: Int64 = 0
+        for event in items {
+            let item = planned[event.path]
+            if (item?.freesInside ?? event.freesInside) == nil { reported += item?.bytes ?? event.bytes }
+        }
+        return max(selectedBytes - selectedInsideBytes - reported, 0)
     }
 
-    /// Free space now, as far as cmm has said: what it was at the start plus what cmm reports freed since.
+    /// Review items that free space inside another program's storage and have not been reported yet: the disk will not
+    /// get them, so the band keeps them dotted (as it did before the cleanup began) rather than green.
+    public var insideToGoReviewBytes: Int64 {
+        let reported = Set(items.map(\.path))
+        return queue.reduce(0) { $1.tier == .review && $1.freesInside != nil && !reported.contains($1.path) ? $0 + $1.bytes : $0 }
+    }
+
+    /// Free space now, as far as cmm has said: what it was at the start plus what the disk has got back since. What was
+    /// freed inside another program's storage is not in it.
     public var freeNow: Int64 { startFree + freedBytes }
 }
 
@@ -239,7 +278,8 @@ public final class AppModel {
             queue: confirmation.selection.paths.compactMap { planned[$0] },
             selectedBytes: confirmation.selection.bytes,
             reviewHeld: max((selection?.reviewBytes ?? 0) - (selection?.selectedReviewBytes ?? 0), 0),
-            startFree: plan?.host.freeBytes ?? 0
+            startFree: plan?.host.freeBytes ?? 0,
+            selectedInsideBytes: confirmation.selection.insideBytes
         )
         phase = .cleaning
 

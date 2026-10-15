@@ -1,0 +1,4 @@
+{"event":"start","schema_version":1,"selected":2,"matched":2,"bytes":7400000000,"free_bytes":19800000000}
+{"event":"item","rule":"go-build","group":"Go build cache","path":"/Users/test/Library/Caches/go-build","status":"deleted","reason":"","bytes":1200000000,"freed_bytes":1200000000}
+{"event":"item","rule":"docker","group":"Docker: unused images, stopped containers and build cache (review first)","path":"docker: unused images","status":"deleted","reason":"","bytes":6200000000,"freed_bytes":6200000000,"frees_inside":"Docker's disk image"}
+{"event":"done","deleted":2,"skipped":0,"failed":0,"freed_bytes":1200000000,"freed_inside_bytes":6200000000,"free_before":19800000000,"free_after":21000000000,"stopped":false,"warnings":[],"log":"/Users/test/.local/state/cmm/cleanup.log"}

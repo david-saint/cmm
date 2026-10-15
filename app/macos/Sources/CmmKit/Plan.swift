@@ -82,13 +82,32 @@ public struct PlanItem: Hashable, Sendable, Identifiable {
     public let tier: Tier
     public let action: ItemAction
     public let note: String?
+    /// Where the space goes when it is not the volume itself ("Docker's disk image"): a prune frees space inside
+    /// Docker's own storage, which the disk shows later or not at all. Such an item counts in what is removed but not
+    /// in the free space afterwards. Nil, as in plans from older cmm versions, means the disk gets the space.
+    public let freesInside: String?
 
     public var id: String { path }
+
+    init(
+        rule: String, group: String, path: String, bytes: Int64, tier: Tier, action: ItemAction, note: String?,
+        freesInside: String? = nil
+    ) {
+        self.rule = rule
+        self.group = group
+        self.path = path
+        self.bytes = bytes
+        self.tier = tier
+        self.action = action
+        self.note = note
+        self.freesInside = freesInside
+    }
 }
 
 extension PlanItem: Decodable {
     private enum CodingKeys: String, CodingKey {
         case rule, group, path, bytes, tier, action, note
+        case freesInside = "frees_inside"
     }
 
     public init(from decoder: any Decoder) throws {
@@ -100,7 +119,10 @@ extension PlanItem: Decodable {
             bytes: try c.decode(Int64.self, forKey: .bytes),
             tier: try c.decode(Tier.self, forKey: .tier),
             action: try c.decode(ItemAction.self, forKey: .action),
-            note: try c.decodeIfPresent(String.self, forKey: .note)
+            note: try c.decodeIfPresent(String.self, forKey: .note),
+            // Said once, kindly: a value of the wrong type is dropped (the disk is then assumed to get the space, which
+            // is what older plans meant) instead of rejecting the whole plan.
+            freesInside: (try? c.decodeIfPresent(String.self, forKey: .freesInside)).flatMap { $0 }.flatMap { $0.isEmpty ? nil : $0 }
         )
     }
 }

@@ -81,6 +81,8 @@ public struct CleaningPresentation: Equatable, Sendable {
     public let band: DiskBand?
     public let caption: BandText.Caption
     public let bandSentence: String
+    /// `+ 2.1 GB inside Docker's disk image`, once something has been freed there; nil until then.
+    public let insideLine: String?
 
     public init(progress: CleanProgress, capacity: Int64?, home: String) {
         let finished = progress.items.count
@@ -110,11 +112,15 @@ public struct CleaningPresentation: Equatable, Sendable {
         }
 
         let toGo = progress.toGoBytes
+        // The disk's numbers only: what is freed inside another program's storage is not "freed so far" or "free now",
+        // and an item still to be removed there stays dotted, as it was before, instead of turning green.
         band = DiskBand(
-            capacity: capacity, free: progress.startFree, review: progress.reviewHeld, selected: toGo, freed: progress.freedBytes
+            capacity: capacity, free: progress.startFree, review: progress.reviewHeld + progress.insideToGoReviewBytes,
+            selected: toGo, freed: progress.freedBytes
         )
         caption = BandText.cleaning(capacity: capacity, freeNow: progress.freeNow, toGo: toGo)
         bandSentence = BandText.cleaningSentence(capacity: capacity, freeNow: progress.freeNow, toGo: toGo)
+        insideLine = Inside.cleaningLine(progress.insideFreed)
     }
 
     private static func row(for event: ItemEvent, home: String) -> Row {
@@ -138,6 +144,9 @@ public struct CleaningPresentation: Equatable, Sendable {
 
 /// After the cleanup: the free space now, what was freed, what was skipped or failed and why, and where the log is.
 public struct DonePresentation: Equatable, Sendable {
+    /// How many skipped or failed items are named on the screen; more are summed up in a line.
+    public static let maxIssues = 3
+
     /// A skipped or failed item, with the reason cmm gave.
     public struct Issue: Identifiable, Equatable, Sendable {
         public let id: String
@@ -165,6 +174,9 @@ public struct DonePresentation: Equatable, Sendable {
     public let warnings: [String]
     /// Sentences about the run itself: that it was stopped, that some of cmm's output could not be read.
     public let notes: [String]
+    /// What was freed inside another program's own storage, apart from what the disk got back:
+    /// `6.2 GB was freed inside Docker's disk image; the disk shows it when that space is given back.`
+    public let insideSentence: String?
     public let band: DiskBand?
     public let caption: BandText.Caption
     public let bandSentence: String
@@ -186,7 +198,7 @@ public struct DonePresentation: Equatable, Sendable {
         skippedText = "\(done.skipped) skipped"
         failedText = "\(done.failed) failed"
 
-        issues = summary.items.compactMap { event in
+        let everyIssue = summary.items.compactMap { event -> Issue? in
             let reason = event.reason.isEmpty ? "" : ", \(event.reason)"
             switch event.status {
             case .skipped:
@@ -199,20 +211,44 @@ public struct DonePresentation: Equatable, Sendable {
                 return nil
             }
         }
+        // The screen has room for three lines; the counters above still count every one.
+        issues = Array(everyIssue.prefix(Self.maxIssues))
+        let hidden = everyIssue.count - issues.count
         log = done.log.map { Log(path: PathFormat.shorten($0, home: home), revealPath: $0) }
         warnings = done.warnings
 
         var notes: [String] = []
+        if hidden > 0 { notes.append("and \(hidden) more skipped or failed.") }
         if done.stopped { notes.append("Stopped early. Items after the one in progress were not touched.") }
         if summary.unreadableLines > 0 {
             let lines = summary.unreadableLines == 1 ? "1 line" : "\(summary.unreadableLines) lines"
             notes.append("\(lines) of cmm's output could not be read; the figures above are cmm's own.")
         }
         self.notes = notes
+        insideSentence = Inside.doneSentence(Self.insidePlaces(summary))
 
         band = DiskBand(capacity: capacity, free: done.freeBefore, review: summary.reviewHeld, freed: done.freedBytes)
         caption = BandText.done(capacity: capacity, freeBefore: done.freeBefore, freeAfter: done.freeAfter)
         bandSentence = BandText.doneSentence(capacity: capacity, freeAfter: done.freeAfter, freed: done.freedBytes)
+    }
+}
+
+extension DonePresentation {
+    /// The total is cmm's (`done.freed_inside_bytes`); the name of the place is the items' (`frees_inside`). One place:
+    /// the total is its amount. Several: each item's own freed bytes say how it divides. None named: a generic place.
+    static func insidePlaces(_ summary: CleanSummary) -> [InsideBytes] {
+        let total = summary.done.freedInsideBytes
+        guard total > 0 else { return [] }
+
+        var named: [InsideBytes] = []
+        for event in summary.items where event.status == .deleted {
+            if let place = event.freesInside { Inside.add(event.freedBytes, to: place, in: &named) }
+        }
+        switch named.count {
+        case 0: return [InsideBytes(place: Inside.fallbackPlace, bytes: total)]
+        case 1: return [InsideBytes(place: named[0].place, bytes: total)]
+        default: return named
+        }
     }
 }
 

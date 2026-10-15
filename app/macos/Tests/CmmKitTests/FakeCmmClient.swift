@@ -143,20 +143,22 @@ enum Events {
         _ path: String,
         _ status: ItemStatus = .deleted,
         bytes: Int64 = 1_000,
-        reason: String = ""
+        reason: String = "",
+        freesInside: String? = nil
     ) -> ApplyEvent {
         .item(ItemEvent(
             rule: "rule", group: "Group", path: path, status: status, reason: reason,
-            bytes: bytes, freedBytes: status == .deleted ? bytes : 0
+            bytes: bytes, freedBytes: status == .deleted ? bytes : 0, freesInside: freesInside
         ))
     }
 
+    /// `freed` is what the volume got back; `freedInside` what was freed inside another program's storage.
     static func done(
-        deleted: Int = 0, skipped: Int = 0, failed: Int = 0, freed: Int64 = 0,
+        deleted: Int = 0, skipped: Int = 0, failed: Int = 0, freed: Int64 = 0, freedInside: Int64 = 0,
         before: Int64 = 20_000_000_000, stopped: Bool = false, warnings: [String] = [], log: String? = nil
     ) -> ApplyEvent {
         .done(DoneEvent(
-            deleted: deleted, skipped: skipped, failed: failed, freedBytes: freed,
+            deleted: deleted, skipped: skipped, failed: failed, freedBytes: freed, freedInsideBytes: freedInside,
             freeBefore: before, freeAfter: before + freed, stopped: stopped, warnings: warnings, log: log
         ))
     }

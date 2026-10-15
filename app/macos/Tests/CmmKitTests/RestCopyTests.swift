@@ -65,9 +65,14 @@ final class RestCopyTests: XCTestCase {
         XCTAssertEqual(c.pillTitle, "Clean 17.4 GB…")
         XCTAssertEqual(c.tickedText, "12 items ticked")
         XCTAssertEqual(c.reviewLink, "Includes 9.0 GB you reviewed")
-        XCTAssertEqual(c.caption.trailingText, "19.8 GB free now → 37.2 GB after")
-        XCTAssertEqual(c.band?.segments.map(\.kind), [.used, .selected, .free], "no dotted review left, it is selected now")
-        XCTAssertEqual(c.bandSentence, "Disk 228 GB: 19.8 GB free, 17.4 GB selected to remove")
+        // Docker's prunes free space inside Docker's own disk image: the disk does not get it, so it is not "after"
+        // and not green (see InsideTests for the whole story).
+        XCTAssertEqual(c.caption.trailingText, "19.8 GB free now → 28.2 GB after")
+        XCTAssertEqual(c.band?.segments.map(\.kind), [.used, .review, .selected, .free], "stays dotted: the disk does not get it")
+        XCTAssertEqual(
+            c.bandSentence,
+            "Disk 228 GB: 19.8 GB free, 8.4 GB safe to remove, 9.0 GB selected inside Docker's disk image, not counted as free space"
+        )
     }
 
     func testTickingPartOfTheReviewTierLeavesTheRestToReview() throws {
@@ -79,7 +84,10 @@ final class RestCopyTests: XCTestCase {
         let c = copy(selection)
         XCTAssertEqual(c.pillTitle, "Clean 14.6 GB…")
         XCTAssertEqual(c.reviewLink, "Review 2.8 GB more")
-        XCTAssertEqual(c.band?.segments.first { $0.kind == .review }?.bytes, gb(2.8))
+        XCTAssertEqual(
+            c.band?.segments.first { $0.kind == .review }?.bytes, gb(9.0),
+            "the 2.8 GB left to review and the 6.2 GB ticked, which the disk does not get, are both dotted"
+        )
     }
 
     func testNothingTickedDisablesThePill() throws {

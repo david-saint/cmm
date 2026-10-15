@@ -50,27 +50,39 @@ public struct PlanGroup: Hashable, Sendable, Identifiable {
 /// tests and is not visible to the app target.
 public struct ApplySelection: Hashable, Sendable {
     public let paths: [String]
+    /// Everything that will be removed.
     public let bytes: Int64
+    /// The part of `bytes` the disk gets back; the rest is freed inside another program's storage (`inside`).
+    public let volumeBytes: Int64
+    /// What will be freed inside another program's own storage (Docker's disk image), by place.
+    public let inside: [InsideBytes]
 
     public var count: Int { paths.count }
+    public var insideBytes: Int64 { Inside.total(inside) }
 
     public init(plan: Plan, ticked: Set<String>) {
         var seen = Set<String>()
         var paths: [String] = []
         var bytes: Int64 = 0
+        var inside: [InsideBytes] = []
         // Only safe and review items can be chosen; a manual or unknown tier is dropped even if a path was forged in.
         for item in plan.items
         where PlanSection(tier: item.tier).isTickable && ticked.contains(item.path) && seen.insert(item.path).inserted {
             paths.append(item.path)
             bytes += item.bytes
+            if let place = item.freesInside { Inside.add(item.bytes, to: place, in: &inside) }
         }
         self.paths = paths
         self.bytes = bytes
+        self.inside = inside
+        self.volumeBytes = bytes - Inside.total(inside)
     }
 
     init(unchecked paths: [String], bytes: Int64 = 0) {
         self.paths = paths
         self.bytes = bytes
+        self.volumeBytes = bytes
+        self.inside = []
     }
 }
 
@@ -148,9 +160,27 @@ public struct SelectionModel: Equatable, Sendable {
 
     public var selectedCount: Int { ticked.count }
 
+    /// Everything that is ticked, which is what will be removed (and what the pill says).
     public var selectedBytes: Int64 {
         uniqueItems.reduce(0) { ticked.contains($1.path) ? $0 + $1.bytes : $0 }
     }
+
+    /// The part of what is ticked that the disk gets back: items that free space inside another program's own storage
+    /// (Docker's disk image) are left out. This is what "free space afterwards" and the band's green slice count.
+    public var selectedVolumeBytes: Int64 {
+        uniqueItems.reduce(0) { ticked.contains($1.path) && $1.freesInside == nil ? $0 + $1.bytes : $0 }
+    }
+
+    /// The ticked items that free space inside another program's storage, totalled by place (in plan order).
+    public var selectedInside: [InsideBytes] {
+        var places: [InsideBytes] = []
+        for item in uniqueItems where ticked.contains(item.path) {
+            if let place = item.freesInside { Inside.add(item.bytes, to: place, in: &places) }
+        }
+        return places
+    }
+
+    public var selectedInsideBytes: Int64 { Inside.total(selectedInside) }
 
     /// Bytes of ticked review items (zero until someone ticks one).
     public var selectedReviewBytes: Int64 {
@@ -173,6 +203,12 @@ public struct SelectionModel: Equatable, Sendable {
 
     public var reviewCount: Int {
         uniqueItems.reduce(0) { $1.tier == .review ? $0 + 1 : $0 }
+    }
+
+    /// What the band draws dotted: review bytes the disk is not going to get. Unticked review items, and ticked ones
+    /// that free space inside another program's storage (they are removed, but the disk does not show it).
+    public var reviewDottedBytes: Int64 {
+        uniqueItems.reduce(0) { $1.tier == .review && !(ticked.contains($1.path) && $1.freesInside == nil) ? $0 + $1.bytes : $0 }
     }
 
     public var itemCount: Int { uniqueItems.count }

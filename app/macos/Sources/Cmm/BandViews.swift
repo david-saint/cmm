@@ -40,13 +40,16 @@ struct DiskBandView: View {
     }
 }
 
-/// The caption and the band under the text column, and, when there is one, the line about what was held back.
+/// The caption and the band under the text column, then, when there is one, the quiet line about space that goes
+/// inside another program's storage, and the line about what was held back.
 /// The caption and the band are one element for VoiceOver, read as a single sentence.
 struct BandBlock: View {
     let band: DiskBand?
     let caption: BandText.Caption
     let sentence: String
     let layout: HeroLayout
+    /// `+ 6.2 GB inside Docker's disk image, not counted above.`
+    var insideLine: String?
     var heldLine: String?
     /// Under the confirmation card the bar stays and the words around it go.
     var covered = false
@@ -76,6 +79,17 @@ struct BandBlock: View {
             .accessibilityElement(children: .ignore)
             .accessibilityLabel(sentence)
 
+            if let insideLine {
+                Text(insideLine)
+                    .font(Typeface.ui(11.5 * s))
+                    .foregroundStyle(Theme.ink2)
+                    .monospacedDigit()
+                    .lineLimit(2)
+                    .fixedSize(horizontal: false, vertical: true)
+                    .padding(.top, 10 * s)
+                    .opacity(covered ? 0 : 1)
+            }
+
             if let heldLine {
                 HStack(spacing: 6) {
                     Image(systemName: "hand.raised.fill").font(.system(size: 12 * s))
@@ -84,7 +98,7 @@ struct BandBlock: View {
                 .font(Typeface.ui(11.5 * s))
                 .foregroundStyle(Theme.ink2)
                 .lineLimit(1)
-                .padding(.top, 14 * s)
+                .padding(.top, (insideLine == nil ? 14 : 8) * s)
                 .opacity(covered ? 0 : 1)
                 .accessibilityElement(children: .combine)
             }

@@ -70,14 +70,32 @@ public struct ItemEvent: Equatable, Sendable, Identifiable {
     public let reason: String
     public let bytes: Int64
     public let freedBytes: Int64
+    /// Where the space went when it was not the volume ("Docker's disk image"); the item's `freedBytes` are then not
+    /// part of `done.freedBytes`. Nil when the volume got the space.
+    public let freesInside: String?
 
     public var id: String { path }
+
+    init(
+        rule: String, group: String, path: String, status: ItemStatus, reason: String, bytes: Int64, freedBytes: Int64,
+        freesInside: String? = nil
+    ) {
+        self.rule = rule
+        self.group = group
+        self.path = path
+        self.status = status
+        self.reason = reason
+        self.bytes = bytes
+        self.freedBytes = freedBytes
+        self.freesInside = freesInside
+    }
 }
 
 extension ItemEvent: Decodable {
     private enum CodingKeys: String, CodingKey {
         case rule, group, path, status, reason, bytes
         case freedBytes = "freed_bytes"
+        case freesInside = "frees_inside"
     }
 
     public init(from decoder: any Decoder) throws {
@@ -89,7 +107,8 @@ extension ItemEvent: Decodable {
             status: try c.decode(ItemStatus.self, forKey: .status),
             reason: try c.decodeIfPresent(String.self, forKey: .reason) ?? "",
             bytes: try c.decodeIfPresent(Int64.self, forKey: .bytes) ?? 0,
-            freedBytes: try c.decodeIfPresent(Int64.self, forKey: .freedBytes) ?? 0
+            freedBytes: try c.decodeIfPresent(Int64.self, forKey: .freedBytes) ?? 0,
+            freesInside: (try? c.decodeIfPresent(String.self, forKey: .freesInside)).flatMap { $0 }.flatMap { $0.isEmpty ? nil : $0 }
         )
     }
 }
@@ -99,7 +118,10 @@ public struct DoneEvent: Equatable, Sendable {
     public let deleted: Int
     public let skipped: Int
     public let failed: Int
+    /// What the volume got back. Space freed inside another program's own storage (Docker's disk image) is not in it.
     public let freedBytes: Int64
+    /// What was freed inside another program's own storage: the disk shows it later, or not at all. Zero when absent.
+    public let freedInsideBytes: Int64
     public let freeBefore: Int64
     public let freeAfter: Int64
     /// True when the person stopped the cleanup before every item was dealt with.
@@ -108,12 +130,29 @@ public struct DoneEvent: Equatable, Sendable {
     public let warnings: [String]
     /// Where the record of this cleanup is; present only when something was logged.
     public let log: String?
+
+    init(
+        deleted: Int, skipped: Int, failed: Int, freedBytes: Int64, freedInsideBytes: Int64 = 0, freeBefore: Int64,
+        freeAfter: Int64, stopped: Bool, warnings: [String], log: String?
+    ) {
+        self.deleted = deleted
+        self.skipped = skipped
+        self.failed = failed
+        self.freedBytes = freedBytes
+        self.freedInsideBytes = freedInsideBytes
+        self.freeBefore = freeBefore
+        self.freeAfter = freeAfter
+        self.stopped = stopped
+        self.warnings = warnings
+        self.log = log
+    }
 }
 
 extension DoneEvent: Decodable {
     private enum CodingKeys: String, CodingKey {
         case deleted, skipped, failed, stopped, warnings, log
         case freedBytes = "freed_bytes"
+        case freedInsideBytes = "freed_inside_bytes"
         case freeBefore = "free_before"
         case freeAfter = "free_after"
     }
@@ -125,6 +164,7 @@ extension DoneEvent: Decodable {
             skipped: try c.decode(Int.self, forKey: .skipped),
             failed: try c.decode(Int.self, forKey: .failed),
             freedBytes: try c.decode(Int64.self, forKey: .freedBytes),
+            freedInsideBytes: try c.decodeIfPresent(Int64.self, forKey: .freedInsideBytes) ?? 0,
             freeBefore: try c.decode(Int64.self, forKey: .freeBefore),
             freeAfter: try c.decode(Int64.self, forKey: .freeAfter),
             stopped: try c.decode(Bool.self, forKey: .stopped),

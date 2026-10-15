@@ -3,9 +3,10 @@ import Foundation
 /// Everything the "at rest" screen says and draws, derived from the plan and from what is ticked:
 ///
 /// - the headline is the **safe** total, whatever is ticked;
-/// - the pill, the "N items ticked" line, the band and the "after" figure follow **what is ticked**;
-/// - "after" is the free space now plus what is selected (about: a Docker prune frees space inside Docker's disk
-///   image, which the plan's own note says).
+/// - the pill and the "N items ticked" line follow **what is ticked**, all of it, because that is what will be removed;
+/// - the band and the "after" figure follow what the **disk gets back**: free space now plus the ticked items that do not
+///   free their space inside another program's own storage (a Docker prune frees it inside Docker's disk image). What
+///   stays inside is said once, quietly, under the band (`insideLine`), and its bytes stay dotted rather than green.
 public struct RestCopy: Equatable, Sendable {
     /// `Macintosh HD · 19.8 GB free of 228 GB`
     public let eyebrow: String
@@ -28,12 +29,16 @@ public struct RestCopy: Equatable, Sendable {
     public let band: DiskBand?
     public let caption: BandText.Caption
     public let bandSentence: String
+    /// `+ 6.2 GB inside Docker's disk image, not counted above.` while such items are ticked; nil otherwise.
+    public let insideLine: String?
 
     public init(selection: SelectionModel, volumeName: String) {
         let host = selection.plan.host
         let free = host.freeBytes
         let capacity = DiskBand.validCapacity(host.capacityBytes, free: free)
         let selected = selection.selectedBytes
+        let onDisk = selection.selectedVolumeBytes
+        let inside = selection.selectedInside
         let reviewUnselected = max(selection.reviewBytes - selection.selectedReviewBytes, 0)
 
         var freeText = "\(SizeText.string(free)) free"
@@ -61,10 +66,12 @@ public struct RestCopy: Equatable, Sendable {
 
         held = DetailsModel.heldRows(selection: selection)
         heldLine = HeldBack.line(for: held)
-        band = DiskBand(capacity: capacity, free: free, review: reviewUnselected, selected: selected)
-        caption = BandText.rest(capacity: capacity, free: free, selected: selected)
+        band = DiskBand(capacity: capacity, free: free, review: selection.reviewDottedBytes, selected: onDisk)
+        caption = BandText.rest(capacity: capacity, free: free, selected: onDisk)
         bandSentence = BandText.restSentence(
-            capacity: capacity, free: free, selected: selected, safeTotal: selection.plannedBytes, reviewUnselected: reviewUnselected
+            capacity: capacity, free: free, selected: onDisk, safeTotal: selection.plannedBytes,
+            reviewUnselected: reviewUnselected, inside: inside
         )
+        insideLine = Inside.restLine(inside)
     }
 }
