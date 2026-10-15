@@ -13,7 +13,7 @@
 coverage.html
 
 # Project specific binaries
-cmm
+/cmm
 
 # OS specific files
 .DS_Store
