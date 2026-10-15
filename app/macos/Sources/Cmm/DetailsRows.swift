@@ -108,25 +108,28 @@ struct ItemRowView: View {
             HStack(alignment: .firstTextBaseline, spacing: 12) {
                 RoundCheck(state: row.isTicked ? .on : .off, size: 15)
                     .alignmentGuide(.firstTextBaseline) { $0[VerticalAlignment.center] + 4 }
-                VStack(alignment: .leading, spacing: 1) {
-                    Text(row.title)
-                        .font(Typeface.mono(11.5))
-                        .foregroundStyle(Theme.ink)
-                        .lineLimit(1)
-                        .truncationMode(.middle)
+                VStack(alignment: .leading, spacing: 2) {
+                    HStack(alignment: .firstTextBaseline, spacing: 8) {
+                        Text(row.title)
+                            .font(Typeface.mono(11.5))
+                            .foregroundStyle(Theme.ink)
+                            .lineLimit(1)
+                            .truncationMode(.middle)
+                        Spacer(minLength: 8)
+                        Text(row.sizeText)
+                            .font(Typeface.ui(12.5))
+                            .monospacedDigit()
+                            .foregroundStyle(Theme.ink2)
+                    }
+                    // A command's note says what runs and what it costs, and where the space goes: it is never cut. It
+                    // runs under the size too, so it takes the whole width of the row and wraps as little as it can.
                     if row.showsDetail, let detail = row.detail {
                         Text(detail)
                             .font(Typeface.ui(10.5))
                             .foregroundStyle(Theme.ink2)
-                            .lineLimit(2)
                             .fixedSize(horizontal: false, vertical: true)
                     }
                 }
-                Spacer(minLength: 8)
-                Text(row.sizeText)
-                    .font(Typeface.ui(12.5))
-                    .monospacedDigit()
-                    .foregroundStyle(Theme.ink2)
             }
             .padding(.leading, 48)
             .padding(.trailing, 41)

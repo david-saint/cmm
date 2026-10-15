@@ -365,6 +365,20 @@ final class SafetyRulesTests: XCTestCase {
         XCTAssertFalse(plan.contains("Data?"))
     }
 
+    // MARK: what the window says about the numbers is not cut
+
+    func testTheNoteOfACommandItemIsNeverClipped() throws {
+        // A command's note says what runs and, for Docker, that the space is freed inside Docker's disk image: the one
+        // caveat that keeps "free space afterwards" honest. It must wrap completely, however long it is.
+        let rows = try XCTUnwrap(sources("Cmm").first { $0.name == "DetailsRows.swift" }).code
+        let start = try XCTUnwrap(rows.range(of: "Text(detail)"))
+        let statement = rows[start.lowerBound...].prefix { $0 != "}" }
+        for token in ["lineLimit", "truncationMode", "minimumScaleFactor", ".clipped", ".frame(height", ".frame(maxHeight"] {
+            XCTAssertFalse(statement.contains(token), "a command's note carries `\(token)`")
+        }
+        XCTAssertTrue(statement.contains(".fixedSize(horizontal: false, vertical: true)"), "it takes the height it needs")
+    }
+
     // MARK: rule 6: tests never clean the real disk
 
     func testRule6_TheRealBinaryTestsAreOffUnlessAskedForTwice() throws {
