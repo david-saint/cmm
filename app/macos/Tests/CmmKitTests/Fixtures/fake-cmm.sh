@@ -9,7 +9,8 @@
 # Anything else is refused with status 64. It never deletes or writes anything except its own records.
 #
 # Environment (set by the tests):
-#   FAKE_CMM_DIR      folder the fake records into (required): invocations.log, env.txt, pid, selection.*
+#   FAKE_CMM_DIR      folder the fake records into (required): invocations.log, env.txt, pid, selection.*, and for
+#                     `apply` ready (it handles SIGINT from now on) and interrupted (it got one)
 #   FAKE_CMM_PLAN     plan JSON file; `apply` treats its items as "the fresh plan"
 #   FAKE_CMM_MODE     normal (default), or one of:
 #       plan-error    `plan` fails with status 2 and a message on stderr
@@ -23,6 +24,8 @@
 #       bad-line      one line that is not JSON between the events
 #       big           5000 items
 #       slow          waits for $FAKE_CMM_RELEASE after the first item; SIGINT ends it with done/stopped:true
+#       slow-start    has read the selection file but waits for $FAKE_CMM_RELEASE before its `start` event (the
+#                     real cmm plans again first); SIGINT ends it at once with status 130 and no output
 #   FAKE_CMM_RELEASE  file the test creates to let a `slow` or `plan-hang` run continue
 set -u
 
@@ -110,6 +113,7 @@ sub note { my ($name, $text) = @_; open(my $fh, '>', "$dir/$name") or return; pr
 
 my $stopped = 0;
 $SIG{INT} = sub { $stopped = 1; note('interrupted', "1\n") };
+note('ready', "1\n");   # from here on a SIGINT is handled, not fatal: tests wait for this before interrupting
 alarm 30;   # a watchdog: this fake never outlives a broken test
 
 my @selected = @{ $json->decode(slurp($sel_file)) };
@@ -120,6 +124,14 @@ my $free = $plan->{host}{free_bytes};
 my @matched = grep { exists $fresh{$_} } @selected;
 my $matched_bytes = 0;
 $matched_bytes += $fresh{$_}{bytes} for @matched;
+
+if ($mode eq 'slow-start') {
+    my $started = time;
+    while (!-e ($ENV{FAKE_CMM_RELEASE} // '/nonexistent') && !$stopped && time - $started < 20) {
+        select(undef, undef, undef, 0.02);
+    }
+    exit 130 if $stopped;
+}
 
 emit({ event => 'start', schema_version => 1, selected => scalar(@selected), matched => scalar(@matched),
        bytes => $matched_bytes + 0, free_bytes => $free + 0 });

@@ -4,8 +4,9 @@ import SwiftUI
 /// "Delete N items (X GB)? Each item is checked again right before it is removed."
 ///
 /// It is a plain sheet rather than an alert or a confirmation dialog, because those pick their own default button.
-/// Here Cancel is the default (Return presses it) and Clean has no shortcut, so a stray Return never deletes.
-/// Esc closes the sheet, which cancels as well. The count and the size come from the frozen selection.
+/// Here Cancel is the default (it carries `.defaultAction`) and Clean has no shortcut, so a stray Return never
+/// deletes. However else the sheet is dismissed, the binding in RootView cancels the confirmation. The count and the
+/// size come from the frozen selection.
 struct ConfirmSheet: View {
     let confirmation: CleanConfirmation
     let cancel: () -> Void

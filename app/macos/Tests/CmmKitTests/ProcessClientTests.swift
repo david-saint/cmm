@@ -164,6 +164,47 @@ final class ProcessClientTests: XCTestCase {
         XCTAssertEqual(fake.leftovers(), [], "the temporary folder is empty again")
     }
 
+    func testTheSelectionFileIsRemovedAsSoonAsCmmHasReadIt() async throws {
+        // Once cmm's `start` event is in, cmm holds the selection in memory, so the file is not needed any more.
+        // Removing it then (not only when the run ends) means that quitting the app mid-clean, which ends the app
+        // before the client can clean up after the run, leaves nothing behind.
+        let fake = try makeFakeCmm()
+        var checked = false
+        for try await event in fake.client(mode: "slow").apply(selection: try everythingInThePlan()) {
+            if event.isItem, !checked {
+                checked = true
+                XCTAssertTrue(fake.processIsAlive(), "cmm is still running")
+                XCTAssertNotNil(fake.record("selection.json"), "and it did read the file")
+                XCTAssertEqual(fake.leftovers(), [], "but the selection file is already gone")
+                fake.release()
+            }
+        }
+        XCTAssertTrue(checked)
+    }
+
+    func testStopBeforeCmmHasStartedRemovesTheSelectionFileAtOnce() async throws {
+        // Between launching cmm and its `start` event (it plans again first) the file is still on disk. Stop, and
+        // with it quitting, takes it away immediately instead of leaving it for an exit handler that may never run.
+        let fake = try makeFakeCmm()
+        let client = fake.client(mode: "slow-start")
+        let selection = try everythingInThePlan()
+        let task = Task { try await collect(client.apply(selection: selection)) }
+
+        let read = await eventually { fake.record("ready") != nil && fake.processIsAlive() }
+        XCTAssertNotNil(fake.record("selection.path"))
+        XCTAssertTrue(read, "cmm has read the file and is waiting before its start event")
+        XCTAssertEqual(fake.leftovers().count, 1, "so the file is still there")
+
+        client.stop()
+        XCTAssertEqual(fake.leftovers(), [], "Stop removes it at once, without waiting for cmm to end")
+
+        let result = await task.result
+        guard case .failure = result else { return XCTFail("a run stopped before it began has no summary") }
+        let ended = await eventually { !fake.processIsAlive() }
+        XCTAssertTrue(ended)
+        XCTAssertEqual(fake.record("interrupted"), "1")
+    }
+
     func testApplyStreamsStartItemsAndDoneInOrder() async throws {
         let fake = try makeFakeCmm()
         let events = try await collect(fake.client().apply(selection: try everythingInThePlan()))

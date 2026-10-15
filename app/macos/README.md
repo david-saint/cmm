@@ -49,12 +49,23 @@ from cmm), does not write anything except one temporary file per cleanup (below)
 3. `cmm apply --yes` runs only after Clean and then the sheet's Clean; Cancel (or a stale or forged confirmation)
    runs nothing.
 4. The ticked paths travel to `cmm apply --select-file` in a file of mode 0600, in a folder of mode 0700, in the app's
-   temporary folder, removed when the run ends (also on errors and when you quit).
+   temporary folder. The file is removed as soon as cmm has read it (its `start` event), at the latest when the run
+   ends (also on errors), and at once when you press Stop or quit. Only a crash or a force quit in the first seconds of
+   a run (cmm plans again before its `start` event) can leave one behind; it holds paths and nothing else.
 5. It shows metadata, never file contents.
 6. Tests never run a real clean on the real disk.
 
 cmm itself plans again before applying and re-checks every item right before removing it; a selection can only
 narrow that fresh plan.
+
+## Known limits (v0)
+
+- **Quitting during a cleanup** (⌘Q, or closing the window) sends cmm the same stop request as the Stop button and the
+  app exits at once, so cmm has nobody to report to: it ends at its next line of output (a broken pipe), after the item
+  it is on. cmm records every item it has finished in its log as it goes, so those lines are written; its last-run
+  stamp may not be. Press Stop and wait for the result if that matters.
+- The app is built for the architecture of the Mac that builds it (no universal binary) and is signed ad hoc.
+- The scan and the cleanup each run one `cmm` at a time; the window offers no way to start a second.
 
 ## Using another cmm: `CMM_BIN`
 
@@ -99,7 +110,9 @@ CMM_BIN=/path/to/cmm CMM_SANDBOX_APPLY=1 swift test --filter RealCmmTests
 The apply test refuses to start (and fails) unless cmm's fresh plan consists only of `delete` items inside the fake
 home: cmm asks `getconf` for the real temp folder and appends Homebrew's folders to `PATH` itself, so a fake `HOME`
 alone does not make a run airtight. Not covered by any test here: the look and feel of the live window (the render
-tests only prove that each screen draws in both appearances) and clicking through the real window.
+tests only prove that each screen draws in both appearances), clicking through the real window (the sheet, Stop, the
+popover, ⌘R, quitting mid-clean) and VoiceOver. That Cancel is the sheet's default button is checked by reading the
+source, not by pressing Return.
 
 ## Layout
 

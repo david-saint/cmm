@@ -43,8 +43,14 @@ public final class ProcessCmmClient: CmmClient, @unchecked Sendable {
         }
     }
 
+    /// The cmm that is running now and, for an `apply`, the selection file it was given.
+    private struct Running {
+        let child: ChildProcess
+        let selectionFile: SelectionFile?
+    }
+
     let configuration: Configuration
-    private let running = Locked<ChildProcess?>(nil)
+    private let running = Locked<Running?>(nil)
 
     public init(configuration: Configuration = Configuration()) {
         self.configuration = configuration
@@ -82,23 +88,28 @@ public final class ProcessCmmClient: CmmClient, @unchecked Sendable {
         return ChildProcess(executable: binary, arguments: arguments, environment: environment)
     }
 
-    private func register(_ child: ChildProcess) throws {
+    private func register(_ child: ChildProcess, selectionFile: SelectionFile? = nil) throws {
         try running.withLock { slot in
             guard slot == nil else { throw CmmError.busy }
-            slot = child
+            slot = Running(child: child, selectionFile: selectionFile)
         }
     }
 
     private func unregister(_ child: ChildProcess) {
         running.withLock { slot in
-            if slot === child { slot = nil }
+            if slot?.child === child { slot = nil }
         }
     }
 
     // MARK: CmmClient
 
     public func stop() {
-        running.withLock { $0 }?.interrupt()
+        guard let current = running.withLock({ $0 }) else { return }
+        current.child.interrupt()
+        // cmm is being asked to end, so it has no further use for the selection file. Removing it here (and not
+        // only when the run ends) matters when the app quits: the app can be gone before the run's exit handler
+        // would have cleaned up.
+        current.selectionFile?.remove()
     }
 
     public func plan() async throws -> Plan {
@@ -176,7 +187,7 @@ public final class ProcessCmmClient: CmmClient, @unchecked Sendable {
                 arguments: ["apply", "--yes", "--json", "--select-file", file.url.path]
             )
             do {
-                try register(child)
+                try register(child, selectionFile: file)
             } catch {
                 file.remove()
                 continuation.finish(throwing: error)
@@ -195,7 +206,12 @@ public final class ProcessCmmClient: CmmClient, @unchecked Sendable {
             do {
                 try child.start(
                     onStdout: { chunk in
-                        for event in session.feed(chunk) { continuation.yield(event) }
+                        for event in session.feed(chunk) {
+                            // `start` says how many paths cmm read from the file, so cmm has it in memory now. The
+                            // file goes at once: if the app quits mid-clean, no exit handler is left to remove it.
+                            if case .start = event { file.remove() }
+                            continuation.yield(event)
+                        }
                     },
                     onStderr: { chunk in session.addStderr(chunk) },
                     onExit: { [self] status, reason in
