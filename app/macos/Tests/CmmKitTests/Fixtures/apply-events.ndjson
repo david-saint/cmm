@@ -1,0 +1,4 @@
+{"event":"start","schema_version":1,"selected":2,"matched":2,"bytes":1765167104,"free_bytes":27633246208}
+{"event":"item","rule":"go-build","group":"Go build cache","path":"/Users/test/Library/Caches/go-build","status":"deleted","reason":"","bytes":927080448,"freed_bytes":927080448}
+{"event":"item","rule":"lane-deps","group":"Idle lane dependencies (untouched 5+ days; rebuild with npm ci / pod install)","path":"/Users/test/lane-builds/x/node_modules","status":"skipped","reason":"in use: node (pid 1234) has files open","bytes":838086656,"freed_bytes":0}
+{"event":"done","deleted":1,"skipped":1,"failed":0,"freed_bytes":927080448,"free_before":27633246208,"free_after":28560326656,"stopped":false,"warnings":[],"log":"/Users/test/.local/state/cmm/cleanup.log"}

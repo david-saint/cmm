@@ -1,0 +1,5 @@
+{"event":"start","schema_version":1,"selected":3,"matched":2,"bytes":1539448832,"free_bytes":20000000000}
+{"event":"item","rule":"go-build","group":"Go build cache","path":"/Users/test/Library/Caches/go-build","status":"deleted","reason":"","bytes":927080448,"freed_bytes":927080448}
+{"event":"item","rule":"npm-cache","group":"npm cache","path":"/Users/test/.npm/_cacache","status":"failed","reason":"remove /Users/test/.npm/_cacache/content-v2: permission denied","bytes":612368384,"freed_bytes":0}
+{"event":"item","rule":"","group":"","path":"/Users/test/not-in-the-fresh-plan","status":"skipped","reason":"not in the current plan","bytes":0,"freed_bytes":0}
+{"event":"done","deleted":1,"skipped":1,"failed":1,"freed_bytes":927080448,"free_before":20000000000,"free_after":20927080448,"stopped":false,"warnings":["could not write the cleanup log: permission denied"]}
