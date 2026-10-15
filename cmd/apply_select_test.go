@@ -5,9 +5,11 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"io"
 	"os"
 	"path/filepath"
 	"strings"
+	"syscall"
 	"testing"
 
 	"github.com/david-saint/cmm/pkg/engine"
@@ -445,5 +447,28 @@ func TestApply_SelectionAndOnlyCombine(t *testing.T) {
 	}
 	if itemFor(evs, a.npmCache)["status"] != "skipped" || present(a.goCache) || !present(a.npmCache) {
 		t.Errorf("the rule filter and the selection both apply: %v", evs)
+	}
+}
+
+func TestApply_JSONAReaderThatWentAwayDoesNotStopTheCleaning(t *testing.T) {
+	a := newApp(t)
+	r, w, err := os.Pipe()
+	if err != nil {
+		t.Fatal(err)
+	}
+	r.Close() // the reader (the app) is gone before cmm writes its first event
+
+	cmd := newRootCmd(a.d)
+	cmd.SetOut(w)
+	cmd.SetErr(io.Discard)
+	cmd.SetArgs([]string{"apply", "--yes", "--json"})
+	err = cmd.Execute()
+	w.Close()
+
+	if !errors.Is(err, syscall.EPIPE) {
+		t.Fatalf("a lost reader is reported at the end, not by dying half way: %v", err)
+	}
+	if present(a.goCache) || present(a.npmCache) {
+		t.Error("a confirmed cleaning is not abandoned because nobody is listening any more")
 	}
 }

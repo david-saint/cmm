@@ -7,7 +7,9 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"os/signal"
 	"strings"
+	"syscall"
 
 	"github.com/david-saint/cmm/pkg/engine"
 	"github.com/spf13/cobra"
@@ -88,6 +90,11 @@ type applyJSONOptions struct {
 // runApplyJSON is `cmm apply --json`: plan again, narrow the fresh plan to the selection (when there is one),
 // apply, and report every step as an event. The caller has already checked that --yes or --dry-run was given.
 func runApplyJSON(ctx context.Context, cmd *cobra.Command, eng *engine.Engine, o applyJSONOptions) error {
+	// A reader that goes away (the app quitting) must not kill a cleaning half way, leaving items undone and no
+	// record of the run. With SIGPIPE ignored a failed write is an error that is noted and returned at the end;
+	// stopping a run is what SIGINT is for.
+	signal.Ignore(syscall.SIGPIPE)
+
 	enc := json.NewEncoder(cmd.OutOrStdout())
 	enc.SetEscapeHTML(false) // paths and reasons are data, not HTML
 	var writeErr error
