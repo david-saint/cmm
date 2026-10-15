@@ -19,12 +19,13 @@ enum TestPlans {
         _ items: [PlanItem],
         skipped: [Skip] = [],
         freeBytes: Int64 = 20_000_000_000,
+        capacityBytes: Int64? = nil,
         volume: String = "/System/Volumes/Data"
     ) -> Plan {
         Plan(
             schemaVersion: 1,
             generatedAt: nil,
-            host: Host(volume: volume, freeBytes: freeBytes),
+            host: Host(volume: volume, freeBytes: freeBytes, capacityBytes: capacityBytes),
             items: items,
             skipped: skipped,
             totalBytes: items.reduce(0) { $0 + $1.bytes }
@@ -123,19 +124,27 @@ final class SelectionModelTests: XCTestCase {
     // MARK: tri-state
 
     func testGroupStateIsOnOffOrMixed() throws {
-        let selection = SelectionModel(plan: try TestPlans.fixture("plan-mixed-tiers.json"))
-        let states = Dictionary(uniqueKeysWithValues: selection.groups.map { ($0.name, selection.state(of: $0)) })
-        XCTAssertEqual(states["Go build cache"], .on)
-        XCTAssertEqual(states["Cursor update leftovers"], .mixed, "one safe item ticked, one review item not")
-        XCTAssertEqual(states["Needs a person"], .off)
+        var selection = SelectionModel(plan: try TestPlans.fixture("plan-c.json"))
+        let lanes = try XCTUnwrap(selection.groups.first { $0.name.hasPrefix("Idle lane dependencies") })
+        XCTAssertEqual(selection.state(of: lanes), .on)
+
+        selection.toggle(lanes.items[0])
+        XCTAssertEqual(selection.state(of: lanes), .mixed, "one of four items unticked")
+
+        let docker = try XCTUnwrap(selection.groups.first { $0.section == .review })
+        XCTAssertEqual(selection.state(of: docker), .off, "review items are not ticked until someone ticks them")
     }
 
     func testClickingAMixedGroupTicksEverything() throws {
-        var selection = SelectionModel(plan: try TestPlans.fixture("plan-mixed-tiers.json"))
-        let group = try XCTUnwrap(selection.groups.first { $0.name == "Cursor update leftovers" })
-        selection.toggle(group)
-        XCTAssertEqual(selection.state(of: group), .on)
-        XCTAssertTrue(group.items.allSatisfy(selection.isTicked))
+        var selection = SelectionModel(plan: try TestPlans.fixture("plan-c.json"))
+        let lanes = try XCTUnwrap(selection.groups.first { $0.name.hasPrefix("Idle lane dependencies") })
+        selection.toggle(lanes.items[0])
+        XCTAssertEqual(selection.state(of: lanes), .mixed)
+
+        selection.toggle(lanes)
+
+        XCTAssertEqual(selection.state(of: lanes), .on)
+        XCTAssertTrue(lanes.items.allSatisfy(selection.isTicked))
     }
 
     func testClickingAnOnGroupClearsEverything() throws {
@@ -148,10 +157,92 @@ final class SelectionModelTests: XCTestCase {
     }
 
     func testClickingAnOffGroupTicksEverything() throws {
-        var selection = SelectionModel(plan: try TestPlans.fixture("plan-mixed-tiers.json"))
-        let group = try XCTUnwrap(selection.groups.first { $0.name == "Needs a person" })
+        var selection = SelectionModel(plan: try TestPlans.fixture("plan-v1.json"))
+        let group = selection.groups[0]
+        selection.toggle(group)
+        XCTAssertEqual(selection.state(of: group), .off)
         selection.toggle(group)
         XCTAssertEqual(selection.state(of: group), .on)
+    }
+
+    // MARK: tiers: safe is ticked for you, review only by you, the rest never
+
+    func testGroupsAreSplitBySectionSoATierNeverHidesInsideAnother() throws {
+        let selection = SelectionModel(plan: try TestPlans.fixture("plan-mixed-tiers.json"))
+        // "Cursor update leftovers" has a safe and a review item: each tier gets its own group.
+        XCTAssertEqual(selection.groups.map { "\($0.section.rawValue)/\($0.name)" }, [
+            "safe/Go build cache",
+            "safe/Cursor update leftovers",
+            "review/Cursor update leftovers",
+            "other/Needs a person",
+        ])
+        XCTAssertEqual(selection.groups.map(\.bytes), [900_000_000, 100_000_000, 300_000_000, 4_050_000_000])
+    }
+
+    func testTheBoardPlanHasNineSafeItemsAndThreeReviewItems() throws {
+        let selection = SelectionModel(plan: try TestPlans.fixture("plan-c.json"))
+        XCTAssertEqual(selection.safeCount, 9)
+        XCTAssertEqual(selection.plannedBytes, 8_400_000_000)
+        XCTAssertEqual(selection.reviewCount, 3)
+        XCTAssertEqual(selection.reviewBytes, 9_000_000_000)
+        XCTAssertEqual(selection.selectedCount, 9, "only the safe items start ticked")
+        XCTAssertEqual(selection.selectedBytes, 8_400_000_000)
+        XCTAssertEqual(selection.selectedReviewBytes, 0)
+    }
+
+    func testReviewItemsAreTakenOnlyByAnExplicitTickOnThemOrTheirGroup() throws {
+        var selection = SelectionModel(plan: try TestPlans.fixture("plan-c.json"))
+        let docker = try XCTUnwrap(selection.groups.first { $0.section == .review })
+        XCTAssertEqual(docker.items.count, 3)
+        XCTAssertFalse(docker.items.contains(where: selection.isTicked))
+
+        // Clearing and re-ticking every safe group never reaches the review items.
+        for group in selection.groups where group.section == .safe { selection.toggle(group) }
+        for group in selection.groups where group.section == .safe { selection.toggle(group) }
+        XCTAssertEqual(selection.selectedReviewBytes, 0)
+        XCTAssertEqual(selection.selectedCount, 9)
+
+        // One explicit tick takes one item.
+        selection.toggle(docker.items[0])
+        XCTAssertEqual(selection.selectedCount, 10)
+        XCTAssertEqual(selection.selectedReviewBytes, docker.items[0].bytes)
+        XCTAssertEqual(selection.state(of: docker), .mixed)
+
+        // Ticking the group takes all three, and only those.
+        selection.toggle(docker)
+        XCTAssertEqual(selection.state(of: docker), .on)
+        XCTAssertEqual(selection.selectedCount, 12)
+        XCTAssertEqual(selection.selectedReviewBytes, 9_000_000_000)
+        XCTAssertEqual(selection.selectedBytes, 17_400_000_000)
+        XCTAssertEqual(selection.plannedBytes, 8_400_000_000, "the safe figure does not move with review ticks")
+    }
+
+    func testManualAndUnknownTiersCannotBeTickedByAnything() throws {
+        var selection = SelectionModel(plan: try TestPlans.fixture("plan-mixed-tiers.json"))
+        let other = try XCTUnwrap(selection.groups.first { $0.section == .other })
+        XCTAssertEqual(other.items.count, 2)
+        XCTAssertTrue(other.items.allSatisfy { !selection.isTickable($0) })
+
+        selection.toggle(other)
+        for item in other.items {
+            selection.setTicked(true, for: item)
+            selection.toggle(item)
+        }
+
+        XCTAssertFalse(other.items.contains(where: selection.isTicked))
+        XCTAssertEqual(selection.state(of: other), .off)
+        XCTAssertEqual(selection.selectedCount, 2, "still only the two safe items")
+    }
+
+    func testAForgedTickOnAManualItemNeverReachesCmm() throws {
+        let plan = try TestPlans.fixture("plan-mixed-tiers.json")
+        let manual = try XCTUnwrap(plan.items.first { $0.tier == .manual })
+        let unknown = try XCTUnwrap(plan.items.first { $0.tier == .other("experimental") })
+        let review = try XCTUnwrap(plan.items.first { $0.tier == .review })
+
+        let apply = ApplySelection(plan: plan, ticked: [manual.path, unknown.path, review.path])
+
+        XCTAssertEqual(apply.paths, [review.path], "review may be ticked on purpose; manual and unknown never")
     }
 
     func testTogglingItemsMovesTheGroupThroughAllThreeStates() throws {

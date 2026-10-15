@@ -105,23 +105,35 @@ extension PlanItem: Decodable {
     }
 }
 
-/// The volume cmm cleans and how much room it has now.
+/// The volume cmm cleans, how much room it has now and, when cmm says, how big it is.
 public struct Host: Hashable, Sendable {
     public let volume: String
     public let freeBytes: Int64
+    /// The size of the volume. Optional: plans from older cmm versions do not carry it, and without it the window
+    /// draws no disk band (it still says how much is free).
+    public let capacityBytes: Int64?
+
+    init(volume: String, freeBytes: Int64, capacityBytes: Int64? = nil) {
+        self.volume = volume
+        self.freeBytes = freeBytes
+        self.capacityBytes = capacityBytes
+    }
 }
 
 extension Host: Decodable {
     private enum CodingKeys: String, CodingKey {
         case volume
         case freeBytes = "free_bytes"
+        case capacityBytes = "capacity_bytes"
     }
 
     public init(from decoder: any Decoder) throws {
         let c = try decoder.container(keyedBy: CodingKeys.self)
         self.init(
             volume: try c.decode(String.self, forKey: .volume),
-            freeBytes: try c.decode(Int64.self, forKey: .freeBytes)
+            freeBytes: try c.decode(Int64.self, forKey: .freeBytes),
+            // Cosmetic, so a value of the wrong type is dropped instead of rejecting the whole plan.
+            capacityBytes: (try? c.decodeIfPresent(Int64.self, forKey: .capacityBytes)).flatMap { $0 }
         )
     }
 }

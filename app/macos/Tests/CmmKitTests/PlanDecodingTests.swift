@@ -50,6 +50,29 @@ final class PlanDecodingTests: XCTestCase {
         XCTAssertEqual(plan.host.freeBytes, 31_200_000_000)
     }
 
+    // MARK: capacity
+
+    func testCapacityIsReadWhenThePlanHasIt() throws {
+        let plan = try Plan.parse(Fixture.data("plan-c.json"))
+        XCTAssertEqual(plan.host.capacityBytes, 228_000_000_000)
+        XCTAssertEqual(plan.host.freeBytes, 19_800_000_000)
+    }
+
+    func testCapacityIsOptionalBecauseOlderPlansDoNotHaveIt() throws {
+        XCTAssertNil(try Plan.parse(Fixture.data("plan-v1.json")).host.capacityBytes)
+        XCTAssertNil(try Plan.parse(Fixture.data("plan-empty.json")).host.capacityBytes)
+    }
+
+    func testAnUnreadableCapacityIsDroppedNotFatal() throws {
+        let json = #"""
+        {"schema_version":1,"host":{"volume":"/","free_bytes":5,"capacity_bytes":"lots"},
+         "items":[],"skipped":[],"total_bytes":0}
+        """#
+        let plan = try Plan.parse(Data(json.utf8))
+        XCTAssertNil(plan.host.capacityBytes, "the band is cosmetic: a bad capacity must not hide the plan")
+        XCTAssertEqual(plan.host.freeBytes, 5)
+    }
+
     // MARK: generated_at
 
     func testGeneratedAtWithFractionalSecondsAndOffset() throws {

@@ -201,13 +201,16 @@ final class SafetyRulesTests: XCTestCase {
         fake.script(.replay([Events.done()], error: nil))
         let model = AppModel(client: fake)
         await model.scan()
-        // Tick everything, including the tiers that are not preselected.
+        // Try to tick everything, including the tiers that are not preselected.
         for group in model.selection?.groups ?? [] where model.selection?.state(of: group) != .on { model.toggle(group) }
         model.requestClean()
         await model.confirmClean(try XCTUnwrap(model.confirmation))
 
         let sent = try XCTUnwrap(fake.applyCalls.first).paths
-        XCTAssertEqual(Set(sent), Set(plan.items.map(\.path)))
+        // Safe items (preselected) and review items (ticked on purpose) go; manual and unknown tiers never can.
+        let tickable = plan.items.filter { $0.tier == .safe || $0.tier == .review }
+        XCTAssertEqual(Set(sent), Set(tickable.map(\.path)))
+        XCTAssertEqual(tickable.count, 3)
         XCTAssertTrue(sent.allSatisfy { path in plan.items.contains { $0.path == path } })
     }
 
