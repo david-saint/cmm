@@ -37,7 +37,7 @@ func NewRootCmd() *cobra.Command {
 func newRootCmd(d *deps) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:     "cmm",
-		Version: "0.3.0",
+		Version: "0.4.0",
 		Short:   "cmm is a macOS cleanup tool for developers",
 		Long: `cmm (Clean My Mac CLI) is a tool designed to help developers 
 reclaim disk space by selectively cleaning up bloat like 

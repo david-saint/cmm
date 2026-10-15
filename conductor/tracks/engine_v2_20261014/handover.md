@@ -13,6 +13,13 @@
 4. **Point the weekly reminder at `cmm plan`** (read-only). The new prompt is below. It uses the text plan rather than `--json` because the reminder reports the "Last cleanup" line, the biggest items and the skipped guards, which the text plan prints; the JSON schema deliberately carries none of that.
 5. **Left to you:** merging `feat/engine-v2` into `main` and pushing it. Neither is part of this handover.
 
+## Before the merge: upstream has moved (found 2026-10-15)
+`origin/main` has 25 commits this branch was never based on (the local `main` here is stale at 2026-01-04): a **Docker cleanup module** (2026-01-14), releases 0.3.0 and 0.3.1, and `Module.Available()`. The installed `~/go/bin/cmm` is that 0.3.1 build.
+- A trial merge (`git merge-tree`) conflicts in 13 files: the four modules this branch deleted (`caches`, `logs`, `xcode`, `homebrew`), `cmd/root.go` (version), `cmd/run.go`, `conductor/product.md`, `conductor/tracks.md`, and the test mocks that gained `Available()`. All are mechanical (keep the deletions; add `Available()` to Time Machine and the adapter).
+- **The Docker module is unguarded and no longer compiles against the new `Delete` result.** It runs `docker system prune -f` and `docker volume prune -f`; the second removes every unused volume, which can hold real data. Options: **A)** port it into the engine as a `review`-tier rule (command actions, volumes left out unless asked, shown unticked in the app), recommended, after the handover; **B)** keep it as a second manual legacy module next to Time Machine (works, but stays unguarded); **C)** drop it.
+- Until A or B lands, a cmm installed from this branch has no Docker option. The old binary stays available as `~/go/bin/cmm.old` (its `run` is the unguarded one).
+- Releases are cut by pushing a `v*` tag (`.github/workflows/release.yml`), so merging or pushing `main` publishes nothing by itself. This branch says version 0.4.0; upstream is at 0.3.1.
+
 ## Undo
 - `mv ~/.local/bin/dev-cleanup.retired ~/.local/bin/dev-cleanup`
 - `mv ~/go/bin/cmm.old ~/go/bin/cmm`
