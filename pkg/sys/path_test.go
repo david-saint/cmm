@@ -3,6 +3,7 @@ package sys
 import (
 	"context"
 	"errors"
+	"fmt"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -124,5 +125,23 @@ func TestExecRunner_ExtraEnvironmentStillOverrides(t *testing.T) {
 	defer func() { extraPath = old }()
 	if _, err := (ExecRunner{Env: []string{"PATH=/usr/bin:/bin"}}).Run(context.Background(), "onlyextra"); err == nil {
 		t.Error("a PATH given on purpose is also the one names are looked up in: the extra folders must not be searched")
+	}
+}
+
+func TestIsNotFound(t *testing.T) {
+	_, missing := ExecRunner{}.Run(context.Background(), "cmm-no-such-binary-xyz")
+	if !IsNotFound(missing) {
+		t.Errorf("a program that does not exist is not found: %v", missing)
+	}
+	wrapped := fmt.Errorf("while asking: %w", &exec.Error{Name: "docker", Err: exec.ErrNotFound})
+	for name, err := range map[string]error{"wrapped": wrapped, "plain": exec.ErrNotFound} {
+		if !IsNotFound(err) {
+			t.Errorf("%s: should be recognised", name)
+		}
+	}
+	for name, err := range map[string]error{"nil": nil, "other": errors.New("boom"), "a timeout": context.DeadlineExceeded} {
+		if IsNotFound(err) {
+			t.Errorf("%s must not count as a missing program", name)
+		}
 	}
 }

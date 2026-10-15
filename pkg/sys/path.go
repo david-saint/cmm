@@ -1,6 +1,7 @@
 package sys
 
 import (
+	"errors"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -79,3 +80,7 @@ func (r ExecRunner) environment() (env []string, path string) {
 	}
 	return env, path
 }
+
+// IsNotFound reports whether err says the program does not exist on this machine, so a rule can stay silent about
+// a tool that is simply not installed. (Only this package imports os/exec; see the boundary tests.)
+func IsNotFound(err error) bool { return errors.Is(err, exec.ErrNotFound) }
