@@ -52,8 +52,10 @@ Reading rules: `items[].path` is an opaque identity (for `"action": "command"` i
 {"event":"done","deleted":1,"skipped":1,"failed":0,"freed_bytes":927080448,"free_before":27633246208,"free_after":28560326656,"stopped":false,"warnings":[],"log":"/Users/saint/.local/state/cmm/cleanup.log"}
 ```
 `status` is `deleted`, `skipped`, `failed` or `dry-run`. `log` is present only when something was logged. `warnings` lists problems with the log or the stamp (never failures of the cleanup itself).
-- Exit status: 0 when nothing failed (skips are fine); 1 when an item failed or on a fatal error (a message on stderr, and the `done` event may be missing).
-- SIGINT stops cleanly after the item in progress and ends with a `done` event with `"stopped":true`.
+- Exit status: 0 when nothing failed (skips are fine); 1 when an item failed, when the run was stopped, or on a fatal error (a message on stderr, and the `done` event may be missing).
+- SIGINT stops cleanly after the item in progress and ends with a `done` event with `"stopped":true` (exit status 1).
+- A selection file that is not a JSON array of strings is a fatal error before anything is planned or deleted. `--select-file` also works without `--json` (then the normal prompt applies).
+- `--json` mode prints nothing on stderr except a fatal error; the banner and the "Last cleanup" line are text-mode only.
 - Without a terminal and without `--yes` `cmm apply` refuses, as always.
 
 ## Safety rules for the app (each one gets a test)

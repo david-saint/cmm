@@ -28,6 +28,8 @@ var (
 	errCancelled = errors.New("cancelled: nothing deleted")
 	// errItemsFailed is returned when apply finished but some items could not be deleted.
 	errItemsFailed = errors.New("some items could not be deleted")
+	// errJSONNeedsYes is returned when --json would have to ask a question it cannot ask.
+	errJSONNeedsYes = errors.New("--json needs --yes (the caller has a person's confirmation for exactly this selection) or --dry-run: nothing was planned or deleted")
 )
 
 // deps is what the engine commands need from the outside world; tests replace it.
@@ -138,13 +140,32 @@ before deleting anything.
   - Anything other than a plain Return at the prompt cancels.
   - --dry-run shows the plan and stops; it never deletes, even together with --yes.
   - Each item is checked again right before it is removed; items whose guards no
-    longer hold are skipped, and one failure never stops the others.`,
+    longer hold are skipped, and one failure never stops the others.
+  - --select-file limits the run to the item paths listed in a JSON file (an array
+    of strings taken from "cmm plan --json"). The plan is made again first and a
+    selection can only narrow it: a path that is not in it is skipped, never deleted.
+  - --json prints one JSON event per line (start, item, done) instead of text, for
+    other programs. It needs --yes (the caller has a person's confirmation) or
+    --dry-run, because it cannot ask.`,
 		Args:         cobra.NoArgs,
 		SilenceUsage: true,
 		RunE: func(cmd *cobra.Command, _ []string) error {
 			dryRun, _ := cmd.Flags().GetBool("dry-run")
 			yes, _ := cmd.Flags().GetBool("yes")
 			only, _ := cmd.Flags().GetStringSlice("only")
+			asJSON, _ := cmd.Flags().GetBool("json")
+			selectFile, _ := cmd.Flags().GetString("select-file")
+
+			if asJSON && !yes && !dryRun {
+				return errJSONNeedsYes
+			}
+			var selected []string
+			if selectFile != "" {
+				var err error
+				if selected, err = readSelection(selectFile); err != nil {
+					return err
+				}
+			}
 
 			eng, err := d.newEngine()
 			if err != nil {
@@ -157,6 +178,10 @@ before deleting anything.
 			ctx, stop := signal.NotifyContext(contextOf(cmd), os.Interrupt)
 			defer stop()
 
+			if asJSON {
+				return runApplyJSON(ctx, cmd, eng, applyJSONOptions{only: only, selection: selected, hasSelection: selectFile != "", dryRun: dryRun})
+			}
+
 			out := cmd.OutOrStdout()
 			printLastCleanup(cmd.ErrOrStderr(), eng)
 			fmt.Fprintln(cmd.ErrOrStderr(), "Checking what can safely go (this can take a minute)...")
@@ -165,6 +190,13 @@ before deleting anything.
 				return err
 			}
 			plan = plan.Only(only...)
+			if selectFile != "" {
+				var missing []string
+				plan, missing = plan.OnlyPaths(selected)
+				for _, m := range missing {
+					fmt.Fprintf(cmd.ErrOrStderr(), "skipped: %s: %s\n", shortPath(m, eng.Deps.Env.Home), reasonNotInPlan)
+				}
+			}
 			writePlan(out, plan, eng.Deps.Env.Home, false)
 
 			if len(plan.Items) == 0 {
@@ -192,6 +224,8 @@ before deleting anything.
 	cmd.Flags().Bool("dry-run", false, "show the plan and stop; never deletes")
 	cmd.Flags().Bool("yes", false, "do not ask for Return (for deliberate unattended runs)")
 	cmd.Flags().StringSlice("only", nil, "limit to these rule ids (comma separated)")
+	cmd.Flags().String("select-file", "", "limit to the item paths in this JSON file (an array of strings from `cmm plan --json`); can only narrow the plan")
+	cmd.Flags().Bool("json", false, "print one JSON event per line instead of text (needs --yes or --dry-run)")
 	return cmd
 }
 
