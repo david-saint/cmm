@@ -43,9 +43,9 @@ else is in a pane that slides in on request.
   what is ticked, and a ticked review item adds to them but never to the big number.
 - **Cleans** the ticked items: the pill opens a card that grows out of it ("Delete 9 items (8.4 GB)? Each item is
   checked again right before it is removed. Free space afterwards: about 28.2 GB.", and when Docker's items are
-  ticked, "6.2 GB is freed inside Docker's disk image. The disk shows it later, if at all."). **Cancel** is the filled default
-  on the left, so Return and Esc cancel; the red **Delete 9 Items** has no shortcut. Behind the card the screen is
-  dimmed, disabled and hidden from VoiceOver, which is also what keeps the keyboard inside the card.
+  ticked, "6.2 GB is freed inside Docker's disk image. The disk shows it later, if at all."). **Cancel** is the
+  filled default on the left, so Return and Esc cancel; the red **Delete 9 Items** has no shortcut. Behind the card
+  the screen is dimmed, disabled and hidden from VoiceOver, which is also what keeps the keyboard inside the card.
 - **While it cleans**, a list shows each item as cmm finishes it (removing, deleted, skipped, failed) under a running
   total of what the disk has got back ("3.1 GB freed so far"), with **Stop**, which asks cmm to finish the item it is
   on and end. What went inside another program's storage is a quiet line apart ("+ 2.1 GB inside Docker's disk
@@ -97,15 +97,15 @@ narrow that fresh plan.
 
 ## Known limits
 
-- **Docker's space is counted twice over, on purpose.** A prune frees space inside Docker's own disk image, which the
-  Mac only gets back when Docker shrinks it. The pill and the card's "Delete N items (X GB)?" count it (it is what is
-  removed); "after", the green slice and "freed" do not (it is not what the disk gets), and the place's name is
-  cmm's `frees_inside`, word for word. The "Removing" row's note and the review row say what runs.
+- **Docker's space is in what is removed, not in what is freed.** A prune frees space inside Docker's own disk image,
+  which the Mac only gets back when Docker shrinks it. The pill and the card's "Delete N items (X GB)?" count it (it
+  is what is removed); "after", the green slice, "freed so far" and "freed" do not (it is not what the disk gets), and
+  the place's name is cmm's `frees_inside`, word for word. The pane's rows for such items say what runs and where the
+  space goes.
 - **The running item is inferred.** cmm sends no event when it starts an item, so the "Removing" row is the next item
   of the selection in cmm's order; it is replaced by the real result when the item event arrives.
 - **Held back** also lists groups the app cannot offer (a tier it does not know, items that need a person), with the
   reason, and they cannot be ticked.
-
 - **Quitting during a cleanup** (⌘Q, or closing the window) sends cmm the same stop request as the Stop button and the
   app exits at once, so cmm has nobody to report to. It finishes the item it is on and ends; the broken pipe does not
   matter (cmm ignores SIGPIPE in `--json` mode), and its log and last-run stamp are written as usual. You just do not
