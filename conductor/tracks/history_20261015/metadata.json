@@ -1,0 +1,8 @@
+{
+  "track_id": "history_20261015",
+  "type": "feature",
+  "status": "in_progress",
+  "created_at": "2026-10-15T14:20:00Z",
+  "updated_at": "2026-10-15T14:20:00Z",
+  "description": "Milestone 3, engine side: a structured record of every real cleanup and a free-space timeline in cmm's state folder, read back as JSON by cmm history, for the app's history screen, menu bar and weekly notification."
+}

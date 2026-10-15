@@ -11,3 +11,8 @@ This file tracks all major tracks for the project. Each track has its own detail
 
 ## [~] Track: App v0: SwiftUI macOS app over the engine (milestone 2)
 *Link: [./conductor/tracks/app_v0_20261015/](./conductor/tracks/app_v0_20261015/)*
+
+---
+
+## [~] Track: History and free-space timeline (milestone 3, engine side)
+*Link: [./conductor/tracks/history_20261015/](./conductor/tracks/history_20261015/)*
