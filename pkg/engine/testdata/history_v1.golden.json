@@ -1,0 +1,61 @@
+{
+  "schema_version": 1,
+  "generated_at": "2026-10-15T09:00:00Z",
+  "host": {
+    "volume": "/System/Volumes/Data",
+    "free_bytes": 24000000000,
+    "capacity_bytes": 245107195904
+  },
+  "runs": [
+    {
+      "schema_version": 1,
+      "started_at": "2026-10-14T12:00:00Z",
+      "finished_at": "2026-10-14T12:00:42Z",
+      "deleted": 2,
+      "skipped": 1,
+      "failed": 1,
+      "freed_bytes": 4642000000,
+      "free_before": 19800000000,
+      "free_after": 24442000000,
+      "capacity_bytes": 245107195904,
+      "stopped": false,
+      "items": [
+        {
+          "rule": "go-build",
+          "group": "Go build cache",
+          "path": "/Users/test/Library/Caches/go-build",
+          "status": "deleted",
+          "bytes": 3715000000,
+          "freed_bytes": 3715000000
+        },
+        {
+          "rule": "uv-cache",
+          "group": "uv cache",
+          "path": "/Users/test/.cache/uv",
+          "status": "failed",
+          "bytes": 2500000000,
+          "freed_bytes": 0,
+          "reason": "permission denied"
+        }
+      ]
+    }
+  ],
+  "samples": [
+    {
+      "t": "2026-10-13T08:00:00Z",
+      "free_bytes": 21000000000,
+      "capacity_bytes": 245107195904
+    },
+    {
+      "t": "2026-10-14T12:00:00Z",
+      "free_bytes": 19800000000,
+      "capacity_bytes": 245107195904
+    },
+    {
+      "t": "2026-10-14T12:00:42Z",
+      "free_bytes": 24442000000,
+      "capacity_bytes": 245107195904
+    }
+  ],
+  "unreadable_lines": 0
+}

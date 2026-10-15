@@ -64,6 +64,10 @@ type Engine struct {
 	// Journal keeps the audit trail of real applies (a dry run never touches it). Nil keeps none; the
 	// commands set it where the engine is built for real use.
 	Journal Journal
+	// History keeps a structured record of each real apply that deleted or failed something. Nil keeps none; the
+	// commands set it where the engine is built for real use. It is only ever written by Apply, and nothing that
+	// decides what may be deleted reads it.
+	History RunLog
 }
 
 // New returns an Engine for the given rules.
@@ -86,6 +90,16 @@ func (e *Engine) capacity() int64 {
 		return 0
 	}
 	return realCapacity(e.Deps.Env.Home)
+}
+
+// Host describes the volume now: its name, its free space and (when known) its size. Unlike Plan it reports
+// when the free space cannot be read, so a caller never takes a failure for an empty disk.
+func (e *Engine) Host() (Host, error) {
+	vol, free, err := e.free()
+	if err != nil {
+		return Host{}, err
+	}
+	return Host{Volume: vol, FreeBytes: free, CapacityBytes: e.capacity()}, nil
 }
 
 // statVolume reads the Data volume (or the home directory's volume as a fallback).

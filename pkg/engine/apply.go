@@ -5,6 +5,7 @@ import (
 	"errors"
 	"io/fs"
 	"os"
+	"time"
 
 	"github.com/david-saint/cmm/pkg/rules"
 )
@@ -66,6 +67,7 @@ func (r *Report) warn(msg string) {
 // report so far is returned together with the context's error.
 func (e *Engine) Apply(ctx context.Context, plan *Plan, opts ApplyOptions) (*Report, error) {
 	rep := &Report{DryRun: opts.DryRun, Results: []Result{}}
+	started := e.Deps.Env.Clock()
 	_, rep.FreeBefore, _ = e.free()
 
 	journal := e.Journal
@@ -120,7 +122,33 @@ func (e *Engine) Apply(ctx context.Context, plan *Plan, opts ApplyOptions) (*Rep
 		}
 	}
 	_, rep.FreeAfter, _ = e.free()
+	if !opts.DryRun && e.History != nil && (rep.Deleted > 0 || rep.Failed > 0) {
+		if err := e.History.Append(e.run(rep, started, stopped != nil)); err != nil {
+			rep.warn("history: " + err.Error())
+		}
+	}
 	return rep, stopped
+}
+
+// run turns a finished report into the record kept in the history: the totals, and the items that were deleted or
+// failed (skipped ones changed nothing and are only counted).
+func (e *Engine) run(rep *Report, started time.Time, stopped bool) Run {
+	r := Run{
+		StartedAt: started, FinishedAt: e.Deps.Env.Clock(),
+		Deleted: rep.Deleted, Skipped: rep.Skipped, Failed: rep.Failed, FreedBytes: rep.FreedBytes,
+		FreeBefore: rep.FreeBefore, FreeAfter: rep.FreeAfter, CapacityBytes: e.capacity(),
+		Stopped: stopped, Items: []RunItem{},
+	}
+	for _, res := range rep.Results {
+		if res.Status != StatusDeleted && res.Status != StatusFailed {
+			continue
+		}
+		r.Items = append(r.Items, RunItem{
+			Rule: res.Item.Rule, Group: res.Item.Group, Path: res.Item.Path, Status: res.Status,
+			Bytes: res.Item.Bytes, FreedBytes: res.FreedBytes, Reason: res.Reason,
+		})
+	}
+	return r
 }
 
 func (e *Engine) applyOne(ctx context.Context, byID map[string]rules.Rule, c rules.Candidate, dryRun bool) Result {
