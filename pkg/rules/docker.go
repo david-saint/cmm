@@ -30,8 +30,10 @@ const (
 	dockerDFTimeout    = 2 * time.Minute
 	dockerPruneTimeout = 15 * time.Minute
 
-	// dockerWhere is said once per item: the space is freed inside Docker's own disk image, not on the Mac directly.
-	dockerWhere = "frees space inside Docker's disk image"
+	// dockerInside is where a prune's space is freed: inside Docker's own disk image, not on the Mac directly.
+	dockerInside = "Docker's disk image"
+	// dockerWhere is said once per item, in its note.
+	dockerWhere = "frees space inside " + dockerInside
 )
 
 // procDockerWork holds the rule back while Docker is building, pulling, pushing or composing: a prune then
@@ -191,7 +193,7 @@ func (r *DockerRule) Plan(ctx context.Context, d Deps) ([]Candidate, []Skip, err
 	var items []Candidate
 	for _, k := range dockerKinds {
 		if b := use[k.path]; b > 0 && b >= r.MinBytes {
-			items = append(items, Candidate{Rule: r.RuleID, Group: r.Label, Path: k.path, Bytes: b, Tier: r.tier(), Action: ActionCommand, Note: k.note})
+			items = append(items, Candidate{Rule: r.RuleID, Group: r.Label, Path: k.path, Bytes: b, Tier: r.tier(), Action: ActionCommand, Note: k.note, FreesInside: dockerInside})
 		}
 	}
 	return items, nil, nil

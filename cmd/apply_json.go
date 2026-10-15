@@ -66,18 +66,24 @@ type (
 		Reason     string `json:"reason"`
 		Bytes      int64  `json:"bytes"`
 		FreedBytes int64  `json:"freed_bytes"`
+		// FreesInside is where the space went when it was not the volume ("Docker's disk image"): the item's
+		// freed_bytes is then not part of done's freed_bytes. Left out when the volume got the space.
+		FreesInside string `json:"frees_inside,omitempty"`
 	}
 	doneEvent struct {
-		Event      string   `json:"event"`
-		Deleted    int      `json:"deleted"`
-		Skipped    int      `json:"skipped"`
-		Failed     int      `json:"failed"`
-		FreedBytes int64    `json:"freed_bytes"`
-		FreeBefore int64    `json:"free_before"`
-		FreeAfter  int64    `json:"free_after"`
-		Stopped    bool     `json:"stopped"`
-		Warnings   []string `json:"warnings"`
-		Log        string   `json:"log,omitempty"`
+		Event   string `json:"event"`
+		Deleted int    `json:"deleted"`
+		Skipped int    `json:"skipped"`
+		Failed  int    `json:"failed"`
+		// FreedBytes is what the volume got back; FreedInsideBytes what was freed inside another program's own
+		// storage (Docker's disk image), which the volume's free space shows later or not at all.
+		FreedBytes       int64    `json:"freed_bytes"`
+		FreedInsideBytes int64    `json:"freed_inside_bytes"`
+		FreeBefore       int64    `json:"free_before"`
+		FreeAfter        int64    `json:"free_after"`
+		Stopped          bool     `json:"stopped"`
+		Warnings         []string `json:"warnings"`
+		Log              string   `json:"log,omitempty"`
 	}
 )
 
@@ -142,12 +148,12 @@ func runApplyJSON(ctx context.Context, cmd *cobra.Command, eng *engine.Engine, o
 		Only:   o.only,
 		OnResult: func(r engine.Result) {
 			emit(itemEvent{Event: "item", Rule: r.Item.Rule, Group: r.Item.Group, Path: r.Item.Path, Status: string(r.Status),
-				Reason: r.Reason, Bytes: r.Item.Bytes, FreedBytes: r.FreedBytes})
+				Reason: r.Reason, Bytes: r.Item.Bytes, FreedBytes: r.FreedBytes, FreesInside: r.Item.FreesInside})
 		},
 	})
 
 	done := doneEvent{Event: "done", Deleted: rep.Deleted, Skipped: rep.Skipped + len(missing) + len(held), Failed: rep.Failed,
-		FreedBytes: rep.FreedBytes, FreeBefore: rep.FreeBefore, FreeAfter: rep.FreeAfter, Stopped: stopped != nil,
+		FreedBytes: rep.FreedBytes, FreedInsideBytes: rep.FreedInsideBytes, FreeBefore: rep.FreeBefore, FreeAfter: rep.FreeAfter, Stopped: stopped != nil,
 		Warnings: append([]string{}, rep.Warnings...)}
 	logWritten := rep.Deleted+rep.Failed > 0
 	for _, w := range rep.Warnings {

@@ -62,7 +62,9 @@ type RunItem struct {
 	Status     Status `json:"status"`
 	Bytes      int64  `json:"bytes"`
 	FreedBytes int64  `json:"freed_bytes"`
-	Reason     string `json:"reason,omitempty"`
+	// FreesInside is where the space went when it was not the volume ("Docker's disk image"); empty otherwise.
+	FreesInside string `json:"frees_inside,omitempty"`
+	Reason      string `json:"reason,omitempty"`
 }
 
 // Run is the record of one real apply that deleted or failed something: what happened, in numbers a person can
@@ -74,12 +76,14 @@ type Run struct {
 	Deleted       int       `json:"deleted"`
 	Skipped       int       `json:"skipped"`
 	Failed        int       `json:"failed"`
-	FreedBytes    int64     `json:"freed_bytes"`
-	FreeBefore    int64     `json:"free_before"`
-	FreeAfter     int64     `json:"free_after"`
-	CapacityBytes int64     `json:"capacity_bytes,omitempty"` // how big the volume was; left out when unknown
-	Stopped       bool      `json:"stopped"`                  // the run was ended early (Stop, or the program was told to quit)
-	Items         []RunItem `json:"items"`
+	FreedBytes    int64     `json:"freed_bytes"` // what the volume got back
+	// FreedInsideBytes is what was freed inside another program's storage (Docker's disk image) and so is not in FreedBytes.
+	FreedInsideBytes int64     `json:"freed_inside_bytes,omitempty"`
+	FreeBefore       int64     `json:"free_before"`
+	FreeAfter        int64     `json:"free_after"`
+	CapacityBytes    int64     `json:"capacity_bytes,omitempty"` // how big the volume was; left out when unknown
+	Stopped          bool      `json:"stopped"`                  // the run was ended early (Stop, or the program was told to quit)
+	Items            []RunItem `json:"items"`
 	// ItemsOmitted is how many items did not fit in a line of the file and are only counted in the totals.
 	ItemsOmitted int `json:"items_omitted,omitempty"`
 }
@@ -217,7 +221,7 @@ func eachLine(data []byte, cut bool, maxLine int, fn func(line []byte, tooLong b
 func (r Run) valid() bool {
 	return r.SchemaVersion == HistorySchema && !r.StartedAt.IsZero() && !r.FinishedAt.IsZero() &&
 		r.Deleted >= 0 && r.Skipped >= 0 && r.Failed >= 0 &&
-		r.FreedBytes >= 0 && r.FreeBefore >= 0 && r.FreeAfter >= 0 && r.CapacityBytes >= 0 && r.ItemsOmitted >= 0
+		r.FreedBytes >= 0 && r.FreedInsideBytes >= 0 && r.FreeBefore >= 0 && r.FreeAfter >= 0 && r.CapacityBytes >= 0 && r.ItemsOmitted >= 0
 }
 
 // Runs returns the newest limit runs (all of them when limit is 0), newest first, and how many lines could not

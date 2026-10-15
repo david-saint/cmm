@@ -49,9 +49,11 @@ Reading rules: `items[].path` is an opaque identity (for `"action": "command"` i
 {"event":"start","schema_version":1,"selected":2,"matched":2,"bytes":1765167104,"free_bytes":27633246208}
 {"event":"item","rule":"go-build","group":"Go build cache","path":"/Users/saint/Library/Caches/go-build","status":"deleted","reason":"","bytes":927080448,"freed_bytes":927080448}
 {"event":"item","rule":"lane-deps","group":"Idle lane dependencies (...)","path":"/Users/saint/lane-builds/x/node_modules","status":"skipped","reason":"in use: node (pid 1234) has files open","bytes":838086656,"freed_bytes":0}
-{"event":"done","deleted":1,"skipped":1,"failed":0,"freed_bytes":927080448,"free_before":27633246208,"free_after":28560326656,"stopped":false,"warnings":[],"log":"/Users/saint/.local/state/cmm/cleanup.log"}
+{"event":"done","deleted":1,"skipped":1,"failed":0,"freed_bytes":927080448,"freed_inside_bytes":0,"free_before":27633246208,"free_after":28560326656,"stopped":false,"warnings":[],"log":"/Users/saint/.local/state/cmm/cleanup.log"}
 ```
-`status` is `deleted`, `skipped`, `failed` or `dry-run`. `log` is present only when something was logged. `warnings` lists problems with the log or the stamp (never failures of the cleanup itself).
+`status` is `deleted`, `skipped`, `failed` or `dry-run`. `log` is present only when something was logged.
+
+Space freed **inside another program's own storage** (Docker's prunes free space inside Docker's disk image, which macOS gives back later or not at all): a plan item then has `"frees_inside": "Docker's disk image"` (left out otherwise) and its `item` event repeats it. `done.freed_bytes` is what the *volume* got back and leaves such items out; `done.freed_inside_bytes` is their total. A client must not add inside bytes to "free space afterwards" or to "freed": say them apart ("Docker freed 6.2 GB inside its disk image"). `warnings` lists problems with the log or the stamp (never failures of the cleanup itself).
 - Exit status: 0 when nothing failed (skips are fine); 1 when an item failed, when the run was stopped, or on a fatal error (a message on stderr, and the `done` event may be missing).
 - SIGINT stops cleanly after the item in progress and ends with a `done` event with `"stopped":true` (exit status 1).
 - A selection file that is not a JSON array of strings is a fatal error before anything is planned or deleted. `--select-file` also works without `--json` (then the normal prompt applies).

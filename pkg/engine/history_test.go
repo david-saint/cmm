@@ -194,6 +194,12 @@ func TestFileHistory_UnreadableLinesAreSkippedAndCounted(t *testing.T) {
 	elsewhere := sampleRun(5)
 	elsewhere.SchemaVersion = 2
 	other, _ := json.Marshal(elsewhere) // complete and valid in every way but the schema it claims
+	negativeInside := sampleRun(5)
+	negativeInside.FreedInsideBytes = -5
+	negative, _ := json.Marshal(struct {
+		SchemaVersion int `json:"schema_version"`
+		Run
+	}{1, negativeInside}) // complete and valid in every way but one figure
 	junk := strings.Join([]string{
 		"this is not json",
 		`{"schema_version":1,"deleted":"many"}`, // right schema, wrong shape
@@ -201,6 +207,7 @@ func TestFileHistory_UnreadableLinesAreSkippedAndCounted(t *testing.T) {
 		"",                                      // a blank line is nothing, not damage
 		`{"schema_version":1,"freed_bytes":-5,"started_at":"2026-10-14T12:00:00Z","finished_at":"2026-10-14T12:00:01Z"}`, // negative sizes are not honest
 		strings.Repeat("x", maxHistoryLine+1), // longer than any line cmm writes
+		string(negative),                      // a negative amount freed inside another program is not honest
 	}, "\n") + "\n"
 	if err := os.WriteFile(h.HistoryPath(), []byte(junk+good), 0o600); err != nil {
 		t.Fatal(err)
@@ -212,8 +219,8 @@ func TestFileHistory_UnreadableLinesAreSkippedAndCounted(t *testing.T) {
 	if len(runs) != 1 || runs[0].FreedBytes != 100 {
 		t.Errorf("only the good line is a run: %+v", runs)
 	}
-	if bad != 5 {
-		t.Errorf("five damaged lines should be counted (the blank one is not), got %d", bad)
+	if bad != 6 {
+		t.Errorf("six damaged lines should be counted (the blank one is not), got %d", bad)
 	}
 }
 

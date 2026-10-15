@@ -292,6 +292,9 @@ func runApply(ctx context.Context, cmd *cobra.Command, eng *engine.Engine, plan 
 	if rep.FreeBefore > 0 || rep.FreeAfter > 0 {
 		fmt.Fprintf(out, "Free space: %s -> %s (+%s)\n", formatBytes(rep.FreeBefore), formatBytes(rep.FreeAfter), formatBytes(maxInt64(rep.FreeAfter-rep.FreeBefore, 0)))
 	}
+	for _, in := range freedInside(rep) {
+		fmt.Fprintf(out, "Freed inside %s: %s (the free space above follows when it gives the space back)\n", in.where, formatBytes(in.bytes))
+	}
 	logWritten := rep.Deleted+rep.Failed > 0
 	for _, w := range rep.Warnings {
 		fmt.Fprintf(cmd.ErrOrStderr(), "warning: %s\n", w)
@@ -311,6 +314,34 @@ func runApply(ctx context.Context, cmd *cobra.Command, eng *engine.Engine, plan 
 		return errItemsFailed
 	}
 	return nil
+}
+
+// insideFreed is space that went to another program's own storage instead of the volume.
+type insideFreed struct {
+	where string
+	bytes int64
+}
+
+// freedInside totals, per storage and in the order they first appear, what a run freed inside another program's
+// own storage (Docker's disk image): space the volume's free space does not show at once.
+func freedInside(rep *engine.Report) []insideFreed {
+	var out []insideFreed
+	for _, r := range rep.Results {
+		if r.Status != engine.StatusDeleted || r.Item.FreesInside == "" {
+			continue
+		}
+		found := false
+		for i := range out {
+			if out[i].where == r.Item.FreesInside {
+				out[i].bytes += r.FreedBytes
+				found = true
+			}
+		}
+		if !found {
+			out = append(out, insideFreed{r.Item.FreesInside, r.FreedBytes})
+		}
+	}
+	return out
 }
 
 func maxInt64(a, b int64) int64 {

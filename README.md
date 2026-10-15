@@ -138,6 +138,8 @@ cmm apply --yes --json --select-file selection.json   # selection.json: ["<path 
 
 `cmm` looks tools up on a `PATH` that includes `/opt/homebrew/bin` and `/usr/local/bin`, so a copy started from Finder still finds `brew`. A reader that goes away (an app quitting) does not stop a confirmed cleaning half way; `SIGINT` does.
 
+Docker's prunes free space *inside Docker's own disk image*, which macOS may take a while to give back. Such items say so (`"frees_inside"`), and `done.freed_bytes` counts only what the disk itself got back (`done.freed_inside_bytes` holds the rest), so "freed" and "free space afterwards" are never inflated by space the disk does not show.
+
 ### The app
 
 `app/macos` holds a small SwiftUI app (macOS 14 or later) on top of that interface: it shows the plan, lets you tick what you want gone and cleans exactly that through `cmm`. It never deletes anything itself.

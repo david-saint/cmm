@@ -96,6 +96,9 @@ func (m *engineModule) Delete(items []cmm.FileItem) (cmm.DeleteResult, error) {
 			res.Notes = append(res.Notes, fmt.Sprintf("FAILED: %s: %s", shortPath(r.Item.Path, home), r.Reason))
 		}
 	}
+	for _, in := range freedInside(rep) {
+		res.Notes = append(res.Notes, fmt.Sprintf("freed %s inside %s: the disk's free space follows when it gives the space back", formatBytes(in.bytes), in.where))
+	}
 	for _, w := range rep.Warnings {
 		res.Notes = append(res.Notes, "warning: "+w)
 	}

@@ -50,6 +50,10 @@ type Candidate struct {
 	Tier   Tier   `json:"tier"`
 	Action Action `json:"action"`
 	Note   string `json:"note,omitempty"`
+	// FreesInside names the storage that gets the space back when it is not the volume itself ("Docker's disk
+	// image"): the volume's free space then grows later or not at all. A plan's "free space afterwards" and a
+	// run's "freed" leave such items out, and say them apart. Empty means the volume gets the space directly.
+	FreesInside string `json:"frees_inside,omitempty"`
 }
 
 // Skip explains why a rule left something out. Skips are information, not errors.

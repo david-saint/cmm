@@ -37,14 +37,18 @@ type Result struct {
 
 // Report summarises an Apply.
 type Report struct {
-	DryRun     bool     `json:"dry_run"`
-	Results    []Result `json:"results"`
-	Deleted    int      `json:"deleted"`
-	Skipped    int      `json:"skipped"`
-	Failed     int      `json:"failed"`
-	FreedBytes int64    `json:"freed_bytes"`
-	FreeBefore int64    `json:"free_before"`
-	FreeAfter  int64    `json:"free_after"`
+	DryRun  bool     `json:"dry_run"`
+	Results []Result `json:"results"`
+	Deleted int      `json:"deleted"`
+	Skipped int      `json:"skipped"`
+	Failed  int      `json:"failed"`
+	// FreedBytes is what the volume got back. Space freed inside another program's own storage (Docker's disk
+	// image: Item.FreesInside) is counted in FreedInsideBytes instead, so this number is never more than the
+	// volume's free space can show.
+	FreedBytes       int64 `json:"freed_bytes"`
+	FreedInsideBytes int64 `json:"freed_inside_bytes"`
+	FreeBefore       int64 `json:"free_before"`
+	FreeAfter        int64 `json:"free_after"`
 	// Warnings are problems with the record of the run (the cleanup log or the stamp could not be written),
 	// each reported once. They never count as failures: the cleanup itself did what it says.
 	Warnings []string `json:"warnings,omitempty"`
@@ -97,7 +101,11 @@ func (e *Engine) Apply(ctx context.Context, plan *Plan, opts ApplyOptions) (*Rep
 		switch res.Status {
 		case StatusDeleted:
 			rep.Deleted++
-			rep.FreedBytes += res.FreedBytes
+			if res.Item.FreesInside != "" {
+				rep.FreedInsideBytes += res.FreedBytes
+			} else {
+				rep.FreedBytes += res.FreedBytes
+			}
 		case StatusSkipped:
 			rep.Skipped++
 		case StatusFailed:
@@ -135,7 +143,7 @@ func (e *Engine) Apply(ctx context.Context, plan *Plan, opts ApplyOptions) (*Rep
 func (e *Engine) run(rep *Report, started time.Time, stopped bool) Run {
 	r := Run{
 		StartedAt: started, FinishedAt: e.Deps.Env.Clock(),
-		Deleted: rep.Deleted, Skipped: rep.Skipped, Failed: rep.Failed, FreedBytes: rep.FreedBytes,
+		Deleted: rep.Deleted, Skipped: rep.Skipped, Failed: rep.Failed, FreedBytes: rep.FreedBytes, FreedInsideBytes: rep.FreedInsideBytes,
 		FreeBefore: rep.FreeBefore, FreeAfter: rep.FreeAfter, CapacityBytes: e.capacity(),
 		Stopped: stopped, Items: []RunItem{},
 	}
@@ -145,7 +153,7 @@ func (e *Engine) run(rep *Report, started time.Time, stopped bool) Run {
 		}
 		r.Items = append(r.Items, RunItem{
 			Rule: res.Item.Rule, Group: res.Item.Group, Path: res.Item.Path, Status: res.Status,
-			Bytes: res.Item.Bytes, FreedBytes: res.FreedBytes, Reason: res.Reason,
+			Bytes: res.Item.Bytes, FreedBytes: res.FreedBytes, FreesInside: res.Item.FreesInside, Reason: res.Reason,
 		})
 	}
 	return r

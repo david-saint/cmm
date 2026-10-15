@@ -95,6 +95,21 @@ func TestDocker_PlansOneReviewItemPerKindAndNeverVolumes(t *testing.T) {
 	}
 }
 
+func TestDocker_EveryItemSaysTheSpaceIsFreedInsideDockersDiskImage(t *testing.T) {
+	sb := systest.NewSandbox(t)
+	dockerIdle(sb)
+	stubDockerDF(sb, dockerSample)
+	items, _, err := dockerRule().Plan(ctx, depsFor(sb))
+	if err != nil || len(items) == 0 {
+		t.Fatalf("Plan() = %v, %v", items, err)
+	}
+	for _, c := range items {
+		if c.FreesInside != "Docker's disk image" {
+			t.Errorf("%s: a prune frees space inside Docker's disk image, and the plan must say so (the volume's free space does not grow at once): %q", c.Path, c.FreesInside)
+		}
+	}
+}
+
 func TestDocker_ParsesDockersSizes(t *testing.T) {
 	cases := []struct {
 		in   string

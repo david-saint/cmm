@@ -197,10 +197,11 @@ func sampleReport() *HistoryReport {
 	run := Run{
 		SchemaVersion: 1,
 		StartedAt:     time.Date(2026, 10, 14, 12, 0, 0, 0, time.UTC), FinishedAt: time.Date(2026, 10, 14, 12, 0, 42, 0, time.UTC),
-		Deleted: 2, Skipped: 1, Failed: 1, FreedBytes: 4_642_000_000,
+		Deleted: 3, Skipped: 1, Failed: 1, FreedBytes: 4_642_000_000, FreedInsideBytes: 6_200_000_000,
 		FreeBefore: 19_800_000_000, FreeAfter: 24_442_000_000, CapacityBytes: 245_107_195_904,
 		Items: []RunItem{
 			{Rule: "go-build", Group: "Go build cache", Path: "/Users/test/Library/Caches/go-build", Status: StatusDeleted, Bytes: 3_715_000_000, FreedBytes: 3_715_000_000},
+			{Rule: "docker", Group: "Docker", Path: "docker: unused images", Status: StatusDeleted, Bytes: 6_200_000_000, FreedBytes: 6_200_000_000, FreesInside: "Docker's disk image"},
 			{Rule: "uv-cache", Group: "uv cache", Path: "/Users/test/.cache/uv", Status: StatusFailed, Bytes: 2_500_000_000, Reason: "permission denied"},
 		},
 	}
@@ -252,9 +253,10 @@ func TestHistoryReportJSON_KeysAreExactlyTheSchema(t *testing.T) {
 	assertKeys(t, "host", doc["host"].(map[string]any), "volume", "free_bytes", "capacity_bytes")
 	run := doc["runs"].([]any)[0].(map[string]any)
 	assertKeys(t, "run", run, "schema_version", "started_at", "finished_at", "deleted", "skipped", "failed", "freed_bytes",
-		"free_before", "free_after", "capacity_bytes", "stopped", "items")
+		"freed_inside_bytes", "free_before", "free_after", "capacity_bytes", "stopped", "items")
 	assertKeys(t, "deleted item", run["items"].([]any)[0].(map[string]any), "rule", "group", "path", "status", "bytes", "freed_bytes")
-	assertKeys(t, "failed item", run["items"].([]any)[1].(map[string]any), "rule", "group", "path", "status", "bytes", "freed_bytes", "reason")
+	assertKeys(t, "item freed inside another program", run["items"].([]any)[1].(map[string]any), "rule", "group", "path", "status", "bytes", "freed_bytes", "frees_inside")
+	assertKeys(t, "failed item", run["items"].([]any)[2].(map[string]any), "rule", "group", "path", "status", "bytes", "freed_bytes", "reason")
 	assertKeys(t, "sample", doc["samples"].([]any)[0].(map[string]any), "t", "free_bytes", "capacity_bytes")
 	if strings.Contains(string(raw), "items_omitted") {
 		t.Error("items_omitted appears only when items were dropped")

@@ -23,6 +23,16 @@
       "tier": "safe",
       "action": "command",
       "note": "boost 1.85.0, 0.5 GB; python@3.14 3.14.7, 81 MB"
+    },
+    {
+      "rule": "docker",
+      "group": "Docker: unused images, stopped containers and build cache (review first)",
+      "path": "docker: unused images",
+      "bytes": 6200000000,
+      "tier": "review",
+      "action": "command",
+      "note": "docker image prune -a: images you built must be rebuilt, the rest are pulled again; frees space inside Docker's disk image",
+      "frees_inside": "Docker's disk image"
     }
   ],
   "groups": [
@@ -35,6 +45,11 @@
       "group": "Homebrew: old versions of installed formulae (brew cleanup)",
       "bytes": 704000000,
       "count": 1
+    },
+    {
+      "group": "Docker: unused images, stopped containers and build cache (review first)",
+      "bytes": 6200000000,
+      "count": 1
     }
   ],
   "skipped": [
@@ -43,5 +58,5 @@
       "reason": "uv is running"
     }
   ],
-  "total_bytes": 4419000000
+  "total_bytes": 10619000000
 }

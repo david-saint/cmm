@@ -24,13 +24,15 @@ func samplePlan() *Plan {
 		Items: []rules.Candidate{
 			{Rule: "go-build", Group: "Go build cache", Path: "/Users/test/Library/Caches/go-build", Bytes: 3715000000, Tier: rules.TierSafe, Action: rules.ActionDelete},
 			{Rule: "homebrew", Group: "Homebrew: old versions of installed formulae (brew cleanup)", Path: "homebrew: cleanup", Bytes: 704000000, Tier: rules.TierSafe, Action: rules.ActionCommand, Note: "boost 1.85.0, 0.5 GB; python@3.14 3.14.7, 81 MB"},
+			{Rule: "docker", Group: "Docker: unused images, stopped containers and build cache (review first)", Path: "docker: unused images", Bytes: 6200000000, Tier: rules.TierReview, Action: rules.ActionCommand, Note: "docker image prune -a: images you built must be rebuilt, the rest are pulled again; frees space inside Docker's disk image", FreesInside: "Docker's disk image"},
 		},
 		Groups: []Group{
 			{Group: "Go build cache", Bytes: 3715000000, Count: 1},
 			{Group: "Homebrew: old versions of installed formulae (brew cleanup)", Bytes: 704000000, Count: 1},
+			{Group: "Docker: unused images, stopped containers and build cache (review first)", Bytes: 6200000000, Count: 1},
 		},
 		Skipped:    []rules.Skip{{Rule: "uv-cache", Reason: "uv is running"}},
-		TotalBytes: 4419000000,
+		TotalBytes: 10619000000,
 	}
 }
 
@@ -73,6 +75,8 @@ func TestPlanJSON_TopLevelAndItemKeysAreExactlyTheSchema(t *testing.T) {
 	assertKeys(t, "delete item (note omitted when empty)", item, "rule", "group", "path", "bytes", "tier", "action")
 	withNote := doc["items"].([]any)[1].(map[string]any)
 	assertKeys(t, "item with a note", withNote, "rule", "group", "path", "bytes", "tier", "action", "note")
+	inside := doc["items"].([]any)[2].(map[string]any)
+	assertKeys(t, "item that frees space inside another program", inside, "rule", "group", "path", "bytes", "tier", "action", "note", "frees_inside")
 	assertKeys(t, "group", doc["groups"].([]any)[0].(map[string]any), "group", "bytes", "count")
 	assertKeys(t, "skip", doc["skipped"].([]any)[0].(map[string]any), "rule", "reason")
 
@@ -153,8 +157,11 @@ func TestPlanJSON_RoundTrips(t *testing.T) {
 	if err := json.Unmarshal(raw, &back); err != nil {
 		t.Fatal(err)
 	}
-	if back.TotalBytes != 4419000000 || len(back.Items) != 2 || back.Items[1].Action != rules.ActionCommand || back.Skipped[0].Reason != "uv is running" {
+	if back.TotalBytes != 10619000000 || len(back.Items) != 3 || back.Items[1].Action != rules.ActionCommand || back.Skipped[0].Reason != "uv is running" {
 		t.Errorf("round trip lost data: %+v", back)
+	}
+	if back.Items[2].FreesInside != "Docker's disk image" || back.Items[0].FreesInside != "" {
+		t.Errorf("where the space is freed must round trip: %+v", back.Items)
 	}
 	if !back.GeneratedAt.Equal(samplePlan().GeneratedAt) {
 		t.Errorf("time did not round trip: %v", back.GeneratedAt)

@@ -11,10 +11,11 @@
       "schema_version": 1,
       "started_at": "2026-10-14T12:00:00Z",
       "finished_at": "2026-10-14T12:00:42Z",
-      "deleted": 2,
+      "deleted": 3,
       "skipped": 1,
       "failed": 1,
       "freed_bytes": 4642000000,
+      "freed_inside_bytes": 6200000000,
       "free_before": 19800000000,
       "free_after": 24442000000,
       "capacity_bytes": 245107195904,
@@ -27,6 +28,15 @@
           "status": "deleted",
           "bytes": 3715000000,
           "freed_bytes": 3715000000
+        },
+        {
+          "rule": "docker",
+          "group": "Docker",
+          "path": "docker: unused images",
+          "status": "deleted",
+          "bytes": 6200000000,
+          "freed_bytes": 6200000000,
+          "frees_inside": "Docker's disk image"
         },
         {
           "rule": "uv-cache",
