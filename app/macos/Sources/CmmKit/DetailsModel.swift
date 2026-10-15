@@ -45,6 +45,8 @@ public struct DetailsModel: Equatable, Sendable {
         public let sizeText: String
         public let state: TriState
         public let isExpanded: Bool
+        /// The group above is open, so its items and footnote end just before this row; the boards leave 4 pt of air.
+        public let followsOpenGroup: Bool
 
         public var id: String { "group:\(group.id)" }
 
@@ -65,6 +67,10 @@ public struct DetailsModel: Equatable, Sendable {
         public let title: String
         /// The engine's note for the item ("lane lane-a: untouched for 12 days"), when it has one.
         public let detail: String?
+        /// Whether the note is written under the title. The boards keep file rows to one line (the note goes in the
+        /// tooltip and to VoiceOver), but a command item's note is the only place the person is told what it does
+        /// ("docker image prune -a: images you built must be rebuilt"), so that one is always shown.
+        public let showsDetail: Bool
         public let sizeText: String
         public let isTicked: Bool
 
@@ -108,9 +114,13 @@ public struct DetailsModel: Equatable, Sendable {
             let groups = selection.groups(in: section)
             guard !groups.isEmpty else { continue }
             var rows: [Row] = []
+            var previousWasOpen = false
             for group in groups {
                 let isOpen = expanded.contains(group.id)
-                rows.append(.group(Self.groupRow(group, selection: selection, isExpanded: isOpen, home: home)))
+                rows.append(.group(Self.groupRow(
+                    group, selection: selection, isExpanded: isOpen, followsOpenGroup: previousWasOpen, home: home
+                )))
+                previousWasOpen = isOpen
                 guard isOpen else { continue }
                 for item in group.items {
                     rows.append(.item(ItemRow(
@@ -118,6 +128,7 @@ public struct DetailsModel: Equatable, Sendable {
                         groupID: group.id,
                         title: item.action == .command ? item.path : PathFormat.shorten(item.path, home: home),
                         detail: (item.note?.isEmpty ?? true) ? nil : item.note,
+                        showsDetail: item.action == .command && !(item.note?.isEmpty ?? true),
                         sizeText: SizeText.string(item.bytes),
                         isTicked: selection.isTicked(item)
                     )))
@@ -148,7 +159,9 @@ public struct DetailsModel: Equatable, Sendable {
         return rows
     }
 
-    private static func groupRow(_ group: PlanGroup, selection: SelectionModel, isExpanded: Bool, home: String) -> GroupRow {
+    private static func groupRow(
+        _ group: PlanGroup, selection: SelectionModel, isExpanded: Bool, followsOpenGroup: Bool, home: String
+    ) -> GroupRow {
         let entry = RuleCatalog.entries[group.rule]
         let parts = LabelParts(group.name)
 
@@ -173,7 +186,8 @@ public struct DetailsModel: Equatable, Sendable {
             subtitleIsMonospaced: isMono,
             sizeText: SizeText.string(group.bytes),
             state: selection.state(of: group),
-            isExpanded: isExpanded
+            isExpanded: isExpanded,
+            followsOpenGroup: followsOpenGroup
         )
     }
 

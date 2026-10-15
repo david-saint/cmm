@@ -105,6 +105,37 @@ final class DetailsModelTests: XCTestCase {
         XCTAssertEqual(next.title, "uv cache")
     }
 
+    func testTheGroupAfterAnOpenOneGetsAirAboveIt() throws {
+        let selection = SelectionModel(plan: try TestPlans.fixture("plan-c.json"))
+        let lanes = try XCTUnwrap(selection.groups.first { $0.rule == "lane-deps" })
+        let open = DetailsModel(selection: selection, expanded: [lanes.id], home: home)
+        let closed = DetailsModel(selection: selection, expanded: [], home: home)
+
+        let after = groups(try XCTUnwrap(open.sections.first)).map(\.followsOpenGroup)
+        XCTAssertEqual(after, [false, true, false, false, false, false], "only uv cache follows the open lane group")
+        XCTAssertTrue(closed.sections.flatMap { groups($0) }.allSatisfy { !$0.followsOpenGroup })
+        XCTAssertFalse(groups(try XCTUnwrap(open.sections.first { $0.kind == .review })).first?.followsOpenGroup ?? true,
+                       "a new section has its own header and spacing")
+    }
+
+    func testFileRowsStayOnOneLineButACommandsNoteIsAlwaysWritten() throws {
+        let selection = SelectionModel(plan: try TestPlans.fixture("plan-c.json"))
+        let ids = Set(selection.groups.filter { $0.rule == "lane-deps" || $0.rule == "homebrew" || $0.section == .review }.map(\.id))
+        let details = DetailsModel(selection: selection, expanded: ids, home: home)
+        let items = details.sections.flatMap(\.rows).compactMap { row -> DetailsModel.ItemRow? in
+            if case .item(let item) = row { item } else { nil }
+        }
+
+        let files = items.filter { $0.item.action == .delete }
+        XCTAssertEqual(files.count, 4)
+        XCTAssertTrue(files.allSatisfy { !$0.showsDetail }, "the board's lane rows are one line")
+        XCTAssertTrue(files.allSatisfy { $0.detail != nil }, "but the note is still there for the tooltip and VoiceOver")
+
+        let commands = items.filter { $0.item.action == .command }
+        XCTAssertEqual(commands.count, 4, "homebrew and three docker items")
+        XCTAssertTrue(commands.allSatisfy(\.showsDetail))
+    }
+
     func testOnlyTheExpandedGroupOpens() throws {
         let selection = SelectionModel(plan: try TestPlans.fixture("plan-c.json"))
         let uv = try XCTUnwrap(selection.groups.first { $0.rule == "uv-cache" })
