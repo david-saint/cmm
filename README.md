@@ -96,6 +96,7 @@ cmm plan --json                  # the plan for scripts and apps
 cmm apply --dry-run              # the plan, then stop
 cmm apply                        # the plan, then press Return to clean
 cmm apply --only go-build,npm-cache   # limit to some rule ids
+cmm apply --select-file sel.json # limit to the item paths in a JSON file (can only narrow the plan)
 
 cmm run                          # interactive preview
 cmm run --apply                  # interactive; type y to clean
@@ -112,6 +113,18 @@ cmm run --apply                  # interactive; type y to clean
 ### JSON
 
 `cmm plan --json` prints one document on stdout (`schema_version` 1: `generated_at`, `host`, `items`, `groups`, `skipped`, `total_bytes`). The format is described in the [engine track's spec](conductor/tracks/engine_v2_20261014/spec.md) and pinned by a golden test.
+
+### For programs and apps
+
+An app that shows the plan and lets a person tick items cleans through the same guarded engine:
+
+```bash
+cmm apply --yes --json --select-file selection.json   # selection.json: ["<path from the plan>", ...]
+```
+
+`cmm` plans again and keeps only the selected paths that are in that fresh plan, so **a selection can only narrow a plan, never widen it**; any other path is reported as skipped. Every item is still checked again right before it is removed. `--json` prints one event per line on stdout (`start`, one `item` per path, `done`) and nothing else; it needs `--yes` (the caller has a person's confirmation for exactly this selection) or `--dry-run`. The events are described in the [app track's spec](conductor/tracks/app_v0_20261015/spec.md).
+
+`cmm` looks tools up on a `PATH` that includes `/opt/homebrew/bin` and `/usr/local/bin`, so a copy started from Finder still finds `brew`.
 
 ---
 
