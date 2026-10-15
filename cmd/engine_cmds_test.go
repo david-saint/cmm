@@ -10,12 +10,16 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/spf13/cobra"
+
+	"github.com/david-saint/cmm/pkg/cmm"
 	"github.com/david-saint/cmm/pkg/engine"
 	"github.com/david-saint/cmm/pkg/guard"
 	"github.com/david-saint/cmm/pkg/policy"
 	"github.com/david-saint/cmm/pkg/rules"
 	"github.com/david-saint/cmm/pkg/sys"
 	"github.com/david-saint/cmm/pkg/sys/systest"
+	"github.com/david-saint/cmm/pkg/ui"
 )
 
 // app is a whole cmm in a sandbox: two real caches to clean, a fake runner, a pretend terminal.
@@ -26,6 +30,10 @@ type app struct {
 	tty      bool
 	goCache  string
 	npmCache string
+
+	tm     *fakeTM   // stands in for the Time Machine module: no test may call the real tmutil
+	model  *ui.Model // the interactive screen, as handed to the runner by `cmm run`
+	uiRuns int
 }
 
 func newApp(t *testing.T) *app {
@@ -40,9 +48,16 @@ func newApp(t *testing.T) *app {
 
 	a.eng = engine.New(rules.Deps{Env: sb.Env, Guard: guard.New(sb.Env), Policy: policy.New(sb.Env)}, rules.BuiltinWithMin(1, 1))
 	a.eng.Free = func() (string, int64, error) { return "/sandbox", 5 << 30, nil }
+	a.tm = &fakeTM{}
 	a.d = &deps{
-		newEngine:  func() (*engine.Engine, error) { return a.eng, nil },
-		isTerminal: func() bool { return a.tty },
+		newEngine:   func() (*engine.Engine, error) { return a.eng, nil },
+		isTerminal:  func() bool { return a.tty },
+		timeMachine: func() cmm.Module { return a.tm },
+		runUI: func(_ *cobra.Command, m ui.Model) error {
+			a.uiRuns++
+			a.model = &m
+			return nil
+		},
 	}
 	return a
 }
@@ -328,7 +343,7 @@ func wrapRecheck(rs []rules.Rule, id string, fail func() error) []rules.Rule {
 	return out
 }
 
-// ---- flags and the legacy banner ----
+// ---- flags ----
 
 func TestEngineCommands_Flags(t *testing.T) {
 	root := newRootCmd(newApp(t).d)
@@ -350,14 +365,5 @@ func TestEngineCommands_Flags(t *testing.T) {
 	}
 	if v, _ := apply.Flags().GetBool("dry-run"); v {
 		t.Error("--dry-run defaults to false because apply already asks for Return; it never deletes silently")
-	}
-}
-
-func TestLegacyRunWarning(t *testing.T) {
-	w := legacyRunWarning()
-	for _, want := range []string{"unguarded", "cmm plan", "cmm apply"} {
-		if !strings.Contains(w, want) {
-			t.Errorf("the legacy warning should mention %q: %s", want, w)
-		}
 	}
 }

@@ -9,11 +9,11 @@ type scannerMockModule struct {
 	items []FileItem
 }
 
-func (m *scannerMockModule) Name() string                     { return m.name }
-func (m *scannerMockModule) Description() string              { return "mock" }
-func (m *scannerMockModule) Category() string                 { return "Recommended" }
-func (m *scannerMockModule) Scan() ([]FileItem, error)        { return m.items, nil }
-func (m *scannerMockModule) Delete([]FileItem) (int64, error) { return 0, nil }
+func (m *scannerMockModule) Name() string                            { return m.name }
+func (m *scannerMockModule) Description() string                     { return "mock" }
+func (m *scannerMockModule) Category() string                        { return "Recommended" }
+func (m *scannerMockModule) Scan() ([]FileItem, error)               { return m.items, nil }
+func (m *scannerMockModule) Delete([]FileItem) (DeleteResult, error) { return DeleteResult{}, nil }
 
 func TestScanner_Scan(t *testing.T) {
 	m1 := &scannerMockModule{name: "M1", items: []FileItem{{Path: "p1", Size: 10}}}

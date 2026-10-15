@@ -17,6 +17,3 @@ cmm
 
 # OS specific files
 .DS_Store
-
-# Scratch data written by `cmm run --test-mode`
-cmm_test_data/

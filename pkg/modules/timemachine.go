@@ -1,6 +1,7 @@
 package modules
 
 import (
+	"fmt"
 	"os/exec"
 	"strings"
 
@@ -75,23 +76,26 @@ func (m *TimeMachineModule) Scan() ([]cmm.FileItem, error) {
 	return items, nil
 }
 
-func (m *TimeMachineModule) Delete(items []cmm.FileItem) (int64, error) {
-	var totalFreed int64
+func (m *TimeMachineModule) Delete(items []cmm.FileItem) (cmm.DeleteResult, error) {
+	var res cmm.DeleteResult
 	for _, item := range items {
 		// tmutil deletelocalsnapshots <snapshot_date>
 		// The snapshot name is like com.apple.TimeMachine.2023-05-01-123456.local
 		// tmutil deletelocalsnapshots 2023-05-01-123456
 		parts := strings.Split(item.Path, ".")
 		if len(parts) < 4 {
+			res.Skipped++
+			res.Notes = append(res.Notes, fmt.Sprintf("skipped: %s: not a snapshot name cmm understands", item.Path))
 			continue
 		}
 		datePart := parts[3]
-		
-		_, err := m.runner.Run("tmutil", "deletelocalsnapshots", datePart)
-		if err != nil {
-			return totalFreed, err
+
+		if _, err := m.runner.Run("tmutil", "deletelocalsnapshots", datePart); err != nil {
+			res.Failed++
+			res.Notes = append(res.Notes, fmt.Sprintf("FAILED: %s: %v", item.Path, err))
+			continue
 		}
-		totalFreed += item.Size // Size is 0 for snapshots currently
+		res.Freed += item.Size // Size is 0 for snapshots currently
 	}
-	return totalFreed, nil
+	return res, nil
 }

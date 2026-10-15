@@ -19,9 +19,9 @@ import (
 //   - only pkg/engine deletes or moves files, so every deletion has passed the policy, the rule's Allows and
 //     Recheck, the symlink checks and the human-approval gate.
 //
-// The old modules in pkg/modules predate the engine and break both; they are listed as explicit exceptions
-// until they are rewired. An exception that no longer has anything to except fails the test, so the list can
-// only shrink.
+// The Time Machine module (the one legacy module `cmm run` still offers, manual and harsh) predates the engine
+// and starts processes itself; it is the one listed exception. An exception that no longer has anything to
+// except fails the test, so the list can only shrink.
 
 type boundary struct {
 	what    string
@@ -50,8 +50,7 @@ var exceptions = []struct {
 	prefix   string
 	boundary int
 }{
-	{"pkg/modules/", 0},
-	{"pkg/modules/", 1},
+	{"pkg/modules/timemachine.go", 0},
 }
 
 type finding struct {

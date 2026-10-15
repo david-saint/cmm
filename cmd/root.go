@@ -48,7 +48,7 @@ Xcode Derived Data, User Caches, and Time Machine snapshots.`,
 
 	cmd.AddCommand(NewPlanCmd(d))
 	cmd.AddCommand(NewApplyCmd(d))
-	cmd.AddCommand(NewRunCmd())
+	cmd.AddCommand(NewRunCmd(d))
 
 	return cmd
 }

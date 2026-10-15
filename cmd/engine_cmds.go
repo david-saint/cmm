@@ -10,11 +10,14 @@ import (
 	"os/signal"
 	"strings"
 
+	"github.com/david-saint/cmm/pkg/cmm"
 	"github.com/david-saint/cmm/pkg/engine"
 	"github.com/david-saint/cmm/pkg/guard"
+	"github.com/david-saint/cmm/pkg/modules"
 	"github.com/david-saint/cmm/pkg/policy"
 	"github.com/david-saint/cmm/pkg/rules"
 	"github.com/david-saint/cmm/pkg/sys"
+	"github.com/david-saint/cmm/pkg/ui"
 	"github.com/spf13/cobra"
 )
 
@@ -29,8 +32,10 @@ var (
 
 // deps is what the engine commands need from the outside world; tests replace it.
 type deps struct {
-	newEngine  func() (*engine.Engine, error)
-	isTerminal func() bool // is stdin a terminal?
+	newEngine   func() (*engine.Engine, error)
+	isTerminal  func() bool                          // is stdin a terminal?
+	timeMachine func() cmm.Module                    // the one legacy module cmm run still offers
+	runUI       func(*cobra.Command, ui.Model) error // shows the interactive screen
 }
 
 func defaultDeps() *deps {
@@ -42,7 +47,9 @@ func defaultDeps() *deps {
 			}
 			return newProductionEngine(env), nil
 		},
-		isTerminal: func() bool { return guard.IsTerminal(os.Stdin) },
+		isTerminal:  func() bool { return guard.IsTerminal(os.Stdin) },
+		timeMachine: func() cmm.Module { return modules.NewTimeMachineModule() },
+		runUI:       runBubbleTea,
 	}
 }
 
@@ -259,10 +266,4 @@ func maxInt64(a, b int64) int64 {
 		return a
 	}
 	return b
-}
-
-// legacyRunWarning is printed by the old interactive mode, whose modules have no in-use checks or allow-list.
-func legacyRunWarning() string {
-	return "WARNING: `cmm run` is the legacy interactive mode. Its modules are unguarded: no in-use checks, no allow-list.\n" +
-		"Prefer `cmm plan` to preview and `cmm apply` to clean (see conductor/tracks/engine_v2_20261014).\n\n"
 }
