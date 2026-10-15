@@ -1,0 +1,7 @@
+{
+  "schema_version": 2,
+  "generated_at": "2027-01-02T08:00:00Z",
+  "machine": { "volume": "/System/Volumes/Data", "free": "27.6 GB" },
+  "items": { "go-build": { "path": "/Users/test/Library/Caches/go-build", "size": "3.7 GB" } },
+  "total": "3.7 GB"
+}

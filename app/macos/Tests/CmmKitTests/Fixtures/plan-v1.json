@@ -1,0 +1,73 @@
+{
+  "schema_version": 1,
+  "generated_at": "2026-10-15T09:38:54.530781+02:00",
+  "host": {
+    "volume": "/System/Volumes/Data",
+    "free_bytes": 27633246208
+  },
+  "items": [
+    {
+      "rule": "go-build",
+      "group": "Go build cache",
+      "path": "/Users/test/Library/Caches/go-build",
+      "bytes": 927080448,
+      "tier": "safe",
+      "action": "delete"
+    },
+    {
+      "rule": "lane-deps",
+      "group": "Idle lane dependencies (untouched 5+ days; rebuild with npm ci / pod install)",
+      "path": "/Users/test/lane-builds/ios27-scene-cloud-mobile/node_modules",
+      "bytes": 838086656,
+      "tier": "safe",
+      "action": "delete",
+      "note": "lane ios27-scene-cloud-mobile: untouched for 5+ days"
+    },
+    {
+      "rule": "lane-deps",
+      "group": "Idle lane dependencies (untouched 5+ days; rebuild with npm ci / pod install)",
+      "path": "/Users/test/lane-builds/android-widgets/node_modules",
+      "bytes": 612368384,
+      "tier": "safe",
+      "action": "delete",
+      "note": "lane android-widgets: untouched for 9+ days"
+    },
+    {
+      "rule": "homebrew",
+      "group": "Homebrew: old versions of installed formulae (brew cleanup)",
+      "path": "homebrew: cleanup",
+      "bytes": 704000000,
+      "tier": "safe",
+      "action": "command",
+      "note": "boost 1.85.0, 0.5 GB; python@3.14 3.14.7, 81 MB"
+    }
+  ],
+  "groups": [
+    {
+      "group": "Go build cache",
+      "bytes": 927080448,
+      "count": 1
+    },
+    {
+      "group": "Idle lane dependencies (untouched 5+ days; rebuild with npm ci / pod install)",
+      "bytes": 1450455040,
+      "count": 2
+    },
+    {
+      "group": "Homebrew: old versions of installed formulae (brew cleanup)",
+      "bytes": 704000000,
+      "count": 1
+    }
+  ],
+  "skipped": [
+    {
+      "rule": "uv-cache",
+      "reason": "uv is running"
+    },
+    {
+      "rule": "xcode-module-cache",
+      "reason": "Xcode is running"
+    }
+  ],
+  "total_bytes": 3081535488
+}

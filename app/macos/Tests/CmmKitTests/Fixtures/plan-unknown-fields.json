@@ -1,0 +1,30 @@
+{
+  "schema_version": 1,
+  "generated_at": "2026-10-14T12:00:00Z",
+  "generator": { "name": "cmm", "build": "next", "flags": ["a", "b"] },
+  "host": {
+    "volume": "/System/Volumes/Data",
+    "free_bytes": 27583119360,
+    "total_bytes": 245107195904
+  },
+  "items": [
+    {
+      "rule": "go-build",
+      "group": "Go build cache",
+      "path": "/Users/test/Library/Caches/go-build",
+      "bytes": 3715000000,
+      "tier": "safe",
+      "action": "delete",
+      "age_days": 12,
+      "labels": { "regenerable": true }
+    }
+  ],
+  "groups": [
+    { "group": "Go build cache", "bytes": 3715000000, "count": 1, "icon": "hammer" }
+  ],
+  "skipped": [
+    { "rule": "uv-cache", "reason": "uv is running", "retry_after_seconds": 30 }
+  ],
+  "total_bytes": 3715000000,
+  "future_top_level": [1, 2, { "x": null }]
+}

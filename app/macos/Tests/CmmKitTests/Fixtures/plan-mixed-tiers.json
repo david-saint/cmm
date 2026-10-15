@@ -1,0 +1,20 @@
+{
+  "schema_version": 1,
+  "generated_at": "2026-10-15T09:38:54Z",
+  "host": { "volume": "/System/Volumes/Data", "free_bytes": 20000000000 },
+  "items": [
+    { "rule": "go-build", "group": "Go build cache", "path": "/Users/test/Library/Caches/go-build",
+      "bytes": 900000000, "tier": "safe", "action": "delete" },
+    { "rule": "cursor-update", "group": "Cursor update leftovers", "path": "/Users/test/Library/Caches/cursor-updater/pending",
+      "bytes": 300000000, "tier": "review", "action": "delete", "note": "a staged update that never finished" },
+    { "rule": "cursor-update", "group": "Cursor update leftovers", "path": "/Users/test/Library/Caches/cursor-updater/old",
+      "bytes": 100000000, "tier": "safe", "action": "delete" },
+    { "rule": "snapshots", "group": "Needs a person", "path": "/Users/test/Library/Developer/Xcode/Archives",
+      "bytes": 4000000000, "tier": "manual", "action": "delete" },
+    { "rule": "experiment", "group": "Needs a person", "path": "/Users/test/.experiment",
+      "bytes": 50000000, "tier": "experimental", "action": "quarantine" }
+  ],
+  "groups": [],
+  "skipped": [],
+  "total_bytes": 5350000000
+}
