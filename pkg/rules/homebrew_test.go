@@ -254,8 +254,15 @@ func TestHomebrew_ExecuteRunsBrewCleanupAndChecksTheExitStatus(t *testing.T) {
 	t.Run("no freed line: the plan's figure stands", func(t *testing.T) {
 		sb := systest.NewSandbox(t)
 		stubBrew(sb, sys.Result{Stdout: "done\n"}, nil, "cleanup")
+		if freed, err := brewRule().Execute(ctx, depsFor(sb), item); err != nil || freed != -1 {
+			t.Errorf("Execute() = %d, %v; -1 tells the engine to use the planned size", freed, err)
+		}
+	})
+	t.Run("brew says it freed nothing: that is believed", func(t *testing.T) {
+		sb := systest.NewSandbox(t)
+		stubBrew(sb, sys.Result{Stdout: "==> This operation has freed approximately 0B of disk space.\n"}, nil, "cleanup")
 		if freed, err := brewRule().Execute(ctx, depsFor(sb), item); err != nil || freed != 0 {
-			t.Errorf("Execute() = %d, %v; 0 tells the engine to use the planned size", freed, err)
+			t.Errorf("Execute() = %d, %v; a reported 0 is a real 0", freed, err)
 		}
 	})
 	t.Run("a failing brew is a failure and says why", func(t *testing.T) {

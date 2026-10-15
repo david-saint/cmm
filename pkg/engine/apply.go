@@ -161,7 +161,7 @@ func (e *Engine) applyOne(ctx context.Context, byID map[string]rules.Rule, c rul
 		if err != nil {
 			return fail(StatusFailed, err.Error())
 		}
-		if freed <= 0 {
+		if freed < 0 { // the rule cannot tell: use the planned size. 0 is an answer and is believed.
 			freed = c.Bytes
 		}
 		res.FreedBytes = freed

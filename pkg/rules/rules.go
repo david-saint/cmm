@@ -83,6 +83,7 @@ type Rule interface {
 
 // Executor is implemented by rules whose items have ActionCommand.
 type Executor interface {
-	// Execute carries the item out and returns the bytes it freed, if known.
+	// Execute carries the item out and returns the bytes it freed. A negative number means the rule cannot
+	// tell, and the engine then uses the planned size; 0 means it freed nothing, and is believed.
 	Execute(ctx context.Context, d Deps, c Candidate) (freed int64, err error)
 }

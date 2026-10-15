@@ -398,6 +398,32 @@ func TestApply_OnlyLimitsTheRules(t *testing.T) {
 	}
 }
 
+// An executor reports the bytes it freed; a negative number means it cannot tell, and only then is the planned
+// size used. "Freed nothing" is an answer and is believed.
+func TestApply_AnExecutorThatCannotTellGetsThePlannedSizeButOneThatFreedNothingIsBelieved(t *testing.T) {
+	for _, c := range []struct {
+		name   string
+		freed  int64
+		wantFr int64
+	}{{"cannot tell", -1, 7}, {"freed nothing", 0, 0}, {"freed something", 3, 3}} {
+		t.Run(c.name, func(t *testing.T) {
+			f := newFixture(t)
+			item := rules.Candidate{Group: "Cmd", Path: "cmd: x", Bytes: 7, Tier: rules.TierSafe, Action: rules.ActionCommand}
+			cr := commandRule{&fakeRule{id: "cmd", group: "Cmd", items: []rules.Candidate{item}}}
+			cr.execFreed = c.freed
+			f.eng.Rules = []rules.Rule{cr}
+			plan, err := f.eng.Plan(ctx)
+			if err != nil {
+				t.Fatal(err)
+			}
+			rep, _ := f.eng.Apply(ctx, plan, ApplyOptions{})
+			if rep.Deleted != 1 || rep.FreedBytes != c.wantFr || rep.Results[0].FreedBytes != c.wantFr {
+				t.Errorf("freed = %d (result %d), want %d: %+v", rep.FreedBytes, rep.Results[0].FreedBytes, c.wantFr, rep)
+			}
+		})
+	}
+}
+
 func TestApply_CommandActionsGoThroughTheExecutor(t *testing.T) {
 	f := newFixture(t)
 	dev := f.sb.Home("Library", "Developer", "CoreSimulator", "Devices", "SOME-UDID")

@@ -182,8 +182,8 @@ func (r *HomebrewRule) idle(ctx context.Context, d Deps) error {
 // errBrewMissing marks a machine without Homebrew; it is not worth a word.
 var errBrewMissing = errors.New("brew is not installed")
 
-// brewFailure describes a command that did not succeed, with the end of what it said.
-func brewFailure(what string, res sys.Result) error {
+// commandFailure describes a command that did not succeed, with the end of what it said.
+func commandFailure(what string, res sys.Result) error {
 	msg := strings.TrimSpace(res.Stderr)
 	if msg == "" {
 		msg = strings.TrimSpace(res.Stdout)
@@ -204,7 +204,7 @@ func (r *HomebrewRule) dryRun(ctx context.Context, d Deps) (*brewDryRun, error) 
 		return nil, errBrewMissing
 	}
 	if res.ExitCode != 0 {
-		return nil, brewFailure("brew cleanup -n", res)
+		return nil, commandFailure("brew cleanup -n", res)
 	}
 	out := &brewDryRun{}
 	out.total, out.hasSum = parseBrewTotal(res.Stdout)
@@ -266,7 +266,7 @@ func (r *HomebrewRule) Recheck(ctx context.Context, d Deps, c Candidate) error {
 }
 
 // Execute implements Executor: `brew cleanup`, then its exit status. The size brew reports as freed is
-// returned when it says one; otherwise 0 tells the engine to use the planned size.
+// returned when it says one (0B is an answer too); otherwise -1 tells the engine to use the planned size.
 func (r *HomebrewRule) Execute(ctx context.Context, d Deps, c Candidate) (int64, error) {
 	if c.Path != brewAction {
 		return 0, fmt.Errorf("%s: %q is not Homebrew's cleanup", r.Label, c.Path)
@@ -276,8 +276,10 @@ func (r *HomebrewRule) Execute(ctx context.Context, d Deps, c Candidate) (int64,
 		return 0, fmt.Errorf("could not run brew cleanup (%v)", err)
 	}
 	if res.ExitCode != 0 {
-		return 0, brewFailure("brew cleanup", res)
+		return 0, commandFailure("brew cleanup", res)
 	}
-	freed, _ := parseBrewTotal(res.Stdout)
-	return freed, nil
+	if freed, ok := parseBrewTotal(res.Stdout); ok {
+		return freed, nil
+	}
+	return -1, nil
 }
