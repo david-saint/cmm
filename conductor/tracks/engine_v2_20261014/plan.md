@@ -24,11 +24,11 @@
 - [x] Task: `scripts/parity.sh`: compare `cmm plan --json` with a patched copy of dev-cleanup on the real disk; fails closed (marker check, dump header, `--dry-run` hard-coded, compare by path, non-zero exit on mismatch) and reports categories that had nothing to compare eae3929
 - [x] Task: Conductor - User Manual Verification 'Phase 2' (Protocol in workflow.md) 4163000
 
-## Phase 3: Safe Apply, TUI and Legacy Removal
+## Phase 3: Safe Apply, TUI and Legacy Removal [checkpoint: e860225]
 - [x] Task: Apply polish: cleanup log and last-run stamp (the safety invariants already shipped in Phase 1) 323819f
 - [x] Task: Rewire `cmm run` to the engine (preview-only unless `--apply`); remove unguarded Caches/Logs modules and the no-op `--force`; keep Time Machine as a manual legacy module a3e08cc
 - [x] Task: Documentation: README, tech-stack, product docs 65d30e7
-- [ ] Task: Conductor - User Manual Verification 'Phase 3' (Protocol in workflow.md)
+- [x] Task: Conductor - User Manual Verification 'Phase 3' (Protocol in workflow.md) e860225
 
 ## Phase 4: Acceptance and Handover
 - [ ] Task: Real-disk parity run recorded in this plan
