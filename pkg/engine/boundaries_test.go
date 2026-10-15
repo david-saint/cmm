@@ -146,8 +146,8 @@ func TestBoundaries_HoldAcrossTheRepository(t *testing.T) {
 		}
 		if d.IsDir() {
 			switch d.Name() {
-			case ".git", "vendor", "testdata", "node_modules", "conductor":
-				return fs.SkipDir
+			case ".git", ".claude", "vendor", "testdata", "node_modules", "conductor":
+				return fs.SkipDir // .claude holds other checkouts (agent worktrees), not this repository's source
 			}
 			return nil
 		}
