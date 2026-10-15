@@ -57,6 +57,9 @@ type Engine struct {
 	// Remove deletes a path. Nil uses os.RemoveAll. Either way, while a test is running, anything outside a
 	// temporary directory makes the engine panic instead of deleting.
 	Remove func(path string) error
+	// Journal keeps the audit trail of real applies (a dry run never touches it). Nil keeps none; the
+	// commands set it where the engine is built for real use.
+	Journal Journal
 }
 
 // New returns an Engine for the given rules.

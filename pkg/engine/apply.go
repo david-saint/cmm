@@ -44,10 +44,22 @@ type Report struct {
 	FreedBytes int64    `json:"freed_bytes"`
 	FreeBefore int64    `json:"free_before"`
 	FreeAfter  int64    `json:"free_after"`
+	// Warnings are problems with the record of the run (the cleanup log or the stamp could not be written),
+	// each reported once. They never count as failures: the cleanup itself did what it says.
+	Warnings []string `json:"warnings,omitempty"`
 }
 
 // OK reports whether nothing failed. Skipped items are not failures.
 func (r *Report) OK() bool { return r.Failed == 0 }
+
+func (r *Report) warn(msg string) {
+	for _, w := range r.Warnings {
+		if w == msg {
+			return
+		}
+	}
+	r.Warnings = append(r.Warnings, msg)
+}
 
 // Apply carries out a plan, one item at a time. Before each item it asks again whether the item is still
 // permitted and still safe; an item that fails is reported and the run goes on. If the context ends, the
@@ -55,6 +67,11 @@ func (r *Report) OK() bool { return r.Failed == 0 }
 func (e *Engine) Apply(ctx context.Context, plan *Plan, opts ApplyOptions) (*Report, error) {
 	rep := &Report{DryRun: opts.DryRun, Results: []Result{}}
 	_, rep.FreeBefore, _ = e.free()
+
+	journal := e.Journal
+	if opts.DryRun {
+		journal = nil // a dry run changes nothing, so it leaves no trace either
+	}
 
 	only := make(map[string]bool, len(opts.Only))
 	for _, id := range opts.Only {
@@ -85,8 +102,21 @@ func (e *Engine) Apply(ctx context.Context, plan *Plan, opts ApplyOptions) (*Rep
 			rep.Failed++
 		}
 		rep.Results = append(rep.Results, res)
+		if journal != nil && (res.Status == StatusDeleted || res.Status == StatusFailed) {
+			// applyOne has already checked that a deleted path is gone, so a line is never written for
+			// something that is still there. Skipped items changed nothing and are not recorded. A journal
+			// error is a warning: it must not stop the run.
+			if err := journal.Record(res); err != nil {
+				rep.warn("cleanup log: " + err.Error())
+			}
+		}
 		if opts.OnResult != nil {
 			opts.OnResult(res)
+		}
+	}
+	if journal != nil && rep.Deleted > 0 {
+		if err := journal.Stamp(); err != nil {
+			rep.warn("last-run stamp: " + err.Error())
 		}
 	}
 	_, rep.FreeAfter, _ = e.free()

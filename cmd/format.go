@@ -5,10 +5,27 @@ import (
 	"io"
 	"sort"
 	"strings"
+	"time"
 
 	"github.com/david-saint/cmm/pkg/engine"
 	"github.com/david-saint/cmm/pkg/rules"
 )
+
+// lastCleanupLine says when cmm last cleaned something, e.g. "Last cleanup: 2026-10-14 (3 days ago)". A stamp
+// more than a day in the future cannot be right (a little clock skew is fine), so it is not shown.
+func lastCleanupLine(last, now time.Time) string {
+	if last.After(now.Add(24 * time.Hour)) {
+		return ""
+	}
+	ago := "less than a day ago"
+	switch days := int(now.Sub(last) / (24 * time.Hour)); {
+	case days == 1:
+		ago = "1 day ago"
+	case days > 1:
+		ago = fmt.Sprintf("%d days ago", days)
+	}
+	return fmt.Sprintf("Last cleanup: %s (%s)", last.In(now.Location()).Format("2006-01-02"), ago)
+}
 
 // formatBytes renders a size the way the dev-cleanup script did: GB with one decimal from 100 MB up,
 // whole MB below that, KB for tiny things.

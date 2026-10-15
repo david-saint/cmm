@@ -5,6 +5,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"io"
 	"os"
 	"os/signal"
 	"strings"
@@ -39,9 +40,29 @@ func defaultDeps() *deps {
 			if err != nil {
 				return nil, err
 			}
-			return engine.New(rules.Deps{Env: env, Guard: guard.New(env), Policy: policy.New(env)}, rules.Builtin()), nil
+			return newProductionEngine(env), nil
 		},
 		isTerminal: func() bool { return guard.IsTerminal(os.Stdin) },
+	}
+}
+
+// newProductionEngine is the engine for real use: every built-in rule, the real guards and policy, and a
+// journal in the user's state folder so every real apply leaves a log and a last-run stamp. This is the one
+// place the journal is attached; tests build engines without one unless they are testing the journal.
+func newProductionEngine(env *sys.Env) *engine.Engine {
+	eng := engine.New(rules.Deps{Env: env, Guard: guard.New(env), Policy: policy.New(env)}, rules.Builtin())
+	eng.Journal = engine.NewFileJournal(env.Home, env.Clock)
+	return eng
+}
+
+// printLastCleanup tells when something was last cleaned, if the stamp says so. It only reads.
+func printLastCleanup(w io.Writer, eng *engine.Engine) {
+	last, ok := engine.LastRun(eng.Deps.Env.Home)
+	if !ok {
+		return
+	}
+	if line := lastCleanupLine(last, eng.Deps.Env.Clock()); line != "" {
+		fmt.Fprintln(w, line)
 	}
 }
 
@@ -73,6 +94,7 @@ for other tools to read.`,
 				return err
 			}
 			if !asJSON {
+				printLastCleanup(cmd.ErrOrStderr(), eng)
 				fmt.Fprintln(cmd.ErrOrStderr(), "Checking what can safely go (this can take a minute)...")
 			}
 			plan, err := eng.Plan(contextOf(cmd))
@@ -129,6 +151,7 @@ before deleting anything.
 			defer stop()
 
 			out := cmd.OutOrStdout()
+			printLastCleanup(cmd.ErrOrStderr(), eng)
 			fmt.Fprintln(cmd.ErrOrStderr(), "Checking what can safely go (this can take a minute)...")
 			plan, err := eng.Plan(ctx)
 			if err != nil {
@@ -209,6 +232,16 @@ func runApply(ctx context.Context, cmd *cobra.Command, eng *engine.Engine, plan 
 	fmt.Fprintf(out, "deleted %d, skipped %d, failed %d\n", rep.Deleted, rep.Skipped, rep.Failed)
 	if rep.FreeBefore > 0 || rep.FreeAfter > 0 {
 		fmt.Fprintf(out, "Free space: %s -> %s (+%s)\n", formatBytes(rep.FreeBefore), formatBytes(rep.FreeAfter), formatBytes(maxInt64(rep.FreeAfter-rep.FreeBefore, 0)))
+	}
+	logWritten := rep.Deleted+rep.Failed > 0
+	for _, w := range rep.Warnings {
+		fmt.Fprintf(cmd.ErrOrStderr(), "warning: %s\n", w)
+		if strings.HasPrefix(w, "cleanup log:") {
+			logWritten = false
+		}
+	}
+	if lp, ok := eng.Journal.(interface{ LogPath() string }); ok && logWritten {
+		fmt.Fprintf(out, "Log: %s\n", shortPath(lp.LogPath(), home))
 	}
 	if stopped != nil {
 		fmt.Fprintln(out, "Stopped early:", stopped)
