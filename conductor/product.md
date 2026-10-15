@@ -20,7 +20,7 @@
 - **Apply:** `cmm apply` shows the plan and waits for Return; `--dry-run` stops after the plan; `--only` limits it to some rules; `--yes` is the deliberate unattended mode.
 - **Interactive Mode:** `cmm run` is the terminal screen on the same plan: pick groups, expand accordion-style lists of every path with its size (sorted by size), and, with `--apply`, confirm with a typed `y`. Without `--apply` it is a preview.
 - **macOS app (v0):** `app/macos` is a small SwiftUI window on the same engine: it shows the plan, lets the owner tick items and cleans exactly those through `cmm`, with a confirmation sheet and a Stop button. It never deletes anything itself.
-- **Record:** Every real apply logs each deleted or failed item and stamps the time of the last cleanup (`~/.local/state/cmm/`); `plan`, `apply` and `run` say how long ago it was.
+- **Record:** Every real apply logs each deleted or failed item and stamps the time of the last cleanup (`~/.local/state/cmm/`); `plan`, `apply` and `run` say how long ago it was. A structured history of runs and a free-space timeline (`cmm history`, `cmm sample`) feed the app's history screen, menu bar and weekly notification.
 - **Time Machine (manual):** Local snapshots are offered only in `cmm run`, flagged "Harsh", and are never part of the plan.
 - **Safety Warnings:** High-visibility warnings for "Harsh" modules.
 

@@ -59,6 +59,8 @@ Time Machine local snapshots are **not** part of the plan. `cmm run` offers them
 
 A real apply appends one line per deleted (or failed) item to `~/.local/state/cmm/cleanup.log` and, when something was cleaned, writes the time to `~/.local/state/cmm/last-run`. `plan`, `apply` and `run` then say `Last cleanup: 2026-10-14 (3 days ago)`. Plans, previews, dry runs and refusals write nothing. If the log cannot be written you get a warning; the cleanup still happens.
 
+Two more private files in the same folder feed `cmm history`: `history.jsonl` (one JSON line per real apply that deleted or failed something: totals, free space before and after, the items) and `free.jsonl` (free-space samples, noted by `cmm sample` when one is due: 30 minutes since the last, or 256 MiB of movement). They hold paths and sizes only, are append-only, are never written through a link, and nothing that decides what may be deleted ever reads them.
+
 ---
 
 ## 📦 Installation
@@ -104,6 +106,10 @@ cmm apply --select-file sel.json # limit to the item paths in a JSON file (can o
 
 cmm run                          # interactive preview
 cmm run --apply                  # interactive; type y to clean
+
+cmm history                      # past cleanups and how free space has moved (reads only)
+cmm history --json --days 30     # the same for programs: runs newest first, free-space timeline oldest first
+cmm sample                       # note the free space for the history (no scan, well under a second)
 ```
 
 ### Interactive mode
@@ -117,6 +123,8 @@ cmm run --apply                  # interactive; type y to clean
 ### JSON
 
 `cmm plan --json` prints one document on stdout (`schema_version` 1: `generated_at`, `host`, `items`, `groups`, `skipped`, `total_bytes`). The format is described in the [engine track's spec](conductor/tracks/engine_v2_20261014/spec.md) and pinned by a golden test.
+
+`cmm history --json` prints one document (`schema_version` 1: `generated_at`, `host`, `runs`, `samples`, `unreadable_lines`); the timeline in `samples` holds the notes taken by `cmm sample` and both ends of every cleanup, UTC whole seconds. It is described in the [history track's spec](conductor/tracks/history_20261015/spec.md) and pinned by a golden test.
 
 ### For programs and apps
 
