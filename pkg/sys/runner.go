@@ -7,7 +7,6 @@ import (
 	"bytes"
 	"context"
 	"errors"
-	"os"
 	"os/exec"
 	"time"
 )
@@ -35,10 +34,13 @@ type ExecRunner struct {
 
 // Run implements Runner.
 func (r ExecRunner) Run(ctx context.Context, name string, args ...string) (Result, error) {
-	cmd := exec.CommandContext(ctx, name, args...)
-	if len(r.Env) > 0 {
-		cmd.Env = append(os.Environ(), r.Env...)
+	env, path := r.environment()
+	prog, err := lookPath(name, path)
+	if err != nil {
+		return Result{}, err
 	}
+	cmd := exec.CommandContext(ctx, prog, args...)
+	cmd.Env = env
 	// If a child process keeps the pipes open after the command is killed, do not wait for it forever.
 	cmd.WaitDelay = 2 * time.Second
 
@@ -46,7 +48,7 @@ func (r ExecRunner) Run(ctx context.Context, name string, args ...string) (Resul
 	cmd.Stdout = &stdout
 	cmd.Stderr = &stderr
 
-	err := cmd.Run()
+	err = cmd.Run()
 	res := Result{Stdout: stdout.String(), Stderr: stderr.String()}
 
 	if ctxErr := ctx.Err(); ctxErr != nil {
