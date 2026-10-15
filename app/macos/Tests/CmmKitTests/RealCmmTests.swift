@@ -40,8 +40,8 @@ enum RealCmm {
     }
 }
 
-/// A fake home for a real cmm: HOME and TMPDIR inside a temporary folder, and fake `brew` and `xcrun` first on
-/// PATH.
+/// A fake home for a real cmm: HOME and TMPDIR inside a temporary folder, and fake `brew`, `xcrun` and `docker`
+/// first on PATH.
 ///
 /// That keeps cmm's HOME-based rules inside the sandbox, but not everything: cmm appends Homebrew's folders to
 /// PATH itself (so the fakes must come first, which they do), and its temp-folder rules ask `getconf
@@ -71,7 +71,7 @@ struct Sandbox {
         for folder in [sandbox.home, sandbox.tmp, sandbox.bin, sandbox.bystander.deletingLastPathComponent()] {
             try fm.createDirectory(at: folder, withIntermediateDirectories: true)
         }
-        for tool in ["brew", "xcrun"] {  // tools that would reach outside the sandbox report nothing
+        for tool in ["brew", "xcrun", "docker"] {  // tools that would reach outside the sandbox report nothing
             let url = sandbox.bin.appendingPathComponent(tool)
             try Data("#!/bin/sh\nexit 0\n".utf8).write(to: url)
             try fm.setAttributes([.posixPermissions: 0o755], ofItemAtPath: url.path)
@@ -115,7 +115,7 @@ final class RealCmmTests: XCTestCase {
         XCTAssertTrue(sandbox.tmp.path.hasPrefix(sandbox.root.path + "/"))
         XCTAssertNotEqual(sandbox.home.path, NSHomeDirectory(), "the sandbox must not be the real home")
         XCTAssertFalse(NSHomeDirectory().hasPrefix(sandbox.root.path), "and not inside it either way round")
-        for tool in ["brew", "xcrun"] {
+        for tool in ["brew", "xcrun", "docker"] {
             XCTAssertTrue(FileManager.default.isExecutableFile(atPath: sandbox.bin.appendingPathComponent(tool).path))
         }
         for folder in sandbox.cacheFolders {

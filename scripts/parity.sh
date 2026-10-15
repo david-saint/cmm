@@ -27,6 +27,8 @@ set -u -o pipefail
 HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 ROOT="$(cd "$HERE/.." && pwd)"
 DEV="${PARITY_DEV_CLEANUP:-$HOME/.local/bin/dev-cleanup}"
+# dev-cleanup was retired by renaming it; when no script is named, the renamed one is the reference.
+if [ -z "${PARITY_DEV_CLEANUP:-}" ] && [ ! -f "$DEV" ] && [ -f "$DEV.retired" ]; then DEV="$DEV.retired"; fi
 PY="${PARITY_PYTHON:-/usr/bin/python3}"
 MARKER="# ---------- plan ----------"
 

@@ -113,6 +113,7 @@ Idle threshold `IdleDays = 5`; "min" = minimum size for a path to be listed.
 | lane-build-output | `<lane>/ios/build`, `android/build`, `android/.gradle`, `android/app/build`, `android/app/.cxx` | same lane-idle rule; nested `<lane>/sub/...` paths are never claimed |
 | simulators | devices from `simctl list devices unavailable` | CoreSimulator answering, device has `device.plist`, state shutdown, runtime absent from `simctl list runtimes`, untouched 3 days, not in use; action `simctl delete <udid>` |
 | homebrew | `brew cleanup` | plan from `brew cleanup -n` (named formulae, Python flagged), skip if brew running; env `HOMEBREW_NO_AUTO_UPDATE/ANALYTICS/ENV_HINTS`; exit code checked |
+| docker (cmm only, **review** tier, added 2026-10-15) | command items `docker: unused images` (`docker image prune -a -f`), `docker: stopped containers` (`docker container prune -f`), `docker: build cache` (`docker builder prune -a -f`) | sized by `docker system df` (what Docker says it could reclaim, decimal units); silent when `docker` is missing, skipped with a reason when Docker is not running; held back while a docker build/pull/push/compose runs; re-checked against a fresh `df` (no more than planned + 10% + 128 MB); volumes are never offered and no volume or system prune is ever run |
 
 ## JSON schema v1 (`cmm plan --json`)
 ```json
@@ -127,11 +128,14 @@ Idle threshold `IdleDays = 5`; "min" = minimum size for a path to be listed.
   "total_bytes": 0
 }
 ```
-Tiers: `safe` (regenerable), `review` (reserved for M2+), `manual` (needs admin, reserved).
+Tiers: `safe` (regenerable), `review` (the owner might want it back; used by the Docker rule), `manual` (needs admin, reserved).
+A plain `cmm apply` (with or without `--yes`) carries out `safe` items only; the others are listed under "needs your choice" and
+are taken only when chosen on purpose: `--include-review`, `--only <rule>`, `--select-file`, or a tick in `cmm run` or the app.
+In `--json` mode held-back items are reported as skipped ("needs your choice (review)...").
 
 ## CLI
 - `cmm plan [--json]`: read-only.
-- `cmm apply [--dry-run] [--yes] [--only <rule,...>]`: show plan, Return gate, apply.
+- `cmm apply [--dry-run] [--yes] [--only <rule,...>] [--include-review] [--select-file F] [--json]`: show plan, Return gate, apply.
 - `cmm run [--apply] [--dry-run]`: the interactive screen on the engine's plan. A preview unless `--apply`
   (which needs a terminal and a typed `y`; Return never confirms); `--dry-run` is accepted and wins. Delivered in
   Phase 3: the unguarded Caches, Logs, Xcode and Homebrew modules, the no-op `--force` and `--test-mode` are gone;

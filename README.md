@@ -36,6 +36,9 @@
 | `claude-versions`, `cursor-agent-versions` | old CLI versions | the newest, linked and in-use versions are kept |
 | `simulators` | simulators whose runtime was removed | shut down, untouched for 3 days, not in use; removed with `simctl delete` |
 | `homebrew` | old versions of installed formulae | `brew cleanup`, brew not running |
+| `docker` | Docker's unused images, stopped containers and build cache (**review**) | only when you choose it; Docker is running and not building, pulling or composing; volumes are never offered |
+
+Every item has a tier. **Safe** items are regenerable (caches, build output): a plain `cmm apply` takes them after Return. **Review** items are things you might want back (Docker's prunes): they are listed under "needs your choice", and are taken only when you say so on purpose: `cmm apply --include-review`, `cmm apply --only docker`, a selection, or by ticking them in `cmm run` or the app. Not even `--yes` takes them unasked.
 
 Time Machine local snapshots are **not** part of the plan. `cmm run` offers them as a separate, manual, "harsh" option (see below).
 
@@ -96,6 +99,7 @@ cmm plan --json                  # the plan for scripts and apps
 cmm apply --dry-run              # the plan, then stop
 cmm apply                        # the plan, then press Return to clean
 cmm apply --only go-build,npm-cache   # limit to some rule ids
+cmm apply --include-review       # also take review-tier items (Docker's prunes), after Return
 cmm apply --select-file sel.json # limit to the item paths in a JSON file (can only narrow the plan)
 
 cmm run                          # interactive preview

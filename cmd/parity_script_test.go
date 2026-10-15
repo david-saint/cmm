@@ -472,3 +472,54 @@ func TestParity_ADumpLeftByAnEarlierRunIsNeverReused(t *testing.T) {
 		t.Fatalf("a leftover dump must not stand in for a missing one: exit %d:\n%s", code, out)
 	}
 }
+
+// Rules only cmm has (Docker) cannot be compared with a script that never had them: they are named, not judged.
+func TestParity_RulesOnlyCmmHasAreNamedAndNotCompared(t *testing.T) {
+	p := newParity(t)
+	p.writeDevCleanup(fakeDC{items: []dcItem{{"/h/Library/Caches/go-build", 2 * 1024 * 1024, lblGo}}})
+	p.writeCmm([]cmmItem{
+		{Rule: "go-build", Group: lblGo, Path: "/h/Library/Caches/go-build", Bytes: 2 * 1024 * mib},
+		{Rule: "docker", Group: "Docker: unused images, stopped containers and build cache (review first)", Path: "docker: unused images", Bytes: 8 * 1024 * mib},
+	}, nil, 0, "")
+	code, out := p.run()
+	if code != 0 || !strings.Contains(out, "PARITY OK") {
+		t.Fatalf("a cmm-only rule must not make the comparison fail: exit %d\n%s", code, out)
+	}
+	if !strings.Contains(out, "cmm-only") || !strings.Contains(out, "docker") || strings.Contains(out, "unknown rule") {
+		t.Errorf("the cmm-only rule should be named as not compared:\n%s", out)
+	}
+	if strings.Contains(out, "Nothing to compare in: docker") || strings.Contains(out, "only in cmm: docker") {
+		t.Errorf("docker is neither empty nor a difference:\n%s", out)
+	}
+}
+
+// An unknown rule that is NOT one of the declared cmm-only ones is still a failure.
+func TestParity_AnyOtherUnknownRuleStillFails(t *testing.T) {
+	p := newParity(t)
+	p.writeDevCleanup(fakeDC{items: []dcItem{{"/h/Library/Caches/go-build", 2 * 1024 * 1024, lblGo}}})
+	p.writeCmm([]cmmItem{
+		{Rule: "go-build", Group: lblGo, Path: "/h/Library/Caches/go-build", Bytes: 2 * 1024 * mib},
+		{Rule: "something-new", Group: "Something new", Path: "/h/x", Bytes: mib},
+	}, nil, 0, "")
+	code, out := p.run()
+	if code != 1 || !strings.Contains(out, "unknown rule") {
+		t.Errorf("a rule the script does not know must still be reported: exit %d\n%s", code, out)
+	}
+}
+
+// dev-cleanup was retired by renaming it: the comparison still finds it under the new name.
+func TestParity_FindsTheRetiredScriptUnderItsNewName(t *testing.T) {
+	p := newParity(t)
+	agreeing(p)
+	bin := filepath.Join(p.home, ".local", "bin")
+	if err := os.MkdirAll(bin, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Rename(p.devPath, filepath.Join(bin, "dev-cleanup.retired")); err != nil {
+		t.Fatal(err)
+	}
+	code, out := p.run("PARITY_DEV_CLEANUP=") // not set: use the default place
+	if code != 0 || !strings.Contains(out, "PARITY OK") {
+		t.Fatalf("exit %d:\n%s", code, out)
+	}
+}

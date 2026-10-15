@@ -37,6 +37,9 @@
   `pkg/engine`. Tests use the standard library only (Testify is not used).
 - **2026-10-15 (track app_v0_20261015):** `pkg/sys` looks tools up on a PATH extended with Homebrew's folders;
   `cmm apply` gains `--select-file` and `--json` (NDJSON events) for apps; `app/macos` is the SwiftUI app.
+- **2026-10-15 (Docker, option A chosen by the owner):** `pkg/rules` gains the `docker` rule (review tier, command
+  items sized by `docker system df`); `pkg/engine` gains `Plan.SafeOnly`; `cmm apply` takes review items only when
+  chosen (`--include-review`, `--only`, `--select-file`); `pkg/sys` gains `IsNotFound` so rules never import `os/exec`.
 - **2026-10-15 (same track, Phase 3):** `cmm run` runs on the engine's plan and is a preview unless `--apply`. The
   Caches, Logs, Xcode and Homebrew modules are removed (their rules live in `pkg/rules`); `pkg/modules` keeps only
   Time Machine. `pkg/cmm`'s `Module.Delete` now returns a `DeleteResult` (freed, skipped, failed, notes) and the

@@ -33,6 +33,8 @@ LABELS = {
 RULES = list(LABELS.values())  # dev-cleanup order
 RULE_LABEL = {rule: label for label, rule in LABELS.items()}
 BREW_PATH = "homebrew: cleanup"
+# Rules only cmm has: dev-cleanup never had them, so there is nothing to compare them with. They are named, not judged.
+CMM_ONLY = {"docker"}
 
 TOLERANCE_PERCENT = 0.02
 TOLERANCE_MIN_BYTES = 5 * 1024 * 1024
@@ -115,6 +117,9 @@ def main():
         error("usage: parity_compare.py DUMP.tsv CMM.json")
     dc, dc_skips = read_dump(sys.argv[1])
     cm, cm_groups, cm_skips = read_plan(sys.argv[2])
+    cm_only = {p: v for p, v in cm.items() if v[0] in CMM_ONLY}
+    cm = {p: v for p, v in cm.items() if v[0] not in CMM_ONLY}
+    cm_groups = {p: g for p, g in cm_groups.items() if p in cm}
 
     problems = []
     for p in sorted(set(dc) | set(cm)):
@@ -154,6 +159,10 @@ def main():
     empty = [r for r in RULES if r not in dt and r not in ct]
     if empty:
         print("\nNothing to compare in: " + ", ".join(empty))
+    if cm_only:
+        by_rule = tally(cm_only)
+        print("\ncmm-only rules (dev-cleanup never had them, so not compared): " +
+              ", ".join("%s (%d item(s), %s)" % (rule, n, human(total)) for rule, (n, total) in sorted(by_rule.items())))
 
     print("\nSkipped (for information, wording differs between the tools): dev-cleanup %d, cmm %d" % (len(dc_skips), len(cm_skips)))
     for s in dc_skips:
