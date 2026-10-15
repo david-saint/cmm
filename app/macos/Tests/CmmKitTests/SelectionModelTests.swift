@@ -238,11 +238,16 @@ final class SelectionModelTests: XCTestCase {
     func testAnItemOfAnotherPlanCannotBeTicked() throws {
         var selection = SelectionModel(plan: try TestPlans.fixture("plan-v1.json"))
         let stranger = TestPlans.item("/Users/test/not-in-this-plan", bytes: 99)
+
         selection.setTicked(true, for: stranger)
-        selection.toggle(stranger)
+        XCTAssertFalse(selection.ticked.contains(stranger.path), "ticking a stranger does nothing")
         XCTAssertEqual(selection.selectedCount, 4)
+
+        selection.toggle(stranger)  // checked separately: a tick followed by a toggle would cancel out
+        XCTAssertFalse(selection.ticked.contains(stranger.path), "toggling a stranger does nothing either")
+        XCTAssertEqual(selection.selectedCount, 4)
+        XCTAssertEqual(selection.selectedBytes, 3_081_535_488)
         XCTAssertFalse(selection.applySelection.paths.contains(stranger.path))
-        XCTAssertFalse(selection.ticked.contains(stranger.path))
     }
 
     func testApplySelectionCountsAreIndependentOfHowManyTimesAPathIsTicked() throws {

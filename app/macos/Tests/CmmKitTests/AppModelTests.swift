@@ -238,6 +238,28 @@ final class AppModelTests: XCTestCase {
         XCTAssertNotNil(model.confirmation)
     }
 
+    func testRequestCleanDoesNothingWhileCleaningAndAfterwards() async throws {
+        let fake = FakeCmmClient(plan: plan)
+        fake.script(.live)
+        let (model, _) = await readyModel(fake: fake)
+        model.requestClean()
+        let confirmation = try XCTUnwrap(model.confirmation)
+        let cleaning = Task { await model.confirmClean(confirmation) }
+        _ = await fake.waitForApply()
+
+        model.requestClean()
+        XCTAssertNil(model.confirmation, "no second sheet while cmm is cleaning")
+
+        fake.send(Events.done(deleted: 4))
+        fake.finish()
+        await cleaning.value
+        XCTAssertEqual(model.phase, .done)
+
+        model.requestClean()
+        XCTAssertNil(model.confirmation, "and none after it, until a rescan has made a new plan")
+        XCTAssertEqual(fake.applyCalls.count, 1)
+    }
+
     func testCancelRunsNothingAndKeepsTheTicks() async throws {
         let (model, fake) = await readyModel()
         let before = model.selection
