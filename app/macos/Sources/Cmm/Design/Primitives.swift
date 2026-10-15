@@ -14,7 +14,7 @@ struct DottedFill: View {
 
     var body: some View {
         Canvas { context, size in
-            context.fill(Path(CGRect(origin: .zero, size: size)), with: .color(Theme.reviewFill))
+            context.fill(Path(CGRect(origin: .zero, size: size)), with: .style(Theme.reviewFill))
             var dots = Path()
             var y = cell / 2
             while y < size.height + cell {
@@ -25,7 +25,7 @@ struct DottedFill: View {
                 }
                 y += cell
             }
-            context.fill(dots, with: .color(Theme.review))
+            context.fill(dots, with: .style(Theme.review))
         }
         .clipped()
         .accessibilityHidden(true)
@@ -78,7 +78,7 @@ struct RoundCheck: View {
 struct PillStyle: ButtonStyle {
     enum Look {
         case solid
-        case soft(text: Color)
+        case soft(text: Tone)
     }
 
     var look: Look = .solid
@@ -96,6 +96,7 @@ struct PillStyle: ButtonStyle {
         let configuration: ButtonStyleConfiguration
         let style: PillStyle
         @Environment(\.isEnabled) private var isEnabled
+        @Environment(\.cmm) private var env
 
         var body: some View {
             let isSolid: Bool = if case .solid = style.look { true } else { false }
@@ -113,13 +114,13 @@ struct PillStyle: ButtonStyle {
                         Capsule().strokeBorder(Theme.softLine, lineWidth: 0.5)
                     }
                 }
-                .shadow(color: .black.opacity(isSolid && style.shadowed ? 0.12 : 0), radius: 1, y: 1)
-                .shadow(color: .black.opacity(isSolid && style.shadowed ? 0.26 : 0), radius: 7, y: 6)
+                .shadow(color: .black.opacity(isSolid && style.shadowed ? 0.12 : 0), radius: 1, y: 1 * env.shadowDirection)
+                .shadow(color: .black.opacity(isSolid && style.shadowed ? 0.26 : 0), radius: 7, y: 6 * env.shadowDirection)
                 .opacity(isEnabled ? (configuration.isPressed ? 0.82 : 1) : 0.38)
                 .contentShape(Capsule())
         }
 
-        private var foreground: Color {
+        private var foreground: Tone {
             switch style.look {
             case .solid: Theme.buttonText
             case .soft(let text): text
@@ -161,7 +162,7 @@ struct CircleIconStyle: ButtonStyle {
             configuration.label
                 .foregroundStyle(active ? Theme.ink : Theme.ink2)
                 .frame(width: 30, height: 30)
-                .background(Circle().fill(active || hovering || configuration.isPressed ? Theme.hover : .clear))
+                .background(Circle().fill(Theme.hover).opacity(active || hovering || configuration.isPressed ? 1 : 0))
                 .contentShape(Circle())
                 .opacity(isEnabled ? 1 : 0.4)
                 .onHover { hovering = $0 }
@@ -171,31 +172,67 @@ struct CircleIconStyle: ButtonStyle {
 
 // MARK: glass
 
+/// A shadow as the boards write it: a colour, a blur and how far down it falls.
+struct SurfaceShadow {
+    let color: Tone
+    let radius: CGFloat
+    let y: CGFloat
+}
+
 /// The surface the Details pane and the confirmation card sit on: Liquid Glass where the system has it, a blurred
-/// material with the board's tint where it does not (macOS 14 and 15).
+/// material where it does not (macOS 14 and 15). Both carry the boards' own 84 to 86 % tint above the glass and under
+/// the text, which keeps the text readable over whatever is behind it (the dimmed headline, the band) and gives the
+/// surface the boards' colour wherever it is drawn.
 struct GlassSurface: ViewModifier {
     let radius: CGFloat
-    let tint: Color
-    var shadowRadius: CGFloat = 14
-    var shadowOpacity: Double = 0.10
+    let tint: Tone
+    let shadow: SurfaceShadow
+    var nearShadow: SurfaceShadow?
+    @Environment(\.cmm) private var env
+    @Environment(\.colorScheme) private var scheme
 
     func body(content: Content) -> some View {
         let shape = RoundedRectangle(cornerRadius: radius, style: .continuous)
-        Group {
-            if #available(macOS 26.0, *) {
-                content.glassEffect(.regular, in: shape)
-            } else {
-                content.background { shape.fill(.regularMaterial).overlay(shape.fill(tint)) }
+        content
+            .background {
+                ZStack {
+                    if #available(macOS 26.0, *) {
+                        Color.clear.glassEffect(.regular, in: shape)
+                    } else {
+                        shape.fill(.regularMaterial)
+                    }
+                    shape.fill(tint)
+                }
             }
-        }
-        .overlay(shape.strokeBorder(Theme.paneLine, lineWidth: 0.5))
-        .shadow(color: .black.opacity(shadowOpacity), radius: shadowRadius, y: shadowRadius * 0.5)
+            .overlay(shape.strokeBorder(Theme.paneLine, lineWidth: 0.5))
+            .background { shadowLayer(shape) }
+    }
+
+    private func shadowColor(_ shadow: SurfaceShadow) -> Color {
+        shadow.color.rgba(dark: scheme == .dark, increasedContrast: false).color
+    }
+
+    /// The shadows, drawn only outside the surface (as CSS draws a box-shadow), so the surface's own translucency
+    /// does not pick them up.
+    private func shadowLayer(_ shape: RoundedRectangle) -> some View {
+        shape.fill(Color.black)
+            .shadow(color: shadowColor(shadow), radius: shadow.radius, y: shadow.y * env.shadowDirection)
+            .shadow(
+                color: nearShadow.map(shadowColor) ?? .clear, radius: nearShadow?.radius ?? 0,
+                y: (nearShadow?.y ?? 0) * env.shadowDirection
+            )
+            .mask {
+                Rectangle()
+                    .padding(-400)
+                    .overlay { shape.fill(Color.black).blendMode(.destinationOut) }
+                    .compositingGroup()
+            }
     }
 }
 
 extension View {
-    func glassSurface(radius: CGFloat, tint: Color, shadowRadius: CGFloat = 14, shadowOpacity: Double = 0.10) -> some View {
-        modifier(GlassSurface(radius: radius, tint: tint, shadowRadius: shadowRadius, shadowOpacity: shadowOpacity))
+    func glassSurface(radius: CGFloat, tint: Tone, shadow: SurfaceShadow, nearShadow: SurfaceShadow? = nil) -> some View {
+        modifier(GlassSurface(radius: radius, tint: tint, shadow: shadow, nearShadow: nearShadow))
     }
 }
 

@@ -4,16 +4,26 @@ import XCTest
 @testable import Cmm
 @testable import CmmKit
 
-/// Renders every screen of the window offscreen, in light and dark, to prove that each one draws, that all of
-/// them follow the system appearance (no hard-coded colors that vanish in one of the modes) and that the
-/// states are reachable through the real view model. Set CMM_SNAPSHOT_DIR to a folder to keep the pictures.
+/// 14:03 in Berlin, the time on the done board; "now" is the same afternoon.
+enum BoardClock {
+    static let calendar: Calendar = {
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.timeZone = TimeZone(identifier: "Europe/Berlin")!
+        return calendar
+    }()
+    static let finished = calendar.date(from: DateComponents(year: 2026, month: 10, day: 15, hour: 14, minute: 3))!
+    static let now = calendar.date(from: DateComponents(year: 2026, month: 10, day: 15, hour: 15, minute: 30))!
+}
+
+/// Renders every screen of design C offscreen, in light and dark (and two screens with Increase Contrast), to prove that
+/// each draws, follows the appearance and is reachable through the real view model. Set CMM_SNAPSHOT_DIR to a folder to
+/// keep the pictures, one PNG per screen and appearance.
 ///
-/// What a picture cannot show (labels, shortcuts, which button is the default) is covered by the source checks
-/// in SafetyRulesTests and by the view model tests.
+/// What a picture cannot show (labels, shortcuts, which button is the default) is covered by the source checks in
+/// SafetyRulesTests and by the tests of the pure types they are built from.
 @MainActor
 final class AppViewsTests: XCTestCase {
-    static let home = "/Users/test"
-    static let windowSize = CGSize(width: 880, height: 680)
+    static let windowSize = CGSize(width: 1100, height: 720)
 
     override func setUp() async throws {
         _ = NSApplication.shared
@@ -21,31 +31,29 @@ final class AppViewsTests: XCTestCase {
 
     // MARK: rendering
 
+    /// `increasedContrast` draws as the system does with Increase Contrast on; a window's appearance cannot flip that
+    /// switch, so the views' own environment value stands in for it.
     func render<V: View>(
-        _ view: V,
-        name: String,
-        appearance: NSAppearance.Name,
+        _ view: V, name: String, appearance: NSAppearance.Name, increasedContrast: Bool = false, save: Bool = true,
         size: CGSize = AppViewsTests.windowSize
     ) throws -> NSBitmapImageRep {
-        let hosting = NSHostingView(rootView: view.frame(width: size.width, height: size.height))
-        let window = NSWindow(
-            contentRect: CGRect(origin: .zero, size: size),
-            styleMask: [.titled],
-            backing: .buffered,
-            defer: false
+        let hosting = NSHostingView(
+            rootView: view.environment(\.cmmIncreasedContrast, increasedContrast).frame(width: size.width, height: size.height)
         )
+        let window = NSWindow(contentRect: CGRect(origin: .zero, size: size), styleMask: [.titled], backing: .buffered, defer: false)
         window.appearance = NSAppearance(named: appearance)
         window.contentView = hosting
         hosting.frame = CGRect(origin: .zero, size: size)
         hosting.layoutSubtreeIfNeeded()
-        RunLoop.current.run(until: Date().addingTimeInterval(0.15))  // let SwiftUI settle
+        RunLoop.current.run(until: Date().addingTimeInterval(0.25))  // let SwiftUI settle (preferences, the card's placement)
         hosting.layoutSubtreeIfNeeded()
+        RunLoop.current.run(until: Date().addingTimeInterval(0.1))
 
         let bitmap = try XCTUnwrap(hosting.bitmapImageRepForCachingDisplay(in: hosting.bounds))
         hosting.cacheDisplay(in: hosting.bounds, to: bitmap)
 
-        if let directory = ProcessInfo.processInfo.environment["CMM_SNAPSHOT_DIR"], !directory.isEmpty {
-            let label = appearance == .darkAqua ? "dark" : "light"
+        if save, let directory = ProcessInfo.processInfo.environment["CMM_SNAPSHOT_DIR"], !directory.isEmpty {
+            let label = (appearance == .darkAqua ? "dark" : "light") + (increasedContrast ? "-contrast" : "")
             let url = URL(fileURLWithPath: directory).appendingPathComponent("\(name)-\(label).png")
             if let png = bitmap.representation(using: .png, properties: [:]) { try png.write(to: url) }
         }
@@ -67,7 +75,19 @@ final class AppViewsTests: XCTestCase {
         return count == 0 ? 0 : total / count
     }
 
-    /// How many distinct colors a grid of pixels has; a blank render has one.
+    /// The lowest brightness (0 black ... 1 white) among the pixels of a region (top-left origin).
+    func darkest(_ bitmap: NSBitmapImageRep, in rect: CGRect) -> Double {
+        var lowest = 1.0
+        for x in Int(rect.minX)..<Int(rect.maxX) {
+            for y in Int(rect.minY)..<Int(rect.maxY) {
+                guard let c = bitmap.colorAt(x: x, y: y)?.usingColorSpace(.deviceRGB) else { continue }
+                lowest = min(lowest, 0.299 * c.redComponent + 0.587 * c.greenComponent + 0.114 * c.blueComponent)
+            }
+        }
+        return lowest
+    }
+
+    /// How many distinct colours a grid of pixels has; a blank render has one.
     func distinctColors(_ bitmap: NSBitmapImageRep) -> Int {
         var seen = Set<String>()
         for x in stride(from: 0, to: bitmap.pixelsWide, by: 5) {
@@ -79,132 +99,203 @@ final class AppViewsTests: XCTestCase {
         return seen.count
     }
 
-    // MARK: scenarios: each screen of the window, reached through the real view model
+    // MARK: the screens, each reached through the real view model
 
     enum Scenario: String, CaseIterable {
-        case scanning, ready, readyOpen, readyMixed, empty, cleaning
-        case done, doneWithProblems, doneStopped, scanFailed, cmmMissing, schemaMismatch, cleanFailed
+        case scanning
+        case rest, restReview, restUnticked, restNoCapacity
+        case details, detailsExpanded, detailsReviewExpanded
+        case sheet
+        case cleaning, done, doneProblems, doneStopped
+        case empty
+        case errorScan, errorClean, errorMissing
     }
 
-    /// A model in the state of `scenario`, and what to call when the picture is taken to let it wind down.
+    static let env = ViewEnvironment(
+        home: "/Users/test",
+        volumeName: { _ in "Macintosh HD" },
+        now: { BoardClock.now },
+        calendar: BoardClock.calendar,
+        locale: Locale(identifier: "en_GB"),
+        reveal: { _ in },
+        shadowDirection: -1  // cacheDisplay draws layer shadows upside down; see ViewEnvironment
+    )
+
     struct Rig {
         let model: AppModel
-        var expanded: Set<String> = []
+        let window: WindowState
         var finish: () async -> Void = {}
     }
 
+    private func gb(_ value: Double) -> Int64 { Int64((value * 1_000_000_000).rounded()) }
+
+    private func boardPlan() throws -> Plan { try TestPlans.fixture("plan-c.json") }
+
+    /// The board's data without the Docker group: nothing for review.
+    private func safeOnlyPlan() throws -> Plan {
+        let board = try boardPlan()
+        let items = board.items.filter { $0.tier == .safe }
+        return TestPlans.plan(items, skipped: board.skipped, freeBytes: board.host.freeBytes, capacityBytes: board.host.capacityBytes)
+    }
+
+    private func readyModel(_ plan: Plan, clock: Date = BoardClock.finished, script: FakeCmmClient.ApplyScript? = nil) async -> (AppModel, FakeCmmClient) {
+        let fake = FakeCmmClient(plan: plan)
+        if let script { fake.script(script) }
+        let model = AppModel(client: fake, now: { clock })
+        await model.scan()
+        return (model, fake)
+    }
+
     func rig(for scenario: Scenario) async throws -> Rig {
-        let plan = try TestPlans.fixture("plan-v1.json")
-        let paths = plan.items.map(\.path)
+        let board = try boardPlan()
+        let safe = board.items.filter { $0.tier == .safe }
+
+        func item(_ path: String) throws -> PlanItem { try XCTUnwrap(board.items.first { $0.path == path }, path) }
+        func event(_ path: String, _ status: ItemStatus, reason: String = "") throws -> ApplyEvent {
+            let planned = try item(path)
+            return .item(ItemEvent(rule: planned.rule, group: planned.group, path: planned.path, status: status, reason: reason,
+                                   bytes: planned.bytes, freedBytes: status == .deleted ? planned.bytes : 0))
+        }
 
         switch scenario {
         case .scanning:
-            let fake = FakeCmmClient(plan: plan)
+            let fake = FakeCmmClient(plan: board)
             let gate = fake.holdPlans()
             let model = AppModel(client: fake)
             let task = Task { await model.scan() }
             await eventuallyOnMain { model.phase == .scanning }
-            return Rig(model: model, finish: { gate.open(); await task.value })
+            return Rig(model: model, window: WindowState(), finish: { gate.open(); await task.value })
 
-        case .ready, .readyOpen, .readyMixed:
-            let model = AppModel(client: FakeCmmClient(plan: plan))
-            await model.scan()
-            if scenario == .readyMixed, let group = model.selection?.groups.first, let item = group.items.first {
-                model.toggle(item)  // one of two ticked: the group shows the "mixed" dash
-                if let last = model.selection?.groups.last { model.toggle(last) }
-            }
-            let open = scenario == .ready ? [] : Set((model.selection?.groups ?? []).map(\.name))
-            return Rig(model: model, expanded: open)
+        case .rest:
+            let (model, _) = await readyModel(try safeOnlyPlan())
+            return Rig(model: model, window: WindowState())
 
-        case .empty:
-            let model = AppModel(client: FakeCmmClient(plan: try TestPlans.fixture("plan-empty.json")))
-            await model.scan()
-            return Rig(model: model)
+        case .restReview:
+            let (model, _) = await readyModel(board)
+            return Rig(model: model, window: WindowState())
+
+        case .restUnticked:
+            let (model, _) = await readyModel(board)
+            let lane = try XCTUnwrap(model.selection?.groups.first { $0.rule == "lane-deps" }?.items.first)
+            model.toggle(lane)
+            model.toggle(try XCTUnwrap(model.selection?.groups.first { $0.rule == "uv-cache" }))
+            return Rig(model: model, window: WindowState())
+
+        case .restNoCapacity:
+            let plan = TestPlans.plan(safe, skipped: board.skipped, freeBytes: board.host.freeBytes, capacityBytes: nil)
+            let (model, _) = await readyModel(plan)
+            return Rig(model: model, window: WindowState())
+
+        case .details:
+            let (model, _) = await readyModel(board)
+            return Rig(model: model, window: WindowState(detailsOpen: true))
+
+        case .detailsExpanded:
+            let (model, _) = await readyModel(board)
+            let lanes = try XCTUnwrap(model.selection?.groups.first { $0.rule == "lane-deps" })
+            return Rig(model: model, window: WindowState(detailsOpen: true, expanded: [lanes.id]))
+
+        case .detailsReviewExpanded:
+            let (model, _) = await readyModel(board)
+            let docker = try XCTUnwrap(model.selection?.groups.first { $0.section == .review })
+            model.toggle(try XCTUnwrap(docker.items.first))
+            return Rig(model: model, window: WindowState(detailsOpen: true, expanded: [docker.id]))
+
+        case .sheet:
+            let (model, _) = await readyModel(board)
+            model.requestClean()
+            return Rig(model: model, window: WindowState())
 
         case .cleaning:
-            let fake = FakeCmmClient(plan: plan)
+            let fake = FakeCmmClient(plan: board)
             fake.script(.live)
-            let model = AppModel(client: fake)
+            let model = AppModel(client: fake, now: { BoardClock.finished })
             await model.scan()
             model.requestClean()
             let confirmation = try XCTUnwrap(model.confirmation)
             let task = Task { await model.confirmClean(confirmation) }
             _ = await fake.waitForApply()
-            fake.send(Events.start(selected: 4, bytes: 3_081_535_488))
-            fake.send(Events.item(paths[0], .deleted, bytes: 927_080_448))
-            fake.send(Events.item(paths[1], .skipped, bytes: 838_086_656, reason: "in use: node (pid 1234) has files open"))
-            fake.send(Events.item(paths[2], .failed, bytes: 612_368_384, reason: "remove failed: permission denied"))
-            await eventuallyOnMain { model.progress.items.count == 3 }
-            return Rig(model: model, finish: {
-                fake.send(Events.done(deleted: 1, skipped: 1, failed: 1, freed: 927_080_448))
+            fake.send(Events.start(selected: 9, bytes: gb(8.4), free: gb(19.8)))
+            for (path, status, reason) in [
+                ("/Users/test/lane-builds/lane-a/node_modules", ItemStatus.deleted, ""),
+                ("/Users/test/lane-builds/lane-a/ios/Pods", .deleted, ""),
+                ("/Users/test/lane-builds/lane-b/node_modules", .deleted, ""),
+                ("/Users/test/lane-builds/lane-c/node_modules", .failed, "permission denied"),
+                ("/Users/test/.cache/uv", .skipped, "uv is running"),
+            ] {
+                fake.send(try event(path, status, reason: reason))
+            }
+            await eventuallyOnMain { model.progress.items.count == 5 }
+            return Rig(model: model, window: WindowState(), finish: {
+                fake.send(Events.done(deleted: 3, skipped: 1, failed: 1, freed: self.gb(3.1)))
                 fake.finish()
                 await task.value
             })
 
-        case .done, .doneWithProblems, .doneStopped:
-            let fake = FakeCmmClient(plan: plan)
-            let problems = scenario == .doneWithProblems
-            let stopped = scenario == .doneStopped
-            var events: [ApplyEvent] = [
-                Events.start(selected: 4),
-                Events.item(paths[0], .deleted, bytes: 927_080_448),
-                Events.item(paths[3], .deleted, bytes: 704_000_000),
-            ]
-            if problems {
-                events.append(Events.item(paths[1], .skipped, bytes: 838_086_656, reason: "in use: node (pid 1234) has files open"))
-                events.append(Events.item(paths[2], .failed, bytes: 612_368_384, reason: "remove failed: permission denied"))
-                events.append(.unreadable("garbage {"))
+        case .done, .doneProblems, .doneStopped:
+            let problems = scenario != .done
+            var events: [ApplyEvent] = [Events.start(selected: 9, bytes: gb(8.4), free: gb(19.8))]
+            for planned in safe {
+                if problems && (planned.path == "/Users/test/.cache/uv" || planned.path == "/Users/test/lane-builds/lane-c/node_modules") { continue }
+                events.append(try event(planned.path, .deleted))
             }
+            if problems {
+                events.append(try event("/Users/test/.cache/uv", .skipped, reason: "uv was running"))
+                events.append(try event("/Users/test/lane-builds/lane-c/node_modules", .failed, reason: "permission denied"))
+            }
+            let stopped = scenario == .doneStopped
             events.append(Events.done(
-                deleted: 2, skipped: problems ? 1 : 0, failed: problems ? 1 : 0, freed: 1_631_080_448,
-                before: 27_633_246_208, stopped: stopped,
-                warnings: problems ? ["could not write the cleanup log: permission denied"] : [],
-                log: problems ? nil : "/Users/test/.local/state/cmm/cleanup.log"
+                deleted: problems ? 7 : 9, skipped: problems ? 1 : 0, failed: problems ? 1 : 0,
+                freed: problems ? gb(5.4) : gb(8.4), before: gb(19.8), stopped: stopped,
+                log: "/Users/test/.local/state/cmm/cleanup.log"
             ))
-            fake.script(.replay(events, error: nil))
-            let model = AppModel(client: fake)
-            await model.scan()
+            let (model, _) = await readyModel(board, script: .replay(events, error: nil))
             model.requestClean()
             await model.confirmClean(try XCTUnwrap(model.confirmation))
-            return Rig(model: model)
+            return Rig(model: model, window: WindowState())
 
-        case .scanFailed, .cmmMissing, .schemaMismatch:
-            let error: CmmError = switch scenario {
-            case .cmmMissing: .binaryNotFound(path: "/Applications/Cmm.app/Contents/Resources/cmm")
-            case .schemaMismatch: .unsupportedSchema(found: 2)
-            default: .planFailed(status: 2, stderr: "cmm: cannot read the free space of /System/Volumes/Data")
-            }
+        case .empty:
+            let json = #"""
+            {"schema_version":1,"generated_at":"2026-10-15T15:29:40+02:00",
+             "host":{"volume":"/System/Volumes/Data","free_bytes":28200000000,"capacity_bytes":228000000000},
+             "items":[],"skipped":[{"rule":"uv-cache","reason":"uv cache (Python packages; downloads again on demand): uv is running"}],
+             "total_bytes":0}
+            """#
+            let (model, _) = await readyModel(try Plan.parse(Data(json.utf8)))
+            return Rig(model: model, window: WindowState())
+
+        case .errorScan, .errorMissing:
+            let error: CmmError = scenario == .errorMissing
+                ? .binaryNotFound(path: "/Applications/Cmm.app/Contents/Resources/cmm")
+                : .planFailed(status: 2, stderr: "cmm: cannot read the free space of /System/Volumes/Data")
             let model = AppModel(client: FakeCmmClient(plans: [.failure(error)]))
             await model.scan()
-            return Rig(model: model)
+            return Rig(model: model, window: WindowState())
 
-        case .cleanFailed:
-            let fake = FakeCmmClient(plan: plan)
-            fake.script(.replay([
-                Events.start(selected: 4),
-                Events.item(paths[0], .deleted, bytes: 927_080_448),
-                Events.item(paths[1], .skipped, bytes: 838_086_656, reason: "in use: node (pid 1234) has files open"),
-            ], error: .applyFailed(status: 1, stderr: "cmm: the volume went away")))
-            let model = AppModel(client: fake)
-            await model.scan()
+        case .errorClean:
+            let events: [ApplyEvent] = [
+                Events.start(selected: 9, free: gb(19.8)),
+                try event("/Users/test/lane-builds/lane-a/node_modules", .deleted),
+                try event("/Users/test/.cache/uv", .skipped, reason: "uv is running"),
+            ]
+            let (model, _) = await readyModel(board, script: .replay(events, error: .applyFailed(status: 1, stderr: "cmm: the volume went away")))
             model.requestClean()
             await model.confirmClean(try XCTUnwrap(model.confirmation))
-            return Rig(model: model)
+            return Rig(model: model, window: WindowState())
         }
     }
 
     // MARK: tests
 
-    func testEveryScreenDrawsInLightAndDarkAndFollowsTheSystemAppearance() async throws {
+    func testEveryScreenDrawsInLightAndDarkAndFollowsTheAppearance() async throws {
         for scenario in Scenario.allCases {
             let rig = try await rig(for: scenario)
-            let view = RootView(model: rig.model, home: Self.home, expanded: rig.expanded)
+            let view = RootView(model: rig.model, window: rig.window, env: Self.env)
 
             let light = try render(view, name: scenario.rawValue, appearance: .aqua)
             let dark = try render(view, name: scenario.rawValue, appearance: .darkAqua)
             await rig.finish()
 
-            XCTAssertEqual(light.pixelsWide, Int(Self.windowSize.width) * Int(light.pixelsWide / Int(Self.windowSize.width)))
             XCTAssertGreaterThan(distinctColors(light), 8, "\(scenario) looks blank in light mode")
             XCTAssertGreaterThan(distinctColors(dark), 8, "\(scenario) looks blank in dark mode")
             XCTAssertGreaterThan(brightness(light), 0.6, "\(scenario) is not light in light mode")
@@ -212,37 +303,36 @@ final class AppViewsTests: XCTestCase {
         }
     }
 
+    func testIncreaseContrastDrawsToo() async throws {
+        for scenario in [Scenario.restReview, .detailsExpanded] {
+            let rig = try await rig(for: scenario)
+            let view = RootView(model: rig.model, window: rig.window, env: Self.env)
+            let light = try render(view, name: scenario.rawValue, appearance: .aqua, increasedContrast: true)
+            let dark = try render(view, name: scenario.rawValue, appearance: .darkAqua, increasedContrast: true)
+            let plainLight = try render(view, name: scenario.rawValue, appearance: .aqua, save: false)
+            XCTAssertGreaterThan(distinctColors(light), 8, "\(scenario)")
+            XCTAssertGreaterThan(distinctColors(dark), 8, "\(scenario)")
+            XCTAssertGreaterThan(brightness(light), 0.6, "\(scenario)")
+            XCTAssertLessThan(brightness(dark), 0.4, "\(scenario)")
+            // The strong variants are really drawn: the quiet ink is darker with Increase Contrast on.
+            XCTAssertLessThan(darkest(light, in: CGRect(x: 100, y: 600, width: 100, height: 30)),
+                              darkest(plainLight, in: CGRect(x: 100, y: 600, width: 100, height: 30)), "\(scenario)")
+        }
+    }
+
     func testTheModelReachedEachScenarioItClaims() async throws {
         let expected: [Scenario: AppModel.Phase] = [
-            .scanning: .scanning, .ready: .ready, .readyOpen: .ready, .readyMixed: .ready, .empty: .empty,
-            .cleaning: .cleaning, .done: .done, .doneWithProblems: .done, .doneStopped: .done,
-            .scanFailed: .failed, .cmmMissing: .failed, .schemaMismatch: .failed, .cleanFailed: .failed,
+            .scanning: .scanning, .rest: .ready, .restReview: .ready, .restUnticked: .ready, .restNoCapacity: .ready,
+            .details: .ready, .detailsExpanded: .ready, .detailsReviewExpanded: .ready, .sheet: .ready,
+            .cleaning: .cleaning, .done: .done, .doneProblems: .done, .doneStopped: .done, .empty: .empty,
+            .errorScan: .failed, .errorClean: .failed, .errorMissing: .failed,
         ]
         for scenario in Scenario.allCases {
             let rig = try await rig(for: scenario)
             XCTAssertEqual(rig.model.phase, expected[scenario], "\(scenario)")
+            if scenario == .sheet { XCTAssertNotNil(rig.model.confirmation) }
             await rig.finish()
         }
-    }
-
-    func testTheConfirmationSheetDrawsInBothAppearances() async throws {
-        let plan = try TestPlans.fixture("plan-v1.json")
-        let model = AppModel(client: FakeCmmClient(plan: plan))
-        await model.scan()
-        model.requestClean()
-        let confirmation = try XCTUnwrap(model.confirmation)
-        // A sheet gets its background from the sheet window; offscreen it has to be supplied.
-        let sheet = ConfirmSheet(confirmation: confirmation, cancel: {}, clean: {})
-            .background(Color(nsColor: .windowBackgroundColor))
-        let size = CGSize(width: 440, height: 150)
-
-        let light = try render(sheet, name: "sheet", appearance: .aqua, size: size)
-        let dark = try render(sheet, name: "sheet", appearance: .darkAqua, size: size)
-
-        XCTAssertGreaterThan(distinctColors(light), 8)
-        XCTAssertGreaterThan(distinctColors(dark), 8)
-        XCTAssertGreaterThan(brightness(light), 0.6)
-        XCTAssertLessThan(brightness(dark), 0.4)
     }
 
     func testTheWindowStillDrawsWithAHundredGroupsOfTwentyItems() async throws {
@@ -252,19 +342,28 @@ final class AppViewsTests: XCTestCase {
             for i in 0..<20 {
                 items.append(TestPlans.item(
                     "/Users/test/projects/p\(g)/node_modules/pkg\(i)", group: "Project \(g) dependencies",
-                    bytes: Int64(1_000_000 * (g + 1) + i), note: i == 0 ? "untouched for 9+ days" : nil
+                    rule: "lane-deps", bytes: Int64(1_000_000 * (g + 1) + i), note: i == 0 ? "untouched for 9+ days" : nil
                 ))
             }
         }
-        let model = AppModel(client: FakeCmmClient(plan: TestPlans.plan(items)))
+        let plan = TestPlans.plan(items, freeBytes: gb(19.8), capacityBytes: gb(228))
+        let model = AppModel(client: FakeCmmClient(plan: plan))
         await model.scan()
+        let open = Set(model.selection?.groups.prefix(1).map(\.id) ?? [])
         let start = Date()
         let bitmap = try render(
-            RootView(model: model, home: Self.home, expanded: ["Project 99 dependencies"]),
+            RootView(model: model, window: WindowState(detailsOpen: true, expanded: open), env: Self.env),
             name: "big-plan", appearance: .aqua
         )
         XCTAssertGreaterThan(distinctColors(bitmap), 8)
         XCTAssertLessThan(Date().timeIntervalSince(start), 10)
         XCTAssertEqual(model.selection?.selectedCount, 2000)
+    }
+
+    func testTheWindowDrawsAtItsSmallestSize() async throws {
+        let rig = try await rig(for: .detailsExpanded)
+        let size = CGSize(width: HeroLayout.minimumWidth, height: HeroLayout.minimumHeight)
+        let bitmap = try render(RootView(model: rig.model, window: rig.window, env: Self.env), name: "details-smallest", appearance: .aqua, size: size)
+        XCTAssertGreaterThan(distinctColors(bitmap), 8)
     }
 }

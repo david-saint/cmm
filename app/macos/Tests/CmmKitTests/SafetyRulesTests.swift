@@ -5,8 +5,8 @@ import XCTest
 ///
 ///  1. The app never deletes, moves or writes outside its own temporary files; it only starts cmm.
 ///  2. It passes only paths that appeared in the last `cmm plan --json` result, never typed or constructed ones.
-///  3. `cmm apply --yes` runs only after the person clicked Clean and then confirmed in a sheet that names the item
-///     count and the total size; Cancel runs nothing.
+///  3. `cmm apply --yes` runs only after the person clicked Clean and then confirmed on a card that names the item
+///     count and the total size; Cancel (the default, so Return and Esc) runs nothing.
 ///  4. The selection file is created with mode 0600 in the app's temporary folder and removed afterwards.
 ///  5. The app shows metadata (paths, sizes, notes), never file contents.
 ///  6. Tests never run a real clean on the real disk.
@@ -78,7 +78,7 @@ final class SafetyRulesTests: XCTestCase {
         let forbiddenEverywhere = [
             "removeItem", "trashItem", "moveItem", "copyItem", "linkItem", "createSymbolicLink", "replaceItem",
             "createFile", "createDirectory", "setAttributes", "write(to:", "FileHandle(forWriting",
-            "FileHandle(forUpdating", "NSWorkspace", "NSSavePanel", "posix_spawn", "NSTask",
+            "FileHandle(forUpdating", "NSSavePanel", "posix_spawn", "NSTask",
             "NSAppleScript", "osascript", "remove(atPath",
         ]
         for token in forbiddenEverywhere {
@@ -99,6 +99,21 @@ final class SafetyRulesTests: XCTestCase {
         XCTAssertEqual(occurrences(of: "O_CREAT", in: files), ["SelectionFile.swift"])
     }
 
+    func testRule1_TheOnlyThingTheWorkspaceIsAskedIsToShowAFileInFinder() throws {
+        let files = try sources("CmmKit") + sources("Cmm")
+        XCTAssertEqual(occurrences(of: "NSWorkspace", in: files), ["FinderReveal.swift"], "one file talks to the workspace")
+        let reveal = try XCTUnwrap(files.first { $0.name == "FinderReveal.swift" }).code
+        XCTAssertEqual(reveal.components(separatedBy: "NSWorkspace").count - 1, 1)
+        XCTAssertTrue(reveal.contains("NSWorkspace.shared.activateFileViewerSelecting("), "it selects a file in Finder")
+        for token in ["open(", "openApplication", "launchApplication", "recycle(", "duplicate(", "setIcon", "unmount", "perform(", "selectFile("] {
+            XCTAssertFalse(reveal.contains(token), "FinderReveal.swift uses `\(token)`")
+        }
+        // and it is handed only what the done screen shows: a path cmm reported, or the cleanup log
+        let screens = try XCTUnwrap(files.first { $0.name == "StatusScreens.swift" }).code
+        XCTAssertEqual(screens.components(separatedBy: "env.reveal(").count - 1, 2, "a failed item's path and the log")
+        XCTAssertEqual(occurrences(of: "FinderReveal", in: files).sorted(), ["FinderReveal.swift", "ViewEnvironment.swift"])
+    }
+
     func testRule1_FileManagerIsUsedOnlyToLookAtThingsAndToFindTheTemporaryFolder() throws {
         let files = try sources("CmmKit") + sources("Cmm")
         let allowed: Set<String> = ["fileExists", "isExecutableFile", "temporaryDirectory"]
@@ -114,7 +129,19 @@ final class SafetyRulesTests: XCTestCase {
 
     func testRule1_TheWindowCodeDoesNotTouchFilesAtAll() throws {
         let files = try sources("Cmm")
-        for token in ["FileManager", "FileHandle", "NSOpenPanel", "NSSavePanel", "Process()", "ProcessInfo", "Pipe(", "unlink", "URL(fileURLWithPath"] {
+        for token in ["FileManager", "FileHandle", "NSOpenPanel", "NSSavePanel", "Process()", "ProcessInfo", "Pipe(", "unlink"] {
+            XCTAssertEqual(occurrences(of: token, in: files), [], "the SwiftUI target uses `\(token)`")
+        }
+        // A file URL is made in one place only: to ask Finder to show a path cmm reported.
+        XCTAssertEqual(occurrences(of: "URL(fileURLWithPath", in: files), ["FinderReveal.swift"])
+    }
+
+    func testRule1_TheWindowCodeNeverTalksToTheClient() throws {
+        let files = try sources("Cmm")
+        // The client is made once, where the app starts, and handed to the model; no view calls it.
+        XCTAssertEqual(occurrences(of: "ProcessCmmClient", in: files), ["CmmApp.swift"])
+        XCTAssertEqual(occurrences(of: "CmmClient", in: files), ["CmmApp.swift"], "views see the model, not the client")
+        for token in [".plan()", ".apply(", "client."] {
             XCTAssertEqual(occurrences(of: token, in: files), [], "the SwiftUI target uses `\(token)`")
         }
     }
@@ -216,57 +243,72 @@ final class SafetyRulesTests: XCTestCase {
 
     // MARK: rule 3: only after Clean and the confirmation
 
-    func testRule3_TheSheetMakesCancelTheDefaultAndGivesCleanNoShortcut() throws {
-        let sheet = try XCTUnwrap(sources("Cmm").first { $0.name == "ConfirmSheet.swift" }).code
-        let cancel = try XCTUnwrap(sheet.range(of: #"Button("Cancel""#))
-        let clean = try XCTUnwrap(sheet.range(of: #"Button("Clean""#))
-        let defaultAction = try XCTUnwrap(sheet.range(of: ".keyboardShortcut(.defaultAction)"))
-        XCTAssertTrue(cancel.upperBound <= defaultAction.lowerBound && defaultAction.upperBound <= clean.lowerBound,
-                      "the default action belongs to the Cancel button")
-        XCTAssertEqual(sheet.components(separatedBy: "keyboardShortcut").count - 1, 1, "no other shortcut in the sheet")
-        XCTAssertFalse(sheet[clean.lowerBound...].contains("keyboardShortcut"), "Clean has no shortcut")
-        XCTAssertTrue(sheet.contains("role: .destructive"), "Clean is marked as the destructive action")
+    func testRule3_TheCardMakesCancelTheDefaultAndGivesDeleteNoShortcut() throws {
+        let card = try XCTUnwrap(sources("Cmm").first { $0.name == "ConfirmCard.swift" }).code
+        let cancel = try XCTUnwrap(card.range(of: "Button(action: cancel)"))
+        let delete = try XCTUnwrap(card.range(of: "Button(role: .destructive, action: delete)"))
+        let defaultAction = try XCTUnwrap(card.range(of: ".keyboardShortcut(.defaultAction)"))
+        XCTAssertTrue(cancel.upperBound <= defaultAction.lowerBound && defaultAction.upperBound <= delete.lowerBound,
+                      "the default action belongs to the Cancel button, which comes first")
+        XCTAssertEqual(card.components(separatedBy: "keyboardShortcut").count - 1, 1, "no other shortcut on the card")
+        XCTAssertFalse(card[delete.lowerBound...].contains("keyboardShortcut"), "Delete has no shortcut")
+        XCTAssertTrue(card.contains("cancelFocused = true"), "Cancel has the focus when the card opens")
+        XCTAssertTrue(card.contains(".accessibilityAddTraits(.isModal)"), "VoiceOver treats the card as modal")
     }
 
-    func testRule3_TheSheetIsOurOwnNotAnAlertThatChoosesItsOwnDefault() throws {
+    func testRule3_TheCardIsOurOwnNotAnAlertThatChoosesItsOwnDefault() throws {
         let files = try sources("Cmm")
-        for token in [".alert(", ".confirmationDialog(", "NSAlert"] {
-            XCTAssertEqual(occurrences(of: token, in: files), [], "`\(token)` picks its own default button")
+        for token in [".alert(", ".confirmationDialog(", "NSAlert", ".sheet(", ".popover(", ".fullScreenCover("] {
+            XCTAssertEqual(occurrences(of: token, in: files), [], "`\(token)` picks its own default button or focus")
         }
-        XCTAssertEqual(occurrences(of: ".sheet(item:", in: files), ["RootView.swift"])
+        XCTAssertEqual(occurrences(of: "ConfirmCard(", in: files), ["RootView.swift"], "one place shows the card")
     }
 
-    func testRule3_ConfirmCleanIsCalledOnlyFromTheSheetsCleanButton() throws {
+    func testRule3_TheScreenBehindTheCardCannotBeReachedAndEscCancels() throws {
+        let root = try XCTUnwrap(sources("Cmm").first { $0.name == "RootView.swift" }).code
+        // The focus trap: while the card is up the screen is dimmed, disabled and hidden from VoiceOver.
+        XCTAssertTrue(root.contains(".opacity(model.confirmation == nil ? 1 : 0.28)"))
+        XCTAssertTrue(root.contains(".disabled(model.confirmation != nil)"))
+        XCTAssertTrue(root.contains(".accessibilityHidden(model.confirmation != nil)"))
+        // Esc cancels, through the one rule that says what Esc does (tested in WindowBehaviourTests).
+        XCTAssertTrue(root.contains("window.escape(confirmationOpen: model.confirmation != nil, cancelConfirmation: { model.cancelClean() })"))
+        XCTAssertTrue(root.contains("cancel: { model.cancelClean() }"))
+    }
+
+    func testRule3_ConfirmCleanIsCalledOnlyFromTheCardsDeleteButton() throws {
         let files = try sources("Cmm")
         XCTAssertEqual(occurrences(of: "confirmClean(", in: files), ["RootView.swift"])
-        XCTAssertEqual(occurrences(of: "requestClean()", in: files), ["FooterView.swift"])
+        XCTAssertEqual(files.map { $0.code.components(separatedBy: "confirmClean(").count - 1 }.reduce(0, +), 1)
+        XCTAssertEqual(occurrences(of: "requestClean()", in: files), ["RestScreen.swift"], "only the pill asks for the card")
         let root = try XCTUnwrap(files.first { $0.name == "RootView.swift" })
-        XCTAssertTrue(root.code.contains("clean: { Task { await model.confirmClean(pending) } }"))
+        XCTAssertTrue(root.code.contains("delete: { Task { await model.confirmClean(confirmation) } }"))
+        let rest = try XCTUnwrap(files.first { $0.name == "RestScreen.swift" })
+        XCTAssertTrue(rest.code.contains("clean: { model.requestClean() }"))
     }
 
-    func testRule3_EndToEnd_NothingRunsUntilTheSheetIsAnswered() async throws {
+    func testRule3_EndToEnd_NothingRunsUntilTheCardIsAnswered() async throws {
         let fake = try makeFakeCmm()
         let model = AppModel(client: fake.client())
 
         await model.scan()
         XCTAssertEqual(fake.invocations(), ["plan --json"])
 
-        model.requestClean()  // "Clean N items…"
+        model.requestClean()  // "Clean N GB…"
         XCTAssertNotNil(model.confirmation)
-        XCTAssertEqual(fake.invocations(), ["plan --json"], "the sheet is open and cmm has been asked nothing")
+        XCTAssertEqual(fake.invocations(), ["plan --json"], "the card is open and cmm has been asked nothing")
 
         model.cancelClean()  // Cancel
         XCTAssertEqual(fake.invocations(), ["plan --json"], "Cancel runs nothing")
         XCTAssertEqual(model.phase, .ready)
 
         model.requestClean()
-        await model.confirmClean(try XCTUnwrap(model.confirmation))  // Clean
+        await model.confirmClean(try XCTUnwrap(model.confirmation))  // Delete
         XCTAssertEqual(fake.invocations().count, 2)
         XCTAssertTrue(fake.invocations()[1].hasPrefix("apply --yes --json --select-file "), fake.invocations()[1])
         XCTAssertEqual(model.phase, .done)
     }
 
-    func testRule3_EndToEnd_TheSheetNamesWhatCmmThenReceives() async throws {
+    func testRule3_EndToEnd_TheCardNamesWhatCmmThenReceives() async throws {
         let fake = try makeFakeCmm()
         let model = AppModel(client: fake.client())
         await model.scan()
@@ -280,7 +322,7 @@ final class SafetyRulesTests: XCTestCase {
         await model.confirmClean(confirmation)
 
         let sent = try JSONDecoder().decode([String].self, from: Data(try XCTUnwrap(fake.record("selection.json")).utf8))
-        XCTAssertEqual(sent.count, confirmation.itemCount, "cmm received as many items as the sheet said")
+        XCTAssertEqual(sent.count, confirmation.itemCount, "cmm received as many items as the card said")
         XCTAssertEqual(sent, confirmation.selection.paths)
         XCTAssertFalse(sent.contains("homebrew: cleanup"), "the item that was unticked is not sent")
     }
