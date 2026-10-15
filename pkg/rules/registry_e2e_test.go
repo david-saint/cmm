@@ -19,9 +19,20 @@ const brewDryOut = "Would remove: /opt/homebrew/Cellar/boost/1.85.0 (15,123 file
 
 var brewPrefix = []string{"HOMEBREW_NO_AUTO_UPDATE=1", "HOMEBREW_NO_ANALYTICS=1", "HOMEBREW_NO_ENV_HINTS=1", "brew"}
 
+// what `docker system df` says on the seeded machine, and the three prunes the Docker rule may run
+const dockerDFOut = "Images\t12.34GB\t8.1GB (65%)\nContainers\t150MB\t150MB (100%)\nLocal Volumes\t5.2GB\t2.1GB (40%)\nBuild Cache\t3.4GB\t3.4GB\n"
+
+var dockerDFArgs = []string{"system", "df", "--format", "{{.Type}}\t{{.Size}}\t{{.Reclaimable}}"}
+
+var dockerPrunes = map[string]string{
+	"image prune -a -f":  "Deleted Images:\nuntagged: x\n\nTotal reclaimed space: 8.1GB\n",
+	"container prune -f": "Deleted Containers:\nabc\n\nTotal reclaimed space: 150MB\n",
+	"builder prune -f":   "abc123\nTotal:\t3.4GB\n",
+}
+
 // actionRunner stands in for the machine's tools: the sandbox's fake answers everything it was taught, and the
-// two commands that really change something are carried out inside the sandbox (a simulator delete removes the
-// device folder, brew cleanup is recorded) so a whole plan can be applied.
+// commands that really change something are carried out inside the sandbox (a simulator delete removes the
+// device folder; brew cleanup and Docker's three prunes are recorded) so a whole plan can be applied.
 type actionRunner struct {
 	sys.Runner
 	devices string
@@ -29,6 +40,7 @@ type actionRunner struct {
 	log        []string // every command line, in order
 	simDeleted []string
 	brewRuns   []string
+	dockerRuns []string // the prune commands, without the leading "docker "
 }
 
 func (r *actionRunner) Run(ctx context.Context, name string, args ...string) (sys.Result, error) {
@@ -40,6 +52,12 @@ func (r *actionRunner) Run(ctx context.Context, name string, args ...string) (sy
 	case name == "env" && len(args) == len(brewPrefix)+1 && strings.Join(args, " ") == strings.Join(append(append([]string{}, brewPrefix...), "cleanup"), " "):
 		r.brewRuns = append(r.brewRuns, strings.Join(args, " "))
 		return sys.Result{Stdout: "==> This operation has freed approximately 1.2GB of disk space.\n"}, nil
+	}
+	if name == "docker" {
+		if out, ok := dockerPrunes[strings.Join(args, " ")]; ok {
+			r.dockerRuns = append(r.dockerRuns, strings.Join(args, " "))
+			return sys.Result{Stdout: out}, nil
+		}
 	}
 	return r.Runner.Run(ctx, name, args...)
 }
@@ -148,6 +166,7 @@ func stubEverything(t *testing.T, sb *systest.Sandbox, s *seeded) *actionRunner 
 	sb.Runner.Stub(sys.Result{Stdout: "== Runtimes ==\niOS 27.0 (27.0 - 25A5279m) - com.apple.CoreSimulator.SimRuntime.iOS-27-0\n"}, nil, "xcrun", "simctl", "list", "runtimes")
 	sb.Runner.Stub(sys.Result{Stdout: "== Devices ==\n    iPhone 17 Pro (" + goodUDID + ") (Shutdown) (unavailable)\n"}, nil, "xcrun", "simctl", "list", "devices", "unavailable")
 	sb.Runner.Stub(sys.Result{Stdout: brewDryOut}, nil, "env", append(append([]string{}, brewPrefix...), "cleanup", "-n")...)
+	sb.Runner.Stub(sys.Result{Stdout: dockerDFOut}, nil, "docker", dockerDFArgs...)
 	sb.Runner.StubPrefix(sys.Result{ExitCode: 1}, nil, "pgrep") // nothing is running
 	sb.Runner.StubPrefix(sys.Result{ExitCode: 1}, nil, "lsof")  // nothing is open
 
@@ -160,7 +179,7 @@ func stubEverything(t *testing.T, sb *systest.Sandbox, s *seeded) *actionRunner 
 var wantItems = map[string]int{
 	"simulators": 1, "deriveddata-stale": 1, "xcode-module-cache": 2, "go-build": 1, "npm-cache": 1, "cocoapods": 1,
 	"bun-cache": 1, "uv-cache": 1, "jest-temp": 1, "maestro-temp": 1, "cursor-update": 2, "claude-versions": 1,
-	"cursor-agent-versions": 1, "lane-deps": 2, "lane-build-output": 2, "lane-local-build": 1, "homebrew": 1,
+	"cursor-agent-versions": 1, "lane-deps": 2, "lane-build-output": 2, "lane-local-build": 1, "homebrew": 1, "docker": 3,
 }
 
 func countByRule(plan *engine.Plan) map[string]int {
@@ -197,15 +216,19 @@ func TestRegistry_EveryRuleThroughTheRealEngineInASandbox(t *testing.T) {
 		t.Errorf("one group per rule expected, got %d: %+v", len(plan.Groups), plan.Groups)
 	}
 	for _, it := range plan.Items {
-		if it.Tier != rules.TierSafe || it.Bytes <= 0 {
-			t.Errorf("unexpected item %+v", it)
+		wantTier := rules.TierSafe
+		if it.Rule == "docker" {
+			wantTier = rules.TierReview // a person chooses Docker's prunes on purpose
 		}
-		if (it.Rule == "simulators" || it.Rule == "homebrew") != (it.Action == rules.ActionCommand) {
-			t.Errorf("only simulators and homebrew are commands: %+v", it)
+		if it.Tier != wantTier || it.Bytes <= 0 {
+			t.Errorf("unexpected item %+v (want tier %s)", it, wantTier)
+		}
+		if (it.Rule == "simulators" || it.Rule == "homebrew" || it.Rule == "docker") != (it.Action == rules.ActionCommand) {
+			t.Errorf("only simulators, homebrew and docker are commands: %+v", it)
 		}
 	}
-	if len(ar.simDeleted) != 0 || len(ar.brewRuns) != 0 {
-		t.Fatalf("planning must change nothing: %v %v", ar.simDeleted, ar.brewRuns)
+	if len(ar.simDeleted) != 0 || len(ar.brewRuns) != 0 || len(ar.dockerRuns) != 0 {
+		t.Fatalf("planning must change nothing: %v %v %v", ar.simDeleted, ar.brewRuns, ar.dockerRuns)
 	}
 
 	rep, err := e.Apply(ctx, plan, engine.ApplyOptions{})
@@ -228,6 +251,9 @@ func TestRegistry_EveryRuleThroughTheRealEngineInASandbox(t *testing.T) {
 	if len(ar.brewRuns) != 1 {
 		t.Errorf("brew cleanup must run once: %v", ar.brewRuns)
 	}
+	if got := strings.Join(ar.dockerRuns, " | "); got != "image prune -a -f | container prune -f | builder prune -f" {
+		t.Errorf("Docker's three prunes must run once each, and nothing else (no volume prune): %q", got)
+	}
 }
 
 func TestRegistry_ADryRunRunsNoCommandThatChangesAnything(t *testing.T) {
@@ -249,13 +275,14 @@ func TestRegistry_ADryRunRunsNoCommandThatChangesAnything(t *testing.T) {
 			t.Errorf("a dry run removed %s", p)
 		}
 	}
-	if len(ar.simDeleted) != 0 || len(ar.brewRuns) != 0 {
-		t.Errorf("a dry run ran a changing command: %v %v", ar.simDeleted, ar.brewRuns)
+	if len(ar.simDeleted) != 0 || len(ar.brewRuns) != 0 || len(ar.dockerRuns) != 0 {
+		t.Errorf("a dry run ran a changing command: %v %v %v", ar.simDeleted, ar.brewRuns, ar.dockerRuns)
 	}
 }
 
-// Only these programs may ever be started, and only these two command lines may change anything.
-func TestRegistry_OnlyKnownToolsAreRunAndOnlyTwoCommandsChangeAnything(t *testing.T) {
+// Only these programs may ever be started, and only these command lines may change anything: a simulator delete,
+// brew cleanup and Docker's three prunes (never a volume or system prune).
+func TestRegistry_OnlyKnownToolsAreRunAndOnlyFiveCommandsChangeAnything(t *testing.T) {
 	sb := systest.NewSandbox(t)
 	s := seedEverything(t, sb)
 	ar := stubEverything(t, sb, s)
@@ -268,7 +295,7 @@ func TestRegistry_OnlyKnownToolsAreRunAndOnlyTwoCommandsChangeAnything(t *testin
 		t.Fatal(err)
 	}
 
-	known := map[string]bool{"pgrep": true, "lsof": true, "plutil": true, "xcrun": true, "env": true}
+	known := map[string]bool{"pgrep": true, "lsof": true, "plutil": true, "xcrun": true, "env": true, "docker": true}
 	seen := map[string]bool{}
 	for _, line := range ar.log {
 		name, _, _ := strings.Cut(line, " ")
@@ -282,13 +309,19 @@ func TestRegistry_OnlyKnownToolsAreRunAndOnlyTwoCommandsChangeAnything(t *testin
 		if name == "env" && !strings.HasPrefix(line, "env "+strings.Join(brewPrefix, " ")+" cleanup") {
 			t.Errorf("env must only be used to run brew cleanup: %s", line)
 		}
+		if name == "docker" {
+			args := strings.TrimPrefix(line, "docker ")
+			if _, prune := dockerPrunes[args]; !prune && args != strings.Join(dockerDFArgs, " ") {
+				t.Errorf("docker may only ask system df or run one of its three prunes: %s", line)
+			}
+		}
 	}
 	var names []string
 	for n := range seen {
 		names = append(names, n)
 	}
 	sort.Strings(names)
-	if strings.Join(names, " ") != "env lsof pgrep plutil xcrun" {
+	if strings.Join(names, " ") != "docker env lsof pgrep plutil xcrun" {
 		t.Errorf("every tool should have been needed on this machine, got %v", names)
 	}
 }

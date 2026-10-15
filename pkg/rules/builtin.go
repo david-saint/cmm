@@ -36,8 +36,8 @@ func Builtin() []Rule { return BuiltinWithMin(50*mb, 100*mb) }
 // BuiltinWithMin is Builtin with its size thresholds replaced, so tests can use tiny files.
 // cacheMin applies to the cache rules and the lanes; xcodeMin to the Xcode module and compilation caches.
 func BuiltinWithMin(cacheMin, xcodeMin int64) []Rule {
-	deps, output := laneDeps(), laneBuildOutput()
-	deps.MinBytes, output.MinBytes = cacheMin, cacheMin
+	deps, output, dockerRule := laneDeps(), laneBuildOutput(), docker()
+	deps.MinBytes, output.MinBytes, dockerRule.MinBytes = cacheMin, cacheMin, cacheMin
 
 	return []Rule{
 		simulators(),
@@ -110,6 +110,7 @@ func BuiltinWithMin(cacheMin, xcodeMin int64) []Rule {
 		output,
 		laneLocalBuildFolders(),
 		homebrew(),
+		dockerRule,
 	}
 }
 
@@ -151,6 +152,16 @@ func homebrew() *HomebrewRule {
 	return &HomebrewRule{
 		RuleID: "homebrew",
 		Label:  "Homebrew: old versions of installed formulae (brew cleanup)",
+	}
+}
+
+// docker offers Docker's own prunes for unused images, stopped containers and build cache, sized by
+// `docker system df`. Review tier: a person chooses them on purpose, and volumes are never offered.
+func docker() *DockerRule {
+	return &DockerRule{
+		RuleID:   "docker",
+		Label:    "Docker: unused images, stopped containers and build cache (review first)",
+		MinBytes: 50 * mb,
 	}
 }
 

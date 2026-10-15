@@ -91,6 +91,7 @@ func TestBuiltin_Definitions(t *testing.T) {
 	}
 }
 
+// dev-cleanup's rules come first, in its order; rules only cmm has (Docker) follow.
 func TestBuiltin_OrderMatchesDevCleanup(t *testing.T) {
 	var ids []string
 	for _, r := range rules.Builtin() {
@@ -102,6 +103,7 @@ func TestBuiltin_OrderMatchesDevCleanup(t *testing.T) {
 		"cursor-update", "claude-versions", "cursor-agent-versions",
 		"lane-deps", "lane-build-output", "lane-local-build",
 		"homebrew",
+		"docker",
 	}
 	if strings.Join(ids, " ") != strings.Join(want, " ") {
 		t.Fatalf("rule order =\n%v\nwant\n%v", ids, want)
@@ -227,5 +229,23 @@ func TestBuiltin_DryRunLeavesEverythingInPlace(t *testing.T) {
 		if _, err := os.Lstat(p); err != nil {
 			t.Errorf("%s vanished during a dry run: %v", name, err)
 		}
+	}
+}
+
+func TestBuiltin_TheSizeThresholdAppliesToDockerToo(t *testing.T) {
+	find := func(rs []rules.Rule) *rules.DockerRule {
+		for _, r := range rs {
+			if d, ok := r.(*rules.DockerRule); ok {
+				return d
+			}
+		}
+		t.Fatal("the docker rule is not registered")
+		return nil
+	}
+	if got := find(rules.BuiltinWithMin(7, 9)).MinBytes; got != 7 {
+		t.Errorf("the cache threshold passed in is Docker's too: %d", got)
+	}
+	if got := find(rules.Builtin()).MinBytes; got != 50<<20 {
+		t.Errorf("by default Docker needs 50 MB to be worth an item: %d", got)
 	}
 }

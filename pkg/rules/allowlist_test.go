@@ -162,6 +162,7 @@ func TestAllowList_BeyondTheShellSelfTest(t *testing.T) {
 			h + "/lane-builds-old/x/node_modules", h + "/Library/Caches-old/go-build", h + "/.npm-old/_cacache",
 			h + "/Library/Developer/Xcode/DerivedData-old/Conduxe-" + hash28,
 			"homebrew: cleanup", "homebrew", "brew cleanup",
+			"docker: unused images", "docker: stopped containers", "docker: build cache", "docker: volumes", "docker: volume prune", "docker",
 		} {
 			if e.Allowed(p) {
 				t.Errorf("must be refused: %q", p)
