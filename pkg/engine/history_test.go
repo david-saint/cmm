@@ -5,6 +5,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"syscall"
 	"testing"
 	"time"
 
@@ -72,6 +73,34 @@ func TestFileHistory_AppendWritesOneJSONLinePerRunAndKeepsTheFilesPrivate(t *tes
 	if fi, err := os.Stat(h.Dir); err != nil || fi.Mode().Perm() != 0o700 {
 		t.Errorf("so is the folder: %v %v", fi, err)
 	}
+}
+
+func TestFileHistory_TimesAreWrittenAsUTCWholeSeconds(t *testing.T) {
+	h, _ := newHistory(t)
+	zone := time.FixedZone("CEST", 2*3600)
+	run := sampleRun(1)
+	run.StartedAt = time.Date(2026, 10, 15, 16, 9, 7, 741748000, zone)
+	run.FinishedAt = time.Date(2026, 10, 15, 16, 9, 8, 778279000, zone)
+	if err := h.Append(run); err != nil {
+		t.Fatal(err)
+	}
+	line := readText(t, h.HistoryPath())
+	if !strings.Contains(line, `"started_at":"2026-10-15T14:09:07Z"`) || !strings.Contains(line, `"finished_at":"2026-10-15T14:09:08Z"`) {
+		t.Errorf("one simple form of time for every reader (UTC, no fraction):\n%s", line)
+	}
+	rep, _ := h.Report(hostNow(), 5, 0)
+	if !strings.Contains(string(mustJSON(t, rep)), `"generated_at": "2026-10-14T12:00:00Z"`) {
+		t.Errorf("the report is stamped the same way:\n%s", mustJSON(t, rep))
+	}
+}
+
+func mustJSON(t *testing.T, r *HistoryReport) []byte {
+	t.Helper()
+	b, err := r.JSON()
+	if err != nil {
+		t.Fatal(err)
+	}
+	return b
 }
 
 func TestFileHistory_APathWithOddCharactersStaysOnOneLine(t *testing.T) {
@@ -162,7 +191,9 @@ func TestFileHistory_UnreadableLinesAreSkippedAndCounted(t *testing.T) {
 		t.Fatal(err)
 	}
 	good := readText(t, h.HistoryPath())
-	other, _ := json.Marshal(map[string]any{"schema_version": 2, "freed_bytes": 5})
+	elsewhere := sampleRun(5)
+	elsewhere.SchemaVersion = 2
+	other, _ := json.Marshal(elsewhere) // complete and valid in every way but the schema it claims
 	junk := strings.Join([]string{
 		"this is not json",
 		`{"schema_version":1,"deleted":"many"}`, // right schema, wrong shape
@@ -214,6 +245,54 @@ func TestFileHistory_NeverWritesThroughASymlink(t *testing.T) {
 	}
 	if readText(t, victim) != before {
 		t.Error("nothing may be written through the link, samples either")
+	}
+}
+
+func TestFileHistory_NeverReadsThroughASymlinkEither(t *testing.T) {
+	h, sb := newHistory(t)
+	other := sb.Tmp("elsewhere")
+	other2 := NewFileHistory(other, sb.Env.Clock)
+	if err := other2.Append(sampleRun(1)); err != nil {
+		t.Fatal(err)
+	}
+	at(other2, 0)
+	if ok, err := other2.Sample(1000, 0); err != nil || !ok {
+		t.Fatal(ok, err)
+	}
+	if err := os.MkdirAll(h.Dir, 0o700); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Symlink(other2.HistoryPath(), h.HistoryPath()); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Symlink(other2.SamplesPath(), h.SamplesPath()); err != nil {
+		t.Fatal(err)
+	}
+	if _, _, err := h.Runs(5); err == nil {
+		t.Error("a link in the place of the history is not cmm's history, even if what it points to is perfect")
+	}
+	if _, _, err := h.Samples(t0.Add(-time.Hour)); err == nil {
+		t.Error("nor is a link in the place of the samples")
+	}
+}
+
+func TestFileHistory_APipeInThePlaceOfTheHistoryIsRefusedNotWaitedFor(t *testing.T) {
+	h, _ := newHistory(t)
+	if err := os.MkdirAll(h.Dir, 0o700); err != nil {
+		t.Fatal(err)
+	}
+	if err := syscall.Mkfifo(h.HistoryPath(), 0o600); err != nil {
+		t.Skipf("cannot make a pipe here: %v", err)
+	}
+	done := make(chan error, 1)
+	go func() { _, _, err := h.Runs(5); done <- err }()
+	select {
+	case err := <-done:
+		if err == nil || !strings.Contains(err.Error(), "not a regular file") {
+			t.Errorf("a pipe is not a history: %v", err)
+		}
+	case <-time.After(5 * time.Second):
+		t.Fatal("reading must never wait on a pipe")
 	}
 }
 

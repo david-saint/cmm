@@ -163,6 +163,9 @@ func TestAllowList_BeyondTheShellSelfTest(t *testing.T) {
 			h + "/Library/Developer/Xcode/DerivedData-old/Conduxe-" + hash28,
 			"homebrew: cleanup", "homebrew", "brew cleanup",
 			"docker: unused images", "docker: stopped containers", "docker: build cache", "docker: volumes", "docker: volume prune", "docker",
+			// cmm's own records: the log, the stamp, the history and the free-space samples are never cleanup targets
+			h + "/.local/state/cmm", h + "/.local/state/cmm/cleanup.log", h + "/.local/state/cmm/last-run",
+			h + "/.local/state/cmm/history.jsonl", h + "/.local/state/cmm/free.jsonl", h + "/.local/state",
 		} {
 			if e.Allowed(p) {
 				t.Errorf("must be refused: %q", p)

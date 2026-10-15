@@ -37,6 +37,10 @@ const (
 	lastSampleRead = 64 << 10
 )
 
+// utcSeconds is the one form of time in these files: UTC, whole seconds ("2026-10-15T14:09:07Z"), which every
+// JSON reader parses without special options.
+func utcSeconds(t time.Time) time.Time { return t.UTC().Truncate(time.Second) }
+
 // encodeLine renders a value as one line of JSON without a newline. Paths are data, not HTML, so & < > stay as
 // they are and the files stay easy to grep.
 func encodeLine(v any) ([]byte, error) {
@@ -137,6 +141,7 @@ func (h *FileHistory) appendLine(path string, line []byte) error {
 // says how many items that was), so a line that no reader would accept is never written.
 func (h *FileHistory) Append(run Run) error {
 	run.SchemaVersion = HistorySchema
+	run.StartedAt, run.FinishedAt = utcSeconds(run.StartedAt), utcSeconds(run.FinishedAt) // one simple form for every reader
 	if run.Items == nil {
 		run.Items = []RunItem{}
 	}
@@ -297,7 +302,7 @@ func (h *FileHistory) Sample(free, capacity int64) (bool, error) {
 			return false, nil
 		}
 	}
-	s := Sample{T: now.UTC().Truncate(time.Second), FreeBytes: free, CapacityBytes: capacity}
+	s := Sample{T: utcSeconds(now), FreeBytes: free, CapacityBytes: capacity}
 	line, err := encodeLine(s)
 	if err != nil {
 		return false, err
@@ -339,10 +344,10 @@ func (h *FileHistory) Report(host Host, limit, days int) (*HistoryReport, error)
 	}
 	for _, r := range all {
 		if !r.StartedAt.Before(since) {
-			samples = append(samples, Sample{T: r.StartedAt.UTC().Truncate(time.Second), FreeBytes: r.FreeBefore, CapacityBytes: r.CapacityBytes})
+			samples = append(samples, Sample{T: utcSeconds(r.StartedAt), FreeBytes: r.FreeBefore, CapacityBytes: r.CapacityBytes})
 		}
 		if !r.FinishedAt.Before(since) {
-			samples = append(samples, Sample{T: r.FinishedAt.UTC().Truncate(time.Second), FreeBytes: r.FreeAfter, CapacityBytes: r.CapacityBytes})
+			samples = append(samples, Sample{T: utcSeconds(r.FinishedAt), FreeBytes: r.FreeAfter, CapacityBytes: r.CapacityBytes})
 		}
 	}
 	sort.SliceStable(samples, func(i, j int) bool { return samples[i].T.Before(samples[j].T) })
@@ -361,7 +366,7 @@ func (h *FileHistory) Report(host Host, limit, days int) (*HistoryReport, error)
 		runs = []Run{}
 	}
 	return &HistoryReport{
-		SchemaVersion: HistorySchema, GeneratedAt: now, Host: host,
+		SchemaVersion: HistorySchema, GeneratedAt: utcSeconds(now), Host: host,
 		Runs: runs, Samples: timeline, UnreadableLines: badRuns + badSamples,
 	}, nil
 }

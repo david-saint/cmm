@@ -90,6 +90,28 @@ func TestReport_AMomentIsListedOnce(t *testing.T) {
 	}
 }
 
+func TestReport_TheSameMomentWithADifferentNumberIsKept(t *testing.T) {
+	h, _ := newHistory(t)
+	run := sampleRun(5_000_000_000)
+	run.FinishedAt = run.StartedAt // a cleanup so quick that both ends fall in the same second
+	if err := h.Append(run); err != nil {
+		t.Fatal(err)
+	}
+	rep, _ := h.Report(hostNow(), 20, 90)
+	if len(rep.Samples) != 2 || rep.Samples[0].FreeBytes == rep.Samples[1].FreeBytes {
+		t.Errorf("before and after are two different facts, even in the same second: %+v", rep.Samples)
+	}
+}
+
+func TestReport_IsStampedInUTCWholeSeconds(t *testing.T) {
+	h, _ := newHistory(t)
+	h.Now = func() time.Time { return time.Date(2026, 10, 15, 16, 9, 7, 741748000, time.FixedZone("CEST", 2*3600)) }
+	rep, err := h.Report(hostNow(), 5, 0)
+	if err != nil || !strings.Contains(string(mustJSON(t, rep)), `"generated_at": "2026-10-15T14:09:07Z"`) {
+		t.Errorf("one simple form of time for every reader:\n%s %v", mustJSON(t, rep), err)
+	}
+}
+
 func TestReport_DaysLimitsTheTimelineButNotTheRunList(t *testing.T) {
 	h, _ := newHistory(t)
 	old := sampleRun(7)

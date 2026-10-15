@@ -56,11 +56,13 @@ func defaultDeps() *deps {
 }
 
 // newProductionEngine is the engine for real use: every built-in rule, the real guards and policy, and a
-// journal in the user's state folder so every real apply leaves a log and a last-run stamp. This is the one
-// place the journal is attached; tests build engines without one unless they are testing the journal.
+// journal and a history in the user's state folder so every real apply leaves a log, a last-run stamp and a
+// record of the run. This is the one place they are attached; tests build engines without them unless they are
+// testing them.
 func newProductionEngine(env *sys.Env) *engine.Engine {
 	eng := engine.New(rules.Deps{Env: env, Guard: guard.New(env), Policy: policy.New(env)}, rules.Builtin())
 	eng.Journal = engine.NewFileJournal(env.Home, env.Clock)
+	eng.History = engine.NewFileHistory(env.Home, env.Clock)
 	return eng
 }
 
