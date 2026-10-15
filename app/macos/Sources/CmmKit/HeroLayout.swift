@@ -38,6 +38,15 @@ public struct HeroLayout: Equatable, Sendable {
     public let pillHeight: Double
     public let pillPadding: Double
     public let pillFontSize: Double
+    /// The eyebrow line above the number.
+    public let eyebrowSize: Double
+    /// Gaps between the lines of the block: eyebrow to number, number to phrase, phrase to body, body to the actions.
+    public let numberTopGap: Double
+    public let phraseTopGap: Double
+    public let bodyTopGap: Double
+    public let actionsTopGap: Double
+    /// Between the pill and what is next to it.
+    public let actionsGap: Double
     /// The band's left edge and width, and where its caption row starts, measured from the top of the window.
     public let bandLeading: Double
     public let bandWidth: Double
@@ -60,6 +69,12 @@ public struct HeroLayout: Equatable, Sendable {
         pillHeight = (open ? 40 : 44) * s
         pillPadding = (open ? 22 : 24) * s
         pillFontSize = (open ? 14 : 15) * s
+        eyebrowSize = 13 * s
+        numberTopGap = (open ? 12 : 14) * s
+        phraseTopGap = (open ? 10 : 12) * s
+        bodyTopGap = (open ? 10 : 12) * s
+        actionsTopGap = (open ? 26 : 30) * s
+        actionsGap = (open ? 18 : 22) * s
 
         bandLeading = leading
         if open {

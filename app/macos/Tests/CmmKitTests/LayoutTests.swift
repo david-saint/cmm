@@ -30,6 +30,8 @@ final class HeroLayoutTests: XCTestCase {
         XCTAssertEqual(l.bandLeading, 112)
         XCTAssertEqual(l.bandWidth, 876)
         XCTAssertEqual(l.bandTop, 612, "the caption row of the band starts 108 pt above the bottom edge")
+        XCTAssertEqual(l.eyebrowSize, 13)
+        XCTAssertEqual([l.numberTopGap, l.phraseTopGap, l.bodyTopGap, l.actionsTopGap, l.actionsGap], [14, 12, 12, 30, 22])
     }
 
     func testTheDetailsOpenBoard() {
@@ -46,6 +48,7 @@ final class HeroLayoutTests: XCTestCase {
         XCTAssertEqual(l.pillHeight, 40)
         XCTAssertEqual(l.pillPadding, 22)
         XCTAssertEqual(l.pillFontSize, 14)
+        XCTAssertEqual([l.numberTopGap, l.phraseTopGap, l.bodyTopGap, l.actionsTopGap, l.actionsGap], [12, 10, 10, 26, 18])
         XCTAssertEqual(l.bandLeading, 72)
         XCTAssertEqual(l.bandWidth, 520)
         XCTAssertEqual(l.bandTop, 612)
@@ -59,6 +62,7 @@ final class HeroLayoutTests: XCTestCase {
             XCTAssertEqual(l.leading, 112)
             XCTAssertEqual(l.top, 120)
             XCTAssertEqual(l.numberSize, 184)
+            XCTAssertEqual([l.numberTopGap, l.phraseTopGap], [14, 12])
             XCTAssertEqual(l.bandWidth, 876)
             XCTAssertEqual(l.bandTop, 640, "no held-back line under the band, so it sits lower")
         }
@@ -142,5 +146,54 @@ final class VolumeNameTests: XCTestCase {
     func testTheRealLookupNamesTheStartupVolume() {
         let name = VolumeName.display(forVolume: "/System/Volumes/Data")
         XCTAssertFalse(name.isEmpty, "every Mac names its startup volume")
+    }
+}
+
+
+final class CardPlacementTests: XCTestCase {
+    private let window = CGSize(width: 1100, height: 720)
+    private let card = CGSize(width: CardPlacement.width, height: CardPlacement.height)
+
+    func testTheCardIsTheBoardsSize() {
+        XCTAssertEqual(card, CGSize(width: 492, height: 176))
+    }
+
+    func testTheCardOfTheBoardSitsJustAboveAndLeftOfThePill() {
+        // The board's pill is at (112, 507), 44 high; its card starts at (100, 452).
+        let placement = CardPlacement(pill: CGRect(x: 112, y: 507, width: 154.3, height: 44), card: card, window: window)
+        XCTAssertEqual(placement.origin.x, 100, accuracy: 0.001)
+        XCTAssertEqual(placement.origin.y, 452, accuracy: 0.001)
+    }
+
+    func testTheCardGrowsFromTheMiddleOfThePill() {
+        let pill = CGRect(x: 112, y: 506.5, width: 140, height: 44)
+        let placement = CardPlacement(pill: pill, card: card, window: window)
+        XCTAssertEqual(placement.anchor.x, (pill.midX - placement.origin.x) / card.width, accuracy: 1e-9)
+        XCTAssertEqual(placement.anchor.y, (pill.midY - placement.origin.y) / card.height, accuracy: 1e-9)
+        XCTAssertTrue((0...1).contains(placement.anchor.x) && (0...1).contains(placement.anchor.y))
+    }
+
+    func testTheCardStaysInsideTheWindow() {
+        let nearTheEdge = CardPlacement(pill: CGRect(x: 900, y: 650, width: 140, height: 44), card: card, window: window)
+        XCTAssertLessThanOrEqual(nearTheEdge.origin.x + card.width, window.width - 16 + 1e-9)
+        XCTAssertLessThanOrEqual(nearTheEdge.origin.y + card.height, window.height - 16 + 1e-9)
+
+        let nearTheCorner = CardPlacement(pill: CGRect(x: 2, y: 2, width: 140, height: 44), card: card, window: window)
+        XCTAssertGreaterThanOrEqual(nearTheCorner.origin.x, 16)
+        XCTAssertGreaterThanOrEqual(nearTheCorner.origin.y, 16)
+    }
+
+    func testAnUnknownPillCentresTheCard() {
+        let placement = CardPlacement(pill: .zero, card: card, window: window)
+        XCTAssertEqual(placement.origin.x, (window.width - card.width) / 2, accuracy: 0.001)
+        XCTAssertEqual(placement.origin.y, (window.height - card.height) / 2, accuracy: 0.001)
+        XCTAssertEqual(placement.anchor.x, 0.5)
+        XCTAssertEqual(placement.anchor.y, 0.5)
+    }
+
+    func testACardWiderThanTheWindowStillHasAnOrigin() {
+        let placement = CardPlacement(pill: CGRect(x: 100, y: 100, width: 100, height: 40), card: card, window: CGSize(width: 300, height: 200))
+        XCTAssertEqual(placement.origin.x, 16)
+        XCTAssertEqual(placement.origin.y, 16)
     }
 }
