@@ -20,7 +20,7 @@ func samplePlan() *Plan {
 	return &Plan{
 		SchemaVersion: SchemaVersion,
 		GeneratedAt:   time.Date(2026, 10, 14, 12, 0, 0, 0, time.UTC),
-		Host:          Host{Volume: "/System/Volumes/Data", FreeBytes: 27583119360},
+		Host:          Host{Volume: "/System/Volumes/Data", FreeBytes: 27583119360, CapacityBytes: 245107195904},
 		Items: []rules.Candidate{
 			{Rule: "go-build", Group: "Go build cache", Path: "/Users/test/Library/Caches/go-build", Bytes: 3715000000, Tier: rules.TierSafe, Action: rules.ActionDelete},
 			{Rule: "homebrew", Group: "Homebrew: old versions of installed formulae (brew cleanup)", Path: "homebrew: cleanup", Bytes: 704000000, Tier: rules.TierSafe, Action: rules.ActionCommand, Note: "boost 1.85.0, 0.5 GB; python@3.14 3.14.7, 81 MB"},
@@ -67,7 +67,7 @@ func TestPlanJSON_TopLevelAndItemKeysAreExactlyTheSchema(t *testing.T) {
 		t.Fatalf("output is not valid JSON: %v", err)
 	}
 	assertKeys(t, "top level", doc, "schema_version", "generated_at", "host", "items", "groups", "skipped", "total_bytes")
-	assertKeys(t, "host", doc["host"].(map[string]any), "volume", "free_bytes")
+	assertKeys(t, "host", doc["host"].(map[string]any), "volume", "free_bytes", "capacity_bytes")
 
 	item := doc["items"].([]any)[0].(map[string]any)
 	assertKeys(t, "delete item (note omitted when empty)", item, "rule", "group", "path", "bytes", "tier", "action")
@@ -79,6 +79,20 @@ func TestPlanJSON_TopLevelAndItemKeysAreExactlyTheSchema(t *testing.T) {
 	if v := doc["schema_version"].(float64); v != 1 {
 		t.Errorf("schema_version = %v, want 1", v)
 	}
+}
+
+func TestPlanJSON_HostLeavesOutTheCapacityWhenItIsNotKnown(t *testing.T) {
+	plan := samplePlan()
+	plan.Host.CapacityBytes = 0
+	raw, err := plan.JSON()
+	if err != nil {
+		t.Fatal(err)
+	}
+	var doc map[string]any
+	if err := json.Unmarshal(raw, &doc); err != nil {
+		t.Fatal(err)
+	}
+	assertKeys(t, "host", doc["host"].(map[string]any), "volume", "free_bytes")
 }
 
 func assertKeys(t *testing.T, what string, m map[string]any, want ...string) {

@@ -25,8 +25,9 @@ var ErrRuleBug = errors.New("engine: rule bug")
 
 // Host describes the volume cmm cleans.
 type Host struct {
-	Volume    string `json:"volume"`
-	FreeBytes int64  `json:"free_bytes"`
+	Volume        string `json:"volume"`
+	FreeBytes     int64  `json:"free_bytes"`
+	CapacityBytes int64  `json:"capacity_bytes,omitempty"` // how big the volume is; left out when that is not known
 }
 
 // Group is one labelled block of items in a plan.
@@ -54,6 +55,9 @@ type Engine struct {
 
 	// Free reports the volume cmm cleans and its free bytes. Nil uses statfs.
 	Free func() (volume string, freeBytes int64, err error)
+	// Capacity reports how big that volume is (0 when unknown). Nil uses statfs, unless Free is replaced: then the
+	// size is unknown too, so a test never reads the real disk.
+	Capacity func() int64
 	// Remove deletes a path. Nil uses os.RemoveAll. Either way, while a test is running, anything outside a
 	// temporary directory makes the engine panic instead of deleting.
 	Remove func(path string) error
@@ -74,15 +78,43 @@ func (e *Engine) free() (string, int64, error) {
 	return realFree(e.Deps.Env.Home)
 }
 
-// realFree reads the free bytes of the Data volume (or the home directory's volume as a fallback).
-func realFree(home string) (string, int64, error) {
+func (e *Engine) capacity() int64 {
+	switch {
+	case e.Capacity != nil:
+		return e.Capacity()
+	case e.Free != nil:
+		return 0
+	}
+	return realCapacity(e.Deps.Env.Home)
+}
+
+// statVolume reads the Data volume (or the home directory's volume as a fallback).
+func statVolume(home string) (string, syscall.Statfs_t, error) {
 	for _, v := range []string{"/System/Volumes/Data", home} {
 		var st syscall.Statfs_t
 		if err := syscall.Statfs(v, &st); err == nil {
-			return v, int64(st.Bavail) * int64(st.Bsize), nil
+			return v, st, nil
 		}
 	}
-	return "", 0, errors.New("engine: cannot read the free space")
+	return "", syscall.Statfs_t{}, errors.New("engine: cannot read the volume")
+}
+
+// realFree reads the free bytes of the Data volume (or the home directory's volume as a fallback).
+func realFree(home string) (string, int64, error) {
+	v, st, err := statVolume(home)
+	if err != nil {
+		return "", 0, errors.New("engine: cannot read the free space")
+	}
+	return v, int64(st.Bavail) * int64(st.Bsize), nil
+}
+
+// realCapacity reads how big that same volume is, or 0 when it cannot be read.
+func realCapacity(home string) int64 {
+	_, st, err := statVolume(home)
+	if err != nil {
+		return 0
+	}
+	return int64(st.Blocks) * int64(st.Bsize)
 }
 
 // permit is the one question asked both when planning and again right before acting.
@@ -139,7 +171,7 @@ func (e *Engine) Plan(ctx context.Context) (*Plan, error) {
 	plan := &Plan{
 		SchemaVersion: SchemaVersion,
 		GeneratedAt:   e.Deps.Env.Clock(),
-		Host:          Host{Volume: vol, FreeBytes: free},
+		Host:          Host{Volume: vol, FreeBytes: free, CapacityBytes: e.capacity()},
 		Items:         []rules.Candidate{},
 		Groups:        []Group{},
 		Skipped:       []rules.Skip{},

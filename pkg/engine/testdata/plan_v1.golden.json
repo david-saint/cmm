@@ -3,7 +3,8 @@
   "generated_at": "2026-10-14T12:00:00Z",
   "host": {
     "volume": "/System/Volumes/Data",
-    "free_bytes": 27583119360
+    "free_bytes": 27583119360,
+    "capacity_bytes": 245107195904
   },
   "items": [
     {

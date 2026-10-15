@@ -120,7 +120,7 @@ Idle threshold `IdleDays = 5`; "min" = minimum size for a path to be listed.
 {
   "schema_version": 1,
   "generated_at": "RFC3339",
-  "host": { "volume": "/System/Volumes/Data", "free_bytes": 0 },
+  "host": { "volume": "/System/Volumes/Data", "free_bytes": 0, "capacity_bytes": 0 },  // capacity_bytes: how big the volume is; left out when unknown (added after v1 shipped, additive)
   "items":   [ { "rule": "go-build", "group": "Go build cache", "path": "...", "bytes": 0,
                  "tier": "safe", "action": "delete", "note": "" } ],
   "groups":  [ { "group": "...", "bytes": 0, "count": 0 } ],

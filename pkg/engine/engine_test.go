@@ -122,8 +122,35 @@ func TestPlan_CollectsItemsGroupsAndTotals(t *testing.T) {
 	if plan.Host.FreeBytes != 1000 || plan.Host.Volume != "/sandbox" {
 		t.Errorf("host info wrong: %+v", plan.Host)
 	}
+	if plan.Host.CapacityBytes != 0 {
+		t.Errorf("a stand-in volume has no known size, and a test must not read the real disk: %+v", plan.Host)
+	}
 	if !plan.GeneratedAt.Equal(f.sb.Env.Clock()) {
 		t.Errorf("generated_at should come from the injected clock")
+	}
+}
+
+func TestPlan_HostCarriesTheSizeOfTheVolumeWhenItIsKnown(t *testing.T) {
+	f := newFixture(t, &fakeRule{id: "none", group: "None"})
+	f.eng.Capacity = func() int64 { return 245_000_000_000 }
+	plan, err := f.eng.Plan(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if plan.Host.CapacityBytes != 245_000_000_000 || plan.Host.FreeBytes != 1000 {
+		t.Errorf("host should say how big the volume is next to how much is free: %+v", plan.Host)
+	}
+}
+
+func TestRealVolume_SizeAndFreeSpaceAgree(t *testing.T) {
+	home := t.TempDir()
+	_, free, err := realFree(home)
+	if err != nil {
+		t.Skipf("cannot read the free space here: %v", err)
+	}
+	capacity := realCapacity(home)
+	if capacity <= 0 || capacity < free {
+		t.Errorf("a volume cannot be smaller than the space free on it: capacity=%d free=%d", capacity, free)
 	}
 }
 

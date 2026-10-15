@@ -22,7 +22,7 @@ Stdout is exactly one JSON document, exit status 0. It takes 10-20 s (big folder
 {
   "schema_version": 1,
   "generated_at": "2026-10-15T09:38:54.530781+02:00",
-  "host": { "volume": "/System/Volumes/Data", "free_bytes": 27633246208 },
+  "host": { "volume": "/System/Volumes/Data", "free_bytes": 27633246208, "capacity_bytes": 245107195904 },
   "items": [
     { "rule": "go-build", "group": "Go build cache", "path": "/Users/saint/Library/Caches/go-build",
       "bytes": 927080448, "tier": "safe", "action": "delete" },
