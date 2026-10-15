@@ -96,3 +96,57 @@ func TestPlan_OnlyPathsWithAnEmptySelectionKeepsNothing(t *testing.T) {
 		}
 	}
 }
+
+func tieredPlan() *Plan {
+	return &Plan{
+		SchemaVersion: SchemaVersion,
+		Items: []rules.Candidate{
+			{Rule: "a", Group: "A", Path: "/p/a1", Bytes: 10, Tier: rules.TierSafe},
+			{Rule: "d", Group: "D", Path: "docker: x", Bytes: 500, Tier: rules.TierReview},
+			{Rule: "a", Group: "A", Path: "/p/a2", Bytes: 30, Tier: rules.TierSafe},
+			{Rule: "m", Group: "M", Path: "/p/m1", Bytes: 7, Tier: rules.TierManual},
+		},
+		Skipped:    []rules.Skip{{Rule: "a", Reason: "x"}},
+		TotalBytes: 547,
+	}
+}
+
+func TestPlan_SafeOnlyKeepsSafeItemsAndHandsBackTheRest(t *testing.T) {
+	p := tieredPlan()
+	got, held := p.SafeOnly()
+	if len(got.Items) != 2 || got.Items[0].Path != "/p/a1" || got.Items[1].Path != "/p/a2" || got.TotalBytes != 40 {
+		t.Errorf("only safe items stay, totals recomputed: %+v total=%d", got.Items, got.TotalBytes)
+	}
+	if len(got.Groups) != 1 || got.Groups[0] != (Group{Group: "A", Bytes: 40, Count: 2}) {
+		t.Errorf("groups follow the items: %+v", got.Groups)
+	}
+	if len(held) != 2 || held[0].Path != "docker: x" || held[1].Path != "/p/m1" {
+		t.Errorf("review and manual items are handed back, in plan order: %+v", held)
+	}
+	if len(got.Skipped) != 1 {
+		t.Errorf("skips are information about the plan and stay: %+v", got.Skipped)
+	}
+	if len(p.Items) != 4 || p.TotalBytes != 547 {
+		t.Error("the original plan must not change")
+	}
+}
+
+func TestPlan_SafeOnlyTreatsAnUnknownTierAsNeedingAChoice(t *testing.T) {
+	p := &Plan{Items: []rules.Candidate{{Path: "/x", Bytes: 1, Tier: ""}, {Path: "/y", Bytes: 1, Tier: "whatever"}}}
+	got, held := p.SafeOnly()
+	if len(got.Items) != 0 || len(held) != 2 {
+		t.Errorf("only an explicit safe tier is applied unasked: %+v held=%+v", got.Items, held)
+	}
+}
+
+func TestPlan_SafeOnlyOfAnAllSafePlanHoldsNothingBack(t *testing.T) {
+	got, held := selectionPlan().SafeOnly() // selectionPlan items have no tier set: not safe
+	if len(got.Items) != 0 || len(held) != 3 {
+		t.Fatalf("items without a tier are not safe: %+v", got.Items)
+	}
+	p := &Plan{Items: []rules.Candidate{{Path: "/a", Bytes: 5, Tier: rules.TierSafe}}}
+	got, held = p.SafeOnly()
+	if len(got.Items) != 1 || len(held) != 0 || held == nil {
+		t.Errorf("an all-safe plan is unchanged and holds nothing (an empty list, never nil): %+v %v", got.Items, held)
+	}
+}

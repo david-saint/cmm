@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"errors"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -44,7 +45,8 @@ func newApp(t *testing.T) *app {
 	a.npmCache = sb.Home(".npm/_cacache")
 	sb.WriteFile(t, filepath.Join(a.goCache, "data"), 40_000, 0)
 	sb.WriteFile(t, filepath.Join(a.npmCache, "data"), 90_000, 0)
-	sb.Runner.StubPrefix(sys.Result{ExitCode: 1}, nil, "pgrep") // nothing is running
+	sb.Runner.StubPrefix(sys.Result{ExitCode: 1}, nil, "pgrep")                                      // nothing is running
+	sb.Runner.StubPrefix(sys.Result{}, &exec.Error{Name: "docker", Err: exec.ErrNotFound}, "docker") // no Docker here
 
 	a.eng = engine.New(rules.Deps{Env: sb.Env, Guard: guard.New(sb.Env), Policy: policy.New(sb.Env)}, rules.BuiltinWithMin(1, 1))
 	a.eng.Free = func() (string, int64, error) { return "/sandbox", 5 << 30, nil }

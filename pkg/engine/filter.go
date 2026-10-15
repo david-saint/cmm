@@ -75,3 +75,18 @@ func (p *Plan) restrict(keep func(rules.Candidate) bool, skips []rules.Skip) *Pl
 	}
 	return &out
 }
+
+// SafeOnly returns a copy of the plan with only the items of tier safe, and the items it held back (every other
+// tier, and a missing or unknown one). Safe items are the regenerable ones a plain apply may take; anything else
+// needs a person's explicit choice. Groups and totals are recomputed for what stays.
+func (p *Plan) SafeOnly() (*Plan, []rules.Candidate) {
+	held := []rules.Candidate{}
+	out := p.restrict(func(c rules.Candidate) bool {
+		if c.Tier == rules.TierSafe {
+			return true
+		}
+		held = append(held, c)
+		return false
+	}, p.Skipped)
+	return out, held
+}

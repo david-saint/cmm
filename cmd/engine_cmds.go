@@ -118,7 +118,8 @@ for other tools to read.`,
 				_, err = cmd.OutOrStdout().Write(b)
 				return err
 			}
-			writePlan(cmd.OutOrStdout(), plan, eng.Deps.Env.Home, verbose)
+			shown, held := plan.SafeOnly()
+			writePlanWithHeld(cmd.OutOrStdout(), shown, held, eng.Deps.Env.Home, verbose)
 			return nil
 		},
 	}
@@ -141,6 +142,9 @@ before deleting anything.
   - --dry-run shows the plan and stops; it never deletes, even together with --yes.
   - Each item is checked again right before it is removed; items whose guards no
     longer hold are skipped, and one failure never stops the others.
+  - Items of tier review (Docker's prunes, for one) are never part of a plain apply, not even with
+    --yes: the plan lists them under "needs your choice". Choose them on purpose with --include-review,
+    --only <rule> or --select-file (or tick them in "cmm run" or the app).
   - --select-file limits the run to the item paths listed in a JSON file (an array
     of strings taken from "cmm plan --json"). The plan is made again first and a
     selection can only narrow it: a path that is not in it is skipped, never deleted.
@@ -155,6 +159,7 @@ before deleting anything.
 			only, _ := cmd.Flags().GetStringSlice("only")
 			asJSON, _ := cmd.Flags().GetBool("json")
 			selectFile, _ := cmd.Flags().GetString("select-file")
+			includeReview, _ := cmd.Flags().GetBool("include-review")
 
 			if asJSON && !yes && !dryRun {
 				return errJSONNeedsYes
@@ -179,7 +184,7 @@ before deleting anything.
 			defer stop()
 
 			if asJSON {
-				return runApplyJSON(ctx, cmd, eng, applyJSONOptions{only: only, selection: selected, hasSelection: selectFile != "", dryRun: dryRun})
+				return runApplyJSON(ctx, cmd, eng, applyJSONOptions{only: only, selection: selected, hasSelection: selectFile != "", includeReview: includeReview, dryRun: dryRun})
 			}
 
 			out := cmd.OutOrStdout()
@@ -197,10 +202,20 @@ before deleting anything.
 					fmt.Fprintf(cmd.ErrOrStderr(), "skipped: %s: %s\n", shortPath(m, eng.Deps.Env.Home), reasonNotInPlan)
 				}
 			}
-			writePlan(out, plan, eng.Deps.Env.Home, false)
+			// Items that need a person's choice are taken only when the person chose them: by naming their rule,
+			// by selecting them, or with --include-review. Otherwise they are listed and left alone.
+			var held []rules.Candidate
+			if selectFile == "" && len(only) == 0 && !includeReview {
+				plan, held = plan.SafeOnly()
+			}
+			writePlanWithHeld(out, plan, held, eng.Deps.Env.Home, false)
 
 			if len(plan.Items) == 0 {
-				fmt.Fprintln(out, "\nNothing to clean right now.")
+				if len(held) > 0 {
+					fmt.Fprintln(out, "\nNothing safe to clean right now: what is left needs your choice (see above).")
+				} else {
+					fmt.Fprintln(out, "\nNothing to clean right now.")
+				}
 				return nil
 			}
 			if dryRun {
@@ -226,6 +241,7 @@ before deleting anything.
 	cmd.Flags().StringSlice("only", nil, "limit to these rule ids (comma separated)")
 	cmd.Flags().String("select-file", "", "limit to the item paths in this JSON file (an array of strings from `cmm plan --json`); can only narrow the plan")
 	cmd.Flags().Bool("json", false, "print one JSON event per line instead of text (needs --yes or --dry-run)")
+	cmd.Flags().Bool("include-review", false, "also carry out items of tier review (Docker's prunes), which a plain apply leaves alone")
 	return cmd
 }
 

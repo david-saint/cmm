@@ -12,6 +12,7 @@ import (
 	"syscall"
 
 	"github.com/david-saint/cmm/pkg/engine"
+	"github.com/david-saint/cmm/pkg/rules"
 	"github.com/spf13/cobra"
 )
 
@@ -81,11 +82,15 @@ type (
 )
 
 type applyJSONOptions struct {
-	only         []string
-	selection    []string
-	hasSelection bool
-	dryRun       bool
+	only          []string
+	selection     []string
+	hasSelection  bool
+	includeReview bool
+	dryRun        bool
 }
+
+// reasonNeedsChoice is why an item of tier review was not attempted: nobody chose it.
+const reasonNeedsChoice = "needs your choice (review): choose it with --select-file, --only or --include-review"
 
 // runApplyJSON is `cmm apply --json`: plan again, narrow the fresh plan to the selection (when there is one),
 // apply, and report every step as an event. The caller has already checked that --yes or --dry-run was given.
@@ -116,10 +121,20 @@ func runApplyJSON(ctx context.Context, cmd *cobra.Command, eng *engine.Engine, o
 		plan, missing = plan.OnlyPaths(o.selection)
 	}
 
+	// Items that need a person's choice are attempted only when chosen: by a selection, by naming their rule, or
+	// with --include-review. Otherwise they are reported as skipped.
+	var held []rules.Candidate
+	if !o.hasSelection && len(o.only) == 0 && !o.includeReview {
+		plan, held = plan.SafeOnly()
+	}
+
 	emit(startEvent{Event: "start", SchemaVersion: engine.SchemaVersion, Selected: selected, Matched: len(plan.Items),
 		Bytes: plan.TotalBytes, FreeBytes: plan.Host.FreeBytes})
 	for _, m := range missing {
 		emit(itemEvent{Event: "item", Path: m, Status: string(engine.StatusSkipped), Reason: reasonNotInPlan})
+	}
+	for _, c := range held {
+		emit(itemEvent{Event: "item", Rule: c.Rule, Group: c.Group, Path: c.Path, Status: string(engine.StatusSkipped), Reason: reasonNeedsChoice, Bytes: c.Bytes})
 	}
 
 	rep, stopped := eng.Apply(ctx, plan, engine.ApplyOptions{
@@ -131,7 +146,7 @@ func runApplyJSON(ctx context.Context, cmd *cobra.Command, eng *engine.Engine, o
 		},
 	})
 
-	done := doneEvent{Event: "done", Deleted: rep.Deleted, Skipped: rep.Skipped + len(missing), Failed: rep.Failed,
+	done := doneEvent{Event: "done", Deleted: rep.Deleted, Skipped: rep.Skipped + len(missing) + len(held), Failed: rep.Failed,
 		FreedBytes: rep.FreedBytes, FreeBefore: rep.FreeBefore, FreeAfter: rep.FreeAfter, Stopped: stopped != nil,
 		Warnings: append([]string{}, rep.Warnings...)}
 	logWritten := rep.Deleted+rep.Failed > 0
