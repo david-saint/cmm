@@ -11,7 +11,7 @@
 - [x] Task: CLI `cmm plan [--json]` and `cmm apply [--dry-run] [--yes]` with the no-terminal guard, Return gate and EOF/Ctrl-D cancel; warning banner on legacy `run`; git-ignore `cmm_test_data/` 6cc485d
 - [x] Task: Conductor - User Manual Verification 'Phase 1' (Protocol in workflow.md) cbccf6e
 
-## Phase 2: Parity Rules
+## Phase 2: Parity Rules [checkpoint: 4163000]
 - [x] Task: Symlink hardening: refuse a target when any folder between its root (home or temp dir) and it is a symlink, at plan and apply time; `PathRule` skips symlinked parents 0d015d0
 - [x] Task: Children rules: Maestro temp output (age filter) and Cursor failed-update leftovers 95b105e
 - [x] Task: Old CLI versions rule (keep newest, linked and in-use; links and in-use state re-read at apply time) 4bb94c8
@@ -22,7 +22,7 @@
 - [x] Task: Homebrew: `brew cleanup` planner (named formulae, Python flag, exit code handling) 7064f79
 - [x] Task: Built-in registry in dev-cleanup order, `Engine.Allowed` (a rule allows it, policy accepts it, no symlink below the root) and the 96 allow-list cases ported as a table test; tests proving no rule reaches a real tool (unstubbed fake runner, no `os/exec` import outside `pkg/sys`) 2619cef
 - [x] Task: `scripts/parity.sh`: compare `cmm plan --json` with a patched copy of dev-cleanup on the real disk; fails closed (marker check, dump header, `--dry-run` hard-coded, compare by path, non-zero exit on mismatch) and reports categories that had nothing to compare eae3929
-- [ ] Task: Conductor - User Manual Verification 'Phase 2' (Protocol in workflow.md)
+- [x] Task: Conductor - User Manual Verification 'Phase 2' (Protocol in workflow.md) 4163000
 
 ## Phase 3: Safe Apply, TUI and Legacy Removal
 - [ ] Task: Apply polish: cleanup log and last-run stamp (the safety invariants already shipped in Phase 1)
