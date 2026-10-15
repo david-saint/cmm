@@ -123,6 +123,7 @@ final class AppViewsTests: XCTestCase {
 
         case .cleaning:
             let fake = FakeCmmClient(plan: plan)
+            fake.script(.live)
             let model = AppModel(client: fake)
             await model.scan()
             model.requestClean()

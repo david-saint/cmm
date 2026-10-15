@@ -24,7 +24,7 @@ final class FakeCmmClient: CmmClient, @unchecked Sendable {
     }
 
     enum ApplyScript {
-        /// `apply` returns a stream the test feeds with `send` and ends with `finish`.
+        /// `apply` returns a stream the test feeds with `send` and ends with `finish` (ask for it with `script(.live)`).
         case live
         /// `apply` replays these events at once and then ends (throwing `error` if given).
         case replay([ApplyEvent], error: CmmError?)
@@ -36,7 +36,9 @@ final class FakeCmmClient: CmmClient, @unchecked Sendable {
         var planGate: Gate?
         var applyCalls: [ApplySelection] = []
         var stopCalls = 0
-        var applyScript = ApplyScript.live
+        // Ends at once by default: a test that wrongly starts a cleanup then fails on its assertion instead of
+        // hanging on a stream nobody feeds. Tests that drive events by hand ask for `.live`.
+        var applyScript = ApplyScript.replay([Events.done()], error: nil)
         var liveContinuation: AsyncThrowingStream<ApplyEvent, any Error>.Continuation?
         var onStop: (@Sendable (FakeCmmClient) -> Void)?
     }

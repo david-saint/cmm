@@ -337,6 +337,7 @@ final class AppModelTests: XCTestCase {
 
     func testLiveItemsAndTalliesWhileCleaning() async throws {
         let fake = FakeCmmClient(plan: plan)  // script is .live
+        fake.script(.live)
         let (model, _) = await readyModel(fake: fake)
         model.requestClean()
         let confirmation = try XCTUnwrap(model.confirmation)
@@ -399,6 +400,7 @@ final class AppModelTests: XCTestCase {
 
     func testStopAsksTheClientOnceAndTheStoppedSummaryIsShown() async throws {
         let fake = FakeCmmClient(plan: plan)
+        fake.script(.live)
         fake.onStop { fake in
             fake.send(Events.done(deleted: 1, freed: 1_000, stopped: true))
             fake.finish()
@@ -464,6 +466,7 @@ final class AppModelTests: XCTestCase {
 
     func testStoppingThenLosingTheSummaryIsExplained() async throws {
         let fake = FakeCmmClient(plan: plan)
+        fake.script(.live)
         fake.onStop { fake in fake.finish(throwing: .applyFailed(status: 2, stderr: "cmm was ended by signal 2 (SIGINT).")) }
         let (model, _) = await readyModel(fake: fake)
         model.requestClean()
@@ -550,6 +553,7 @@ final class AppModelTests: XCTestCase {
 
     func testAScanIsIgnoredWhileCleaning() async throws {
         let fake = FakeCmmClient(plan: plan)
+        fake.script(.live)
         let (model, _) = await readyModel(fake: fake)
         model.requestClean()
         let confirmation = try XCTUnwrap(model.confirmation)
@@ -567,6 +571,7 @@ final class AppModelTests: XCTestCase {
 
     func testTickingIsIgnoredWhileCleaning() async throws {
         let fake = FakeCmmClient(plan: plan)
+        fake.script(.live)
         let (model, _) = await readyModel(fake: fake)
         model.requestClean()
         let confirmation = try XCTUnwrap(model.confirmation)
@@ -586,6 +591,7 @@ final class AppModelTests: XCTestCase {
 
     func testQuittingDuringACleanAsksCmmToStop() async throws {
         let fake = FakeCmmClient(plan: plan)
+        fake.script(.live)
         let (model, _) = await readyModel(fake: fake)
         model.requestClean()
         let confirmation = try XCTUnwrap(model.confirmation)
