@@ -30,11 +30,11 @@
 - [x] Task: Documentation: README, tech-stack, product docs 65d30e7
 - [x] Task: Conductor - User Manual Verification 'Phase 3' (Protocol in workflow.md) e860225
 
-## Phase 4: Acceptance and Handover
+## Phase 4: Acceptance and Handover [checkpoint: fa8e4dd]
 - [x] Task: Real-disk parity run recorded in this plan
   - **2026-10-15 11:46 CEST, HEAD 31b84d1** (`PARITY_CMM=<fresh build> bash scripts/parity.sh`): **PARITY OK, 7 items agree (7.0 GB)**, 0 skips on both sides.
   - go-build 1 item (1.0 GB), bun-cache 1 (111 MB), uv-cache 1 (2.2 GB), lane-deps 4 (3.6 GB): identical counts and sizes in both tools.
   - Nothing on either side for the other 13 rules; those are proven in sandbox tests (`TestRegistry_EveryRuleThroughTheRealEngineInASandbox`, the 96 ported allow-list cases).
   - Earlier runs the same day agreed too (go-build alone, then go-build + lane-deps: 5 items, 4.5 GB). Real-disk coverage grows as caches regrow.
-- [~] Task: Handover proposal for the owner's approval: retire `~/.local/bin/dev-cleanup` and point the weekly reminder at `cmm plan` (text, not `--json`: the reminder reports the "Last cleanup" line, which the JSON deliberately does not carry). Written in [handover.md](handover.md); waiting for the owner's yes.
-- [ ] Task: Conductor - User Manual Verification 'Phase 4' (the owner's approval of the handover, then the steps in handover.md are carried out and checked)
+- [x] Task: Handover proposal for the owner's approval: retire `~/.local/bin/dev-cleanup` and point the weekly reminder at `cmm plan` (text, not `--json`: the reminder reports the "Last cleanup" line, which the JSON deliberately does not carry). Written in [handover.md](handover.md); approved and carried out on 2026-10-15 (cmm 0.4.0 installed with the old build kept as `cmm.old`, history copied, script renamed, reminder updated and checked with its own commands).
+- [x] Task: Conductor - User Manual Verification 'Phase 4' (the owner's approval of the handover, then the steps in handover.md are carried out and checked) fa8e4dd

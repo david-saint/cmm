@@ -1,6 +1,6 @@
 # Handover proposal: retire dev-cleanup, move the weekly reminder to cmm
 
-**Status: proposal.** Nothing below has been done. Each step needs the owner's explicit yes.
+**Status: done on 2026-10-15** (the owner approved the steps below, and they were carried out and checked: `cmm` 0.4.0 installed at `~/go/bin/cmm` with the old 0.3.1 build kept as `~/go/bin/cmm.old`; `~/.local/state/cmm/` holds copies of the old log and last-run; the script is now `~/.local/bin/dev-cleanup.retired`; the Monday reminder runs `cmm plan`). Merging and pushing are still the owner's. The text below is the proposal as approved, kept for the undo steps.
 
 ## Why now
 - Parity on the real disk (see Phase 4 in `plan.md`): the same items and sizes for go-build, bun-cache, uv-cache and lane-deps; the other 13 rules are proven in sandbox tests, and the 96 allow-list cases of `dev-cleanup --self-test` run as Go tests.
