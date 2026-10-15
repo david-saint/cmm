@@ -56,9 +56,9 @@ extension CmmError {
         case .selectionFileFailed(let reason):
             "The list of ticked items could not be handed to cmm (\(reason)). Nothing was removed."
         case .applyFailed(let status, let stderr):
-            Self.joined("Exit status \(status). Items already shown as deleted are gone; the rest were not touched.", stderr)
+            Self.joined("Exit status \(status). What cmm reported before it stopped is listed below; scan again to see what is left.", stderr)
         case .endedWithoutSummary(let status, let stderr):
-            Self.joined("Exit status \(status). The list of results above may be incomplete.", stderr)
+            Self.joined("Exit status \(status). The results listed below may be incomplete; scan again to see what is left.", stderr)
         }
     }
 

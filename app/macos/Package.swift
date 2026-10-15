@@ -9,12 +9,15 @@ let package = Package(
     platforms: [.macOS(.v14)],
     products: [
         .library(name: "CmmKit", targets: ["CmmKit"]),
+        .executable(name: "Cmm", targets: ["Cmm"]),
     ],
     targets: [
         .target(name: "CmmKit"),
+        .executableTarget(name: "Cmm", dependencies: ["CmmKit"]),
         .testTarget(
             name: "CmmKitTests",
-            dependencies: ["CmmKit"],
+            // "Cmm" is here so the window's views can be rendered and checked (see AppViewsTests).
+            dependencies: ["CmmKit", "Cmm"],
             resources: [.copy("Fixtures")]
         ),
     ],
