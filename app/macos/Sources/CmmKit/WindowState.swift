@@ -11,12 +11,23 @@ public final class WindowState {
     public var expanded: Set<String>
     /// The row the keyboard is on (`DetailsModel` row ids).
     public var focusedRow: String?
-    /// A section the pane should scroll to the next time it can, set by the review link.
+    /// A section the pane should scroll to the next time it can.
     public var scrollTarget: DetailsModel.SectionKind?
+    /// Which face of the pane is showing, List or Map. The first open is the map; after that, the one last chosen.
+    public var face: DetailsFace
+    /// The tile of the map the keyboard is on (`MapTile.id`).
+    public var focusedTile: String?
+    /// The tile the pointer is on, in the map or by way of its slice in the band. Previews the caption when nothing is
+    /// focused, and lights the other one of the pair.
+    public var hoveredTile: String?
+    /// Changes every time something asks the map to take the keyboard (the review link, a band slice): the map watches it
+    /// and focuses itself, because a view cannot be focused from here.
+    public private(set) var mapFocusRequest = 0
 
-    public init(detailsOpen: Bool = false, expanded: Set<String> = []) {
+    public init(detailsOpen: Bool = false, expanded: Set<String> = [], face: DetailsFace = .map) {
         self.detailsOpen = detailsOpen
         self.expanded = expanded
+        self.face = face
     }
 
     public func toggleDetails() {
@@ -28,9 +39,27 @@ public final class WindowState {
         scrollTarget = section
     }
 
+    /// Opens the pane on the map, with this tile focused: what the review link and a click on a slice of the band do.
+    public func openMap(focusing tile: String?) {
+        face = .map
+        detailsOpen = true
+        scrollTarget = nil
+        focusedTile = tile
+        mapFocusRequest &+= 1
+    }
+
+    /// The List | Map switch.
+    public func setFace(_ newFace: DetailsFace) {
+        guard newFace != face else { return }
+        face = newFace
+        hoveredTile = nil
+    }
+
     public func closeDetails() {
         detailsOpen = false
         focusedRow = nil
+        focusedTile = nil
+        hoveredTile = nil
     }
 
     public func toggleExpanded(_ groupID: String) {

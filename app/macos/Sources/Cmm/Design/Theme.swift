@@ -104,6 +104,9 @@ enum Theme {
         RGBA(0x000000, 0.08), RGBA(0xFFFFFF, 0.12), lightStrong: RGBA(0x000000, 0.22), darkStrong: RGBA(0xFFFFFF, 0.30)
     )
 
+    /// The hairline between "List" and "Map".
+    static let switchDivider = tone(RGBA(0x000000, 0.18), RGBA(0xFFFFFF, 0.22), lightStrong: RGBA(0x000000, 0.55), darkStrong: RGBA(0xFFFFFF, 0.65))
+
     // Buttons
     static let button = tone(0x0D0D0F, 0xF5F5F7)
     static let buttonText = tone(0xFFFFFF, 0x0B0B0C)

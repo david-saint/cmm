@@ -61,6 +61,7 @@ struct RootView: View {
         .coordinateSpace(name: "window")
         .onPreferenceChange(PillFrameKey.self) { pillFrame = $0 }
         .onPreferenceChange(CardSizeKey.self) { if $0.height > 0 { cardSize = $0 } }
+        .onChange(of: window.face) { _, face in FacePreference.save(face) }
         .animation(motion.animation, value: model.confirmation != nil)
         .animation(.easeInOut(duration: 0.25), value: model.phase)
         .environment(\.cmm, env)

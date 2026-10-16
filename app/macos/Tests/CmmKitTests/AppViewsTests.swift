@@ -198,18 +198,18 @@ final class AppViewsTests: XCTestCase {
 
         case .details:
             let (model, _) = await readyModel(board)
-            return Rig(model: model, window: WindowState(detailsOpen: true))
+            return Rig(model: model, window: WindowState(detailsOpen: true, face: .list))
 
         case .detailsExpanded:
             let (model, _) = await readyModel(board)
             let lanes = try XCTUnwrap(model.selection?.groups.first { $0.rule == "lane-deps" })
-            return Rig(model: model, window: WindowState(detailsOpen: true, expanded: [lanes.id]))
+            return Rig(model: model, window: WindowState(detailsOpen: true, expanded: [lanes.id], face: .list))
 
         case .detailsReviewExpanded:
             let (model, _) = await readyModel(board)
             let docker = try XCTUnwrap(model.selection?.groups.first { $0.section == .review })
             model.toggle(try XCTUnwrap(docker.items.first))
-            return Rig(model: model, window: WindowState(detailsOpen: true, expanded: [docker.id]))
+            return Rig(model: model, window: WindowState(detailsOpen: true, expanded: [docker.id], face: .list))
 
         case .sheet:
             let (model, _) = await readyModel(board)
@@ -413,7 +413,7 @@ final class AppViewsTests: XCTestCase {
         let open = Set(model.selection?.groups.prefix(1).map(\.id) ?? [])
         let start = Date()
         let bitmap = try render(
-            RootView(model: model, window: WindowState(detailsOpen: true, expanded: open), env: Self.env),
+            RootView(model: model, window: WindowState(detailsOpen: true, expanded: open, face: .list), env: Self.env),
             name: "big-plan", appearance: .aqua
         )
         XCTAssertGreaterThan(distinctColors(bitmap), 8)

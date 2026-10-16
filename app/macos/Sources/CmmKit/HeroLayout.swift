@@ -18,6 +18,8 @@ public struct HeroLayout: Equatable, Sendable {
     /// The pane: 452 wide, 8 from the right, top and bottom edges.
     public static let paneWidth = 452.0
     public static let paneInset = 8.0
+    /// Where the content of either face of the pane starts: under the title and the List | Map switch.
+    public static let paneContentTop = 78.0
     public static let minimumWidth = 820.0
     public static let minimumHeight = 560.0
 

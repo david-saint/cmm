@@ -15,7 +15,12 @@ struct DetailsPane: View {
         let details = DetailsModel(selection: selection, expanded: window.expanded, home: env.home)
         VStack(spacing: 0) {
             PaneHeader(model: model, window: window)
-            DetailsList(model: model, selection: selection, details: details, window: window, listFocused: $listFocused)
+            switch window.face {
+            case .list:
+                DetailsList(model: model, selection: selection, details: details, window: window, listFocused: $listFocused)
+            case .map:
+                MapFace(model: model, selection: selection, window: window)
+            }
         }
         .frame(width: HeroLayout.paneWidth)
         .frame(maxHeight: .infinity)
@@ -25,36 +30,29 @@ struct DetailsPane: View {
     }
 }
 
-/// "Details" with Rescan and Hide details at the right. `accessory` is the room under the title that a List | Map
-/// switch will take later; it is empty now, and the list simply starts below it.
-struct PaneHeader<Accessory: View>: View {
+/// "Details" with Rescan and Hide details at the right, and the List | Map switch under the title. The content of
+/// either face starts at 78 pt, as the map board's does.
+struct PaneHeader: View {
     let model: AppModel
     let window: WindowState
-    @ViewBuilder var accessory: () -> Accessory
 
     var body: some View {
-        VStack(spacing: 0) {
-            ZStack(alignment: .topLeading) {
-                Text("Details")
-                    .font(Typeface.ui(14, .semibold))
-                    .foregroundStyle(Theme.ink)
-                    .padding(.leading, 18)
-                    .padding(.top, 16)
-                    .accessibilityAddTraits(.isHeader)
-                HeaderButtons(model: model, window: window, detailsOpen: true)
-                    .padding(.top, 8)
-                    .padding(.trailing, 12)
-                    .frame(maxWidth: .infinity, alignment: .topTrailing)
-            }
-            .frame(height: 50, alignment: .topLeading)
-            accessory()
+        ZStack(alignment: .topLeading) {
+            Text("Details")
+                .font(Typeface.ui(14, .semibold))
+                .foregroundStyle(Theme.ink)
+                .padding(.leading, 18)
+                .padding(.top, 16)
+                .accessibilityAddTraits(.isHeader)
+            HeaderButtons(model: model, window: window, detailsOpen: true)
+                .padding(.top, 8)
+                .padding(.trailing, 12)
+                .frame(maxWidth: .infinity, alignment: .topTrailing)
+            FaceSwitch(window: window)
+                .padding(.leading, 18)
+                .padding(.top, 42)
         }
-    }
-}
-
-extension PaneHeader where Accessory == EmptyView {
-    init(model: AppModel, window: WindowState) {
-        self.init(model: model, window: window) { EmptyView() }
+        .frame(height: HeroLayout.paneContentTop, alignment: .topLeading)
     }
 }
 

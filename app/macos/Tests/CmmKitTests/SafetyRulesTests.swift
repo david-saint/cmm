@@ -399,6 +399,40 @@ final class SafetyRulesTests: XCTestCase {
         XCTAssertTrue(statement.contains(".fixedSize(horizontal: false, vertical: true)"), "it takes the height it needs")
     }
 
+    // MARK: what the app remembers
+
+    func testTheOnlyThingTheAppRemembersIsWhichFaceOfTheDetailsWasLast() throws {
+        let files = try sources("CmmKit") + sources("Cmm")
+        for token in [
+            "UserDefaults", "@AppStorage", "NSUserDefaults", "@SceneStorage", "SceneStorage", "NSUbiquitousKeyValueStore",
+            "CFPreferences", "NSKeyedArchiver", "PropertyListEncoder", "NSPersistentContainer", "SwiftData",
+        ] {
+            XCTAssertEqual(occurrences(of: token, in: files), token == "UserDefaults" ? ["FacePreference.swift"] : [],
+                           "`\(token)` is used outside the one file that remembers the face")
+        }
+
+        let store = try XCTUnwrap(files.first { $0.name == "FacePreference.swift" }).code
+        XCTAssertEqual(store.components(separatedBy: "UserDefaults.standard").count - 1, 2, "one read and one write")
+        XCTAssertEqual(store.components(separatedBy: ".string(forKey: key)").count - 1, 1)
+        XCTAssertEqual(store.components(separatedBy: ".set(face.rawValue, forKey: key)").count - 1, 1, "what is written is a face's word")
+        XCTAssertTrue(store.contains(#"static let key = "detailsFace""#), "one key")
+        XCTAssertEqual(store.components(separatedBy: "\"").count - 1, 2, "no other string in the file: the key's two quotes")
+        for token in ["removeObject", "synchronize", "register(", "dictionaryRepresentation", "setPersistentDomain", "addSuite", "suiteName"] {
+            XCTAssertFalse(store.contains(token), "FacePreference.swift uses `\(token)`")
+        }
+    }
+
+    func testTheRememberedFaceIsReadOnceAtStartAndWrittenOnlyWhenTheFaceChanges() throws {
+        let files = try sources("Cmm")
+        XCTAssertEqual(occurrences(of: "FacePreference", in: files), ["CmmApp.swift", "FacePreference.swift", "RootView.swift"])
+        XCTAssertEqual(calls("FacePreference.load", in: files), ["CmmApp.swift"], "read once, when the window is made")
+        XCTAssertEqual(calls("FacePreference.save", in: files), ["RootView.swift"], "written when the face changes")
+        let app = try XCTUnwrap(files.first { $0.name == "CmmApp.swift" }).code
+        XCTAssertTrue(app.contains("WindowState(face: FacePreference.load())"))
+        let root = try XCTUnwrap(files.first { $0.name == "RootView.swift" }).code
+        XCTAssertTrue(root.contains(".onChange(of: window.face) { _, face in FacePreference.save(face) }"))
+    }
+
     // MARK: rule 6: tests never clean the real disk
 
     func testRule6_TheRealBinaryTestsAreOffUnlessAskedForTwice() throws {

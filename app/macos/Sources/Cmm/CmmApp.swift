@@ -8,7 +8,7 @@ import SwiftUI
 struct CmmApp: App {
     @NSApplicationDelegateAdaptor(AppDelegate.self) private var delegate
     @State private var model = AppModel(client: ProcessCmmClient())
-    @State private var window = WindowState()
+    @State private var window = WindowState(face: FacePreference.load())
 
     var body: some Scene {
         Window("cmm", id: "main") {
