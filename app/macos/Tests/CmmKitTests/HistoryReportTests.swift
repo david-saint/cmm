@@ -349,6 +349,68 @@ final class HistoryReportTests: XCTestCase {
         XCTAssertEqual(first, try json.report().runs.map(\.id), "the same document gives the same ids")
     }
 
+    // MARK: as of a moment
+
+    func testAsOfLeavesOutWhatIsDatedLaterAndCountsIt() throws {
+        var json = HistoryJSON()
+        json.runs = [
+            HistoryJSON.run(finished: "2026-10-16T09:00:00Z"),
+            HistoryJSON.run(finished: "2026-10-14T09:00:00Z"),
+            HistoryJSON.run(finished: "2026-10-15T09:00:00Z"),
+        ]
+        json.samples = [
+            HistoryJSON.sample("2026-10-14T09:00:00Z", free: 1), HistoryJSON.sample("2026-10-15T09:00:01Z", free: 2),
+            HistoryJSON.sample("2026-10-15T09:00:00Z", free: 3), HistoryJSON.sample("garbage", free: 4),
+        ]
+        let report = try json.report()
+        XCTAssertEqual(report.ignoredEntries, 1, "the one sample with no time")
+
+        let now = TestTime.utc("2026-10-15T09:00:00Z")
+        let seen = report.asOf(now)
+        XCTAssertEqual(seen.runs.map(\.finishedAt), [now, TestTime.utc("2026-10-14T09:00:00Z")], "exactly now is not the future")
+        XCTAssertEqual(seen.samples.map(\.freeBytes), [1, 3])
+        XCTAssertEqual(seen.ignoredEntries, 1 + 1 + 1, "a run and a sample from the future are counted with the rest")
+        XCTAssertEqual(seen.host, report.host)
+        XCTAssertEqual(seen.generatedAt, report.generatedAt)
+        XCTAssertEqual(seen.unreadableLines, report.unreadableLines)
+    }
+
+    func testAsOfPutsSamplesOldestFirstAndRunsNewestFirstWhateverOrderTheyCameIn() throws {
+        var json = HistoryJSON()
+        json.runs = [
+            HistoryJSON.run(finished: "2026-10-10T09:00:00Z"), HistoryJSON.run(finished: "2026-10-14T09:00:00Z"),
+            HistoryJSON.run(finished: "2026-10-12T09:00:00Z"),
+        ]
+        json.samples = [
+            HistoryJSON.sample("2026-10-14T09:00:00Z", free: 3), HistoryJSON.sample("2026-10-10T09:00:00Z", free: 1),
+            HistoryJSON.sample("2026-10-12T09:00:00Z", free: 2),
+        ]
+        let seen = try json.report().asOf(TestTime.utc("2026-10-15T09:00:00Z"))
+        XCTAssertEqual(seen.runs.map(\.finishedAt), [
+            TestTime.utc("2026-10-14T09:00:00Z"), TestTime.utc("2026-10-12T09:00:00Z"), TestTime.utc("2026-10-10T09:00:00Z"),
+        ])
+        XCTAssertEqual(seen.samples.map(\.freeBytes), [1, 2, 3])
+    }
+
+    func testAsOfKeepsTheOrderOfThingsThatHappenedAtTheSameMoment() throws {
+        var json = HistoryJSON()
+        json.samples = [
+            HistoryJSON.sample("2026-10-14T09:00:00Z", free: 5), HistoryJSON.sample("2026-10-14T09:00:00Z", free: 6),
+            HistoryJSON.sample("2026-10-14T09:00:00Z", free: 7),
+        ]
+        json.runs = (1...3).map { HistoryJSON.run(finished: "2026-10-14T09:00:00Z", freed: Int64($0)) }
+        let seen = try json.report().asOf(TestTime.utc("2026-10-15T09:00:00Z"))
+        XCTAssertEqual(seen.samples.map(\.freeBytes), [5, 6, 7])
+        XCTAssertEqual(seen.runs.map(\.freedBytes), [1, 2, 3])
+    }
+
+    func testAsOfOfAnAsOfChangesNothing() throws {
+        var json = HistoryJSON()
+        json.runs = [HistoryJSON.run(finished: "2026-10-16T09:00:00Z"), HistoryJSON.run(finished: "2026-10-14T09:00:00Z")]
+        let once = try json.report().asOf(TestTime.utc("2026-10-15T09:00:00Z"))
+        XCTAssertEqual(once.asOf(TestTime.utc("2026-10-15T09:00:00Z")), once)
+    }
+
     // MARK: a big history
 
     func testTenThousandRunsAreDecoded() throws {

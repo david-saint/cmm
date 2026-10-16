@@ -108,6 +108,25 @@ public struct HistoryReport: Equatable, Sendable {
     }
 }
 
+// MARK: as of a moment
+
+extension HistoryReport {
+    /// The report as it can be believed at `now`: nothing that claims to have happened later (a clock that was wrong, or a
+    /// hand-edited history), the samples oldest first and the runs newest first whatever order they came in. What was left
+    /// out is added to `ignoredEntries`. Asking again of the result changes nothing.
+    func asOf(_ now: Date) -> HistoryReport {
+        let samples = self.samples.enumerated().filter { $0.element.t <= now }
+            .sorted { ($0.element.t, $0.offset) < ($1.element.t, $1.offset) }.map(\.element)
+        let runs = self.runs.enumerated().filter { $0.element.finishedAt <= now }
+            .sorted { ($1.element.finishedAt, $0.offset) < ($0.element.finishedAt, $1.offset) }.map(\.element)
+        return HistoryReport(
+            schemaVersion: schemaVersion, generatedAt: generatedAt, host: host, runs: runs, samples: samples,
+            unreadableLines: unreadableLines,
+            ignoredEntries: ignoredEntries + (self.samples.count - samples.count) + (self.runs.count - runs.count)
+        )
+    }
+}
+
 // MARK: decoding
 
 extension HistoryReport: Decodable {
