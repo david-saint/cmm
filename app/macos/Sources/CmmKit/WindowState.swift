@@ -27,6 +27,8 @@ public final class WindowState {
     public var mapKeyboard = false
     /// The pointer is on the disk band, where the reclaimable end is shown enlarged.
     public var bandHovered = false
+    /// The slice the pointer put into `hoveredTile`, so that leaving the band clears that hover and only that one.
+    private var sliceUnderPointer: String?
     /// Whether slices fly into tiles and back. Off with Reduce Motion, where the pane fades in place.
     public var flightsEnabled = true
     /// The slices flying between the band and the map, or nil when nothing is.
@@ -57,6 +59,28 @@ public final class WindowState {
         self.detailsOpen = detailsOpen
         self.expanded = expanded
         self.face = face
+    }
+
+    /// The pointer entered or left a tile of the map.
+    public func pointer(onTile tile: String, inside: Bool) {
+        if inside {
+            hoveredTile = tile
+        } else if hoveredTile == tile {
+            hoveredTile = nil
+        }
+    }
+
+    /// The pointer is on the band, over this slice (nil: over the band but not over a slice).
+    public func pointerIsOnBand(over slice: String?) {
+        bandHovered = true
+        sliceUnderPointer = slice
+        if hoveredTile != slice { hoveredTile = slice }
+    }
+
+    public func pointerLeftTheBand() {
+        bandHovered = false
+        if let slice = sliceUnderPointer, hoveredTile == slice { hoveredTile = nil }
+        sliceUnderPointer = nil
     }
 
     /// The pane is open and showing the map.

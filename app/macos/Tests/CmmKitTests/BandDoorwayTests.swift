@@ -143,6 +143,56 @@ final class BandWindowStateTests: XCTestCase {
         XCTAssertFalse(state.isBandMagnified)
     }
 
+    func testThePointerOverASliceHoversItsTileAndMagnifiesTheBand() {
+        let state = WindowState()
+        state.pointerIsOnBand(over: "item:/a")
+        XCTAssertTrue(state.bandHovered)
+        XCTAssertEqual(state.hoveredTile, "item:/a")
+        XCTAssertTrue(state.isBandMagnified)
+    }
+
+    func testMovingToAnotherSliceMovesTheHoverAndLeavingClearsIt() {
+        let state = WindowState()
+        state.pointerIsOnBand(over: "item:/a")
+        state.pointerIsOnBand(over: "item:/b")
+        XCTAssertEqual(state.hoveredTile, "item:/b")
+        state.pointerLeftTheBand()
+        XCTAssertFalse(state.bandHovered)
+        XCTAssertNil(state.hoveredTile)
+    }
+
+    func testThePointerOnTheBandButNotOnASliceHoversNoTile() {
+        let state = WindowState()
+        state.pointerIsOnBand(over: "item:/a")
+        state.pointerIsOnBand(over: nil)  // the used track, the free space, a gap around the end, the bracket
+        XCTAssertTrue(state.bandHovered, "the band is still hovered: it stays enlarged")
+        XCTAssertNil(state.hoveredTile)
+    }
+
+    func testLeavingTheBandNeverClearsATilesHover() {
+        let state = WindowState()
+        state.pointerIsOnBand(over: nil)
+        state.hoveredTile = "item:/tile"  // the pointer is on a tile of the map now
+        state.pointerLeftTheBand()
+        XCTAssertEqual(state.hoveredTile, "item:/tile", "that hover is the map's, not the band's")
+        // …nor a band's hover once a tile has taken the hover over
+        state.pointerIsOnBand(over: "item:/a")
+        state.hoveredTile = "item:/tile"
+        state.pointerLeftTheBand()
+        XCTAssertEqual(state.hoveredTile, "item:/tile")
+    }
+
+    func testThePointerEnteringAndLeavingATile() {
+        let state = WindowState()
+        state.pointer(onTile: "item:/a", inside: true)
+        XCTAssertEqual(state.hoveredTile, "item:/a")
+        state.pointer(onTile: "item:/b", inside: true)  // the pointer is on the next tile before the event for leaving the last
+        state.pointer(onTile: "item:/a", inside: false)
+        XCTAssertEqual(state.hoveredTile, "item:/b", "leaving a tile clears only that tile's hover")
+        state.pointer(onTile: "item:/b", inside: false)
+        XCTAssertNil(state.hoveredTile)
+    }
+
     func testTheOpenMapKeepsTheBandMagnifiedAndTheOpenListDoesNot() {
         let state = WindowState(face: .map)
         state.openDetails()

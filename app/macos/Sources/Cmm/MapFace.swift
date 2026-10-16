@@ -113,13 +113,7 @@ struct MapFace: View {
                         mapFocused = true
                         toggle(tile)
                     },
-                    hover: { inside in
-                        if inside {
-                            window.hoveredTile = tile.id
-                        } else if window.hoveredTile == tile.id {
-                            window.hoveredTile = nil
-                        }
-                    }
+                    hover: { inside in window.pointer(onTile: tile.id, inside: inside) }
                 )
                 .offset(x: tile.rect.minX, y: tile.rect.minY)
                 .zIndex(isFocused ? 1 : 0)

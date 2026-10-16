@@ -96,8 +96,6 @@ struct BandBlock: View {
     var covered = false
     var doorway: Doorway?
 
-    @State private var sliceUnderPointer: String?
-
     /// Under the band, when it is magnified: 6 pt of air, the bracket (5), 4 pt, and the caption's line.
     private static let bracketZone = 6.0 + 5.0 + 4.0 + 13.0
 
@@ -206,11 +204,10 @@ struct BandBlock: View {
         let below = magnified ? band + Self.bracketZone : BandMagnifier.thickness(magnified: false)
         let end = doorway.band.magnified
         let reach = 3.0
+        // One view with a frame of its own and the whole of it hoverable, buttons inside it: the hover is plainly "the pointer is
+        // in this rectangle", wherever in it, over a slice or not. The rectangle is moved up by `pad` as a whole.
         return ZStack(alignment: .topLeading) {
             Color.clear
-                .frame(width: layout.bandWidth, height: pad + below + pad)
-                .contentShape(Rectangle())
-                .offset(y: -pad)
             if magnified, !flying, !covered {
                 ForEach(Array(end.slices.enumerated()), id: \.element.id) { index, slice in
                     let isLast = index == end.slices.count - 1
@@ -221,24 +218,22 @@ struct BandBlock: View {
                     }
                     .buttonStyle(.plain)
                     .focusable(false)
-                    .offset(x: slice.x, y: -reach)
+                    .padding(.leading, slice.x)
+                    .padding(.top, pad - reach)
                 }
             }
         }
+        .frame(width: layout.bandWidth, height: pad + below + pad, alignment: .topLeading)
+        .contentShape(Rectangle())
         .onContinuousHover { phase in
             guard !covered else { return }
             switch phase {
-            case .active(let point):
-                doorway.window.bandHovered = true
-                let id = end.sliceID(atX: point.x)
-                sliceUnderPointer = id
-                if doorway.window.hoveredTile != id { doorway.window.hoveredTile = id }
-            case .ended:
-                doorway.window.bandHovered = false
-                if let id = sliceUnderPointer, doorway.window.hoveredTile == id { doorway.window.hoveredTile = nil }
-                sliceUnderPointer = nil
+            case .active(let point): doorway.window.pointerIsOnBand(over: end.sliceID(atX: point.x))
+            case .ended: doorway.window.pointerLeftTheBand()
             }
         }
+        .onDisappear { doorway.window.pointerLeftTheBand() }  // a hover that was never told it ended must not outlive the band
+        .offset(y: -pad)
         .accessibilityHidden(true)
     }
 }
