@@ -10,25 +10,29 @@ struct CmmApp: App {
     @State private var model: AppModel
     @State private var window: WindowState
     @State private var history: HistoryModel
+    @State private var services: AppServices
 
     /// One engine client for everything that talks to cmm: the window's scans and cleanups, and the History face's reads.
+    /// The services own what is shared beyond the window (the settings, the lifecycle) and hold no client of their own.
     init() {
         let client = ProcessCmmClient()
-        _model = State(initialValue: AppModel(client: client))
-        _window = State(initialValue: WindowState(face: FacePreference.load()))
-        _history = State(initialValue: HistoryModel(client: client))
+        let model = AppModel(client: client)
+        let window = WindowState(face: FacePreference.load())
+        let history = HistoryModel(client: client)
+        _model = State(initialValue: model)
+        _window = State(initialValue: window)
+        _history = State(initialValue: history)
+        _services = State(initialValue: AppServices.start(model: model, window: window, history: history))
     }
 
     var body: some Scene {
         Window("cmm", id: "main") {
             RootView(model: model, window: window)
                 .environment(history)
+                .environment(services.settings)
                 .frame(minWidth: HeroLayout.minimumWidth, minHeight: HeroLayout.minimumHeight)
                 .background(WindowChrome())
-                .onAppear { delegate.model = model }
-                .task {
-                    if model.phase == .idle { await model.scan() }
-                }
+                .modifier(MainWindowHandOff(services: services))
         }
         .defaultSize(width: 1100, height: 720)
         .windowStyle(.hiddenTitleBar)
@@ -78,23 +82,29 @@ struct WindowChrome: NSViewRepresentable {
     }
 }
 
-/// Closing the window ends the app. A cleanup that is still running is asked to stop after the item it is on (the
-/// person walked away; doing less than they confirmed is always safe). The app then exits at once, so cmm may be ended
-/// by a broken pipe at its next line of output; what it already logged stays logged.
+/// The application's delegate, which SwiftUI makes: the lifecycle's moments, handed to the services.
+///
+/// With the menu bar item off, closing the window ends the app, as it always did. With it on, the app stays in the menu bar
+/// (`Lifecycle`). Either way a cleanup that is still running when the window closes is asked to stop after the item it is on
+/// (the person walked away; doing less than they confirmed is always safe). When the app then quits, it exits at once, so cmm
+/// may be ended by a broken pipe at its next line of output; what it already logged stays logged.
 @MainActor
 final class AppDelegate: NSObject, NSApplicationDelegate {
-    weak var model: AppModel?
+    private var services: AppServices? { AppServices.shared }
 
     func applicationDidFinishLaunching(_ notification: Notification) {
-        NSApp.setActivationPolicy(.regular)
-        NSApp.activate()
+        services?.didFinishLaunching(event: AppleEventLaunchSource().launchEvent())
     }
 
     func applicationShouldTerminateAfterLastWindowClosed(_ sender: NSApplication) -> Bool {
-        true
+        services?.lifecycle.terminatesAfterLastWindowClosed ?? true
+    }
+
+    func applicationShouldHandleReopen(_ sender: NSApplication, hasVisibleWindows flag: Bool) -> Bool {
+        services?.reopen(hasVisibleWindows: flag) ?? true
     }
 
     func applicationWillTerminate(_ notification: Notification) {
-        model?.shutdown()
+        services?.model.shutdown()
     }
 }

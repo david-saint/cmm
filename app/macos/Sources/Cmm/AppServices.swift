@@ -1,0 +1,190 @@
+import AppKit
+import CmmKit
+import SwiftUI
+
+/// The one owner of the app's objects: the window's model and state, the History's model, the settings and the lifecycle, so that
+/// the scenes, the application delegate and the background services share exactly one of each. It is made once, when the app
+/// starts (`CmmApp.init`), around the models that the one engine client serves; it holds no client of its own.
+///
+/// What it decides, it asks CmmKit: the Dock icon and quitting (`Lifecycle`), what closing the window asks of a cleaning and the
+/// card (`LifecyclePolicy`), what "at rest" means (`WindowState.comeToRest`). What is left here is telling the system.
+@MainActor
+final class AppServices {
+    /// The services of the running app. The application delegate is made by SwiftUI, and reaches them here.
+    private(set) static var shared: AppServices?
+
+    let model: AppModel
+    let window: WindowState
+    let history: HistoryModel
+    let settings: SettingsModel
+    let lifecycle: Lifecycle
+
+    /// SwiftUI's own way to open the main window, kept from a view that has it: a click on the notification and cmm opened again
+    /// from Finder come from outside SwiftUI.
+    var openWindow: OpenWindowAction?
+
+    /// cmm's own windows, as the system has them, and what they are. Held weakly: a window the system lets go is forgotten.
+    private var tracked: [TrackedWindow] = []
+    private var menuBarWatch: Watch<Bool>?
+
+    private final class TrackedWindow {
+        weak var window: NSWindow?
+        let kind: AppWindow
+        var observers: [NSObjectProtocol] = []
+
+        init(window: NSWindow, kind: AppWindow) {
+            self.window = window
+            self.kind = kind
+        }
+    }
+
+    /// Makes the services of the running app, once.
+    static func start(model: AppModel, window: WindowState, history: HistoryModel) -> AppServices {
+        let services = AppServices(model: model, window: window, history: history)
+        shared = services
+        return services
+    }
+
+    private init(model: AppModel, window: WindowState, history: HistoryModel) {
+        self.model = model
+        self.window = window
+        self.history = history
+        let settings = SettingsModel(settings: .standard, loginItem: SystemLoginItem(), notifications: SystemNotificationPermission())
+        self.settings = settings
+        lifecycle = Lifecycle(
+            menuBarEnabled: { settings.menuBarEnabled },
+            setPolicy: { policy in _ = NSApp.setActivationPolicy(policy == .regular ? .regular : .accessory) }
+        )
+    }
+
+    // MARK: launching
+
+    /// The app has finished launching: the launch's Apple event says whether the window stays (a login launch with the menu bar
+    /// item on shows none), and the Dock icon follows the menu bar switch from now on.
+    func didFinishLaunching(event: LaunchEvent?) {
+        menuBarWatch = Watch({ [settings] in settings.menuBarEnabled }, changed: { [weak self] _ in self?.lifecycle.menuBarChanged() })
+        if lifecycle.launched(by: event) { NSApp.activate() }
+    }
+
+    // MARK: cmm's windows
+
+    /// A window of cmm's own is there: from now on its coming forward and its closing are followed.
+    func track(_ nsWindow: NSWindow, as kind: AppWindow) {
+        tracked.removeAll { entry in
+            guard entry.window == nil else { return false }
+            for observer in entry.observers { NotificationCenter.default.removeObserver(observer) }
+            return true
+        }
+        guard !tracked.contains(where: { $0.window === nsWindow }) else { return }
+
+        let entry = TrackedWindow(window: nsWindow, kind: kind)
+        let center = NotificationCenter.default
+        for name in [NSWindow.didBecomeKeyNotification, NSWindow.didBecomeMainNotification] {
+            entry.observers.append(center.addObserver(forName: name, object: nsWindow, queue: .main) { [weak self] _ in
+                MainActor.assumeIsolated { self?.lifecycle.windowOpened(kind) }
+            })
+        }
+        entry.observers.append(center.addObserver(forName: NSWindow.willCloseNotification, object: nsWindow, queue: .main) { [weak self] _ in
+            MainActor.assumeIsolated { self?.windowWillClose(kind) }
+        })
+        tracked.append(entry)
+        if nsWindow.isVisible { lifecycle.windowOpened(kind) }
+    }
+
+    /// Whether the main window is open (on the screen or in the Dock).
+    var mainWindowOpen: Bool { lifecycle.openWindows.contains(.main) }
+
+    private func windowWillClose(_ kind: AppWindow) {
+        if kind == .main {
+            let steps = LifecyclePolicy.stepsWhenMainWindowCloses(phase: model.phase, confirmationOpen: model.confirmation != nil)
+            for step in steps {
+                switch step {
+                case .stopCleaning: model.stop()
+                case .cancelConfirmation: model.cancelClean()
+                }
+            }
+        }
+        lifecycle.windowClosed(kind)
+    }
+
+    // MARK: opening the window
+
+    /// Brings cmm forward with its window at rest: the Dock icon back, the pane closed, nothing focused, and an open card
+    /// answered with Cancel (which runs nothing). What the window shows otherwise (a scan, a result) stays as it is.
+    func openMainWindow() {
+        if model.confirmation != nil { model.cancelClean() }
+        window.comeToRest()
+        bringMainWindowForward()
+    }
+
+    /// The menu bar item's "Last cleaned" row: the window at rest, with the pane open on History.
+    func openHistory() {
+        if model.confirmation != nil { model.cancelClean() }
+        window.comeToRestOnHistory()
+        bringMainWindowForward()
+    }
+
+    private func bringMainWindowForward() {
+        lifecycle.openingMainWindow()
+        if let openWindow {
+            openWindow(id: "main")
+        } else {
+            tracked.first { $0.kind == .main }?.window?.makeKeyAndOrderFront(nil)
+        }
+        NSApp.activate()
+    }
+
+    /// cmm was opened again (from Finder, the Dock or Spotlight) while it runs. With the menu bar item on, that is a way of opening
+    /// the window, so it opens at rest; without it, the system does what it always did. Returns whether the system should still
+    /// do its own part.
+    func reopen(hasVisibleWindows: Bool) -> Bool {
+        guard settings.menuBarEnabled, !hasVisibleWindows else { return true }
+        openMainWindow()
+        return false
+    }
+}
+
+/// Tells the services which of cmm's windows a view is in, as soon as it is in one.
+struct WindowTracker: NSViewRepresentable {
+    let kind: AppWindow
+    let services: AppServices
+
+    func makeNSView(context: Context) -> TrackingView {
+        let view = TrackingView()
+        view.report = { [services, kind] window in services.track(window, as: kind) }
+        return view
+    }
+
+    func updateNSView(_ view: TrackingView, context: Context) {}
+
+    final class TrackingView: NSView {
+        var report: ((NSWindow) -> Void)?
+
+        override func viewDidMoveToWindow() {
+            super.viewDidMoveToWindow()
+            if let window { report?(window) }
+        }
+    }
+}
+
+/// What the main window hands the services: which window it is, SwiftUI's way to open it again, and, once, whether the window
+/// that opened with the app should stay (it is the window, not the app, that can close itself). Then the first scan, as before.
+struct MainWindowHandOff: ViewModifier {
+    let services: AppServices
+    @Environment(\.openWindow) private var openWindow
+    @Environment(\.dismissWindow) private var dismissWindow
+
+    func body(content: Content) -> some View {
+        content
+            .background(WindowTracker(kind: .main, services: services))
+            .onAppear { services.openWindow = openWindow }
+            .task {
+                // A login launch with the menu bar item on shows no window: the one SwiftUI opened with the app closes at once,
+                // and does not scan.
+                let stays = await services.lifecycle.mainWindowShouldStay()
+                guard !Task.isCancelled else { return }
+                guard stays else { return dismissWindow(id: "main") }
+                if services.model.phase == .idle { await services.model.scan() }
+            }
+    }
+}
