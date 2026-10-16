@@ -125,10 +125,13 @@ final class HistoryViewsTests: XCTestCase {
     func rig(for scenario: Scenario) async throws -> Rig {
         switch scenario {
         case .board:
+            // the cleaning with the failed item open, and the pointer on the board's reading
             let report = try HistoryBoard.report()
             return try await rig(
                 report: { report },
-                state: HistoryFaceState(expanded: [HistoryBoard.runID(HistoryBoard.at(10, 9, 9, 41))])
+                state: HistoryFaceState(
+                    expanded: [HistoryBoard.runID(HistoryBoard.at(10, 9, 9, 41))], pointerTime: HistoryBoard.at(10, 7, 15, 0)
+                )
             )
         }
     }
@@ -159,6 +162,7 @@ final class HistoryViewsTests: XCTestCase {
         XCTAssertEqual(rows.map(\.dateText), ["Tue 14 Oct", "Tue 14 Oct", "Thu 9 Oct", "Mon 29 Sep"])
         XCTAssertEqual(rows.map(\.timeText), ["14:20", "14:06", "09:41", "10:02"])
         XCTAssertEqual(rows.map(\.freedText), ["0 GB freed", "5.4 GB freed", "2.2 GB freed", "36.4 GB freed"])
+        guard rows.count == 4 else { return XCTFail("the board has four cleanings") }
         XCTAssertEqual(rows[0].insideText, "9.0 GB inside Docker's disk image, not counted")
         XCTAssertEqual(rows[1].groupsText, "Idle lane dependencies, uv cache, Go build cache")
         XCTAssertEqual(rows[2].failedText, "1 failed")

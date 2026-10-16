@@ -31,10 +31,15 @@ struct HistoryFace: View {
     }
 }
 
-/// The face once there is something to show: the paragraph, then the weeks of cleanings. It scrolls as one sheet, like the List.
+/// The face once there is something to show: the paragraph, the chart and the words under it, then the weeks of cleanings. It
+/// scrolls as one sheet, like the List.
 struct HistoryFaceContent: View {
     let presentation: HistoryPresentation?
     let state: HistoryFaceState
+    @Environment(\.cmm) private var env
+
+    /// The board's column: the pane less 18 pt on each side.
+    static let width = HeroLayout.paneWidth - 36
 
     var body: some View {
         ScrollView {
@@ -50,12 +55,44 @@ struct HistoryFaceContent: View {
 
     @ViewBuilder
     private func face(_ presentation: HistoryPresentation) -> some View {
+        let chart = presentation.timeline?.chart
         if let summary = presentation.summary {
             HistoryParagraph(text: summary)
-                .padding(.bottom, 12)
+                // the chart reads these same words to VoiceOver, once
+                .accessibilityHidden(chart != nil)
+                .padding(.bottom, chart != nil ? 10 : 12)
+        }
+        if let timeline = presentation.timeline {
+            if let chart {
+                HistoryChart(
+                    layout: HistoryChartLayout(chart: chart, width: Self.width, calendar: env.calendar, locale: env.locale),
+                    label: presentation.chartLabel, state: state
+                )
+                .padding(.horizontal, 18)
+            }
+            if let caption = timeline.caption {
+                // "History fills in as cmm runs: 3 days so far." under a line that is still short
+                Text(caption)
+                    .font(Typeface.ui(11.5))
+                    .foregroundStyle(Theme.ink2)
+                    .lineSpacing(16 - 13.54)
+                    .fixedSize(horizontal: false, vertical: true)
+                    .padding(.horizontal, 18)
+                    .padding(.top, chart != nil ? 2 : 0)
+            }
+            Color.clear.frame(height: 12)
         }
         if let message = presentation.emptyMessage {
-            HistoryParagraph(text: message)
+            if chart != nil {
+                // a line and no cleaning yet: the words stand where the list will be, quietly
+                Text(message)
+                    .font(Typeface.ui(12.5))
+                    .foregroundStyle(Theme.ink2)
+                    .fixedSize(horizontal: false, vertical: true)
+                    .padding(.horizontal, 18)
+            } else {
+                HistoryParagraph(text: message)
+            }
         }
         weeks(presentation.rows)
         if let footnote = presentation.rows.footnote {
