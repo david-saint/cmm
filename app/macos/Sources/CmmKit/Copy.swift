@@ -50,6 +50,10 @@ public enum RuleCatalog {
         var command: String?
         /// A fixed second line for a group (Docker's).
         var blurb: String?
+        /// A shorter name for a tile of the map, where the tile is small ("Homebrew").
+        var mapTitle: String?
+        /// A clause the map's caption adds for a group of commands ("volumes are never offered").
+        var mapClause: String?
     }
 
     static let entries: [String: Entry] = [
@@ -82,10 +86,11 @@ public enum RuleCatalog {
             title: "Unavailable simulators", label: "Simulators whose runtime was removed", phrase: .text("unavailable simulators")),
         "homebrew": Entry(
             title: "Homebrew old versions", label: "Homebrew: old versions of installed formulae (brew cleanup)",
-            phrase: .text("old Homebrew versions"), command: "brew cleanup"),
+            phrase: .text("old Homebrew versions"), command: "brew cleanup", mapTitle: "Homebrew"),
         "docker": Entry(
             title: "Docker", label: "Docker: unused images, stopped containers and build cache (review first)",
-            phrase: .text("Docker's unused data"), blurb: "Unused images, stopped containers, build cache. Volumes are never offered."),
+            phrase: .text("Docker's unused data"), blurb: "Unused images, stopped containers, build cache. Volumes are never offered.",
+            mapClause: "volumes are never offered"),
     ]
 
     /// The catalog's title for a rule, or nil when the rule is not one of cmm's built-ins.
@@ -99,6 +104,11 @@ public enum RuleCatalog {
         if let known = entries[rule]?.title { return known }
         let fromLabel = LabelParts(label).title
         return fromLabel.isEmpty ? humanized(rule: rule) : fromLabel
+    }
+
+    /// The name of a tile of the map: the catalog's short one where it has one, else the group's title.
+    public static func mapTitle(rule: String, label: String) -> String {
+        entries[rule]?.mapTitle ?? title(rule: rule, label: label)
     }
 
     /// `some-new-rule` -> `Some new rule`.
