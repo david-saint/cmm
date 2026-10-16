@@ -96,9 +96,9 @@ public enum MapCaptionRule {
     }
 }
 
-/// What a tile shows by its size, in points: the name and the size from 96 x 56, the size alone from 44 x 28, the badge
-/// alone from 28 x 28, and below that only the fill. Such a tile is still reached by hover, the arrow keys, Space and
-/// VoiceOver, which is why the badge and the words are never the only way to it.
+/// What a tile shows by its size, in points: the name and the size from 96 x 56, the size alone from 44 x 28 (and only
+/// when it fits whole beside the badge), the badge alone from 28 x 28, and below that only the fill. Such a tile is still
+/// reached by hover, the arrow keys, Space and VoiceOver, which is why the badge and the words are never the only way to it.
 public enum TileLabels {
     public enum Level: Int, Comparable, Sendable {
         case fillOnly
@@ -113,12 +113,32 @@ public enum TileLabels {
         public var showsName: Bool { self >= .nameAndSize }
     }
 
-    public static func level(for size: CGSize) -> Level {
+    /// `sizeText` is what the tile would say: a tile too narrow to say it whole shows the badge alone, because a size cut
+    /// short ("5…") says less than none. Without it only the tile's own size decides.
+    public static func level(for size: CGSize, sizeText: String? = nil) -> Level {
         let (w, h) = (Double(size.width), Double(size.height))
         if w >= 96, h >= 56 { return .nameAndSize }
-        if w >= 44, h >= 28 { return .sizeOnly }
+        if w >= 44, h >= 28, sizeFits(sizeText, in: w) { return .sizeOnly }
         if w >= 28, h >= 28 { return .badgeOnly }
         return .fillOnly
+    }
+
+    /// Where a size that stands alone starts: clear of the badge (8 pt in, 16 pt wide) and a gap.
+    public static let sizeLeading = 30.0
+
+    /// How wide a size is, set at 12 pt medium with tabular figures. Measured on the system font and rounded up by a
+    /// fraction of a point, so a tile that this lets keep its size never cuts it short.
+    public static func sizeWidth(_ text: String) -> Double {
+        text.reduce(0.0) { $0 + (glyphWidths[$1] ?? ($1.isNumber ? 7.8 : 10.7)) }
+    }
+
+    private static let glyphWidths: [Character: Double] = [
+        ".": 3.8, ",": 3.8, " ": 3.3, "M": 10.7, "B": 8.1, "G": 9.1, "K": 8.2, "T": 7.8,
+    ]
+
+    private static func sizeFits(_ text: String?, in width: Double) -> Bool {
+        guard let text else { return true }
+        return width - sizeLeading >= sizeWidth(text)
     }
 
     /// 8 pt, or 5 pt when a side is under 30 pt.
@@ -127,9 +147,11 @@ public enum TileLabels {
     }
 
     /// The badge is 16 pt and sits 8 pt from the top left; in a tile too narrow (under the size's 44) or too low (under the
-    /// name's 56) for that margin it is centred across, as on the board.
-    public static func badgeOrigin(for size: CGSize) -> CGPoint {
-        let x = size.width < 44 ? ((Double(size.width) - 16) / 2).rounded(.down) : 8
+    /// name's 56) for that margin it is centred across, as on the board. With the `level` the tile shows, a badge that
+    /// stands alone is centred across however wide the tile is: there is no size beside it to keep the margin for.
+    public static func badgeOrigin(for size: CGSize, level: Level? = nil) -> CGPoint {
+        let alone = level.map { $0 < .sizeOnly } ?? false
+        let x = size.width < 44 || alone ? ((Double(size.width) - 16) / 2).rounded(.down) : 8
         let y = size.height < 56 ? ((Double(size.height) - 16) / 2).rounded(.down) : 8
         return CGPoint(x: x, y: y)
     }

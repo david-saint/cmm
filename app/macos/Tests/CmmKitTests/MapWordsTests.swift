@@ -27,6 +27,35 @@ final class TileLabelTests: XCTestCase {
         XCTAssertEqual(level(28, 27.9), .fillOnly)
     }
 
+    func testASizeThatWouldBeCutShortIsLeftOff() {
+        // the size starts 30 pt in, clear of the badge: "54 MB" (37 pt wide) needs about 68 pt, "0.4 GB" (40 pt) about 70
+        func level(_ width: Double, _ text: String) -> TileLabels.Level {
+            TileLabels.level(for: CGSize(width: width, height: 88), sizeText: text)
+        }
+        XCTAssertEqual(level(46, "54 MB"), .badgeOnly, "the narrow tile that read an ellipsis on the live window")
+        XCTAssertEqual(level(48, "67 MB"), .badgeOnly)
+        XCTAssertEqual(level(67, "54 MB"), .badgeOnly)
+        XCTAssertEqual(level(68, "54 MB"), .sizeOnly)
+        XCTAssertEqual(level(71, "53 MB"), .sizeOnly)
+        XCTAssertEqual(level(69, "0.4 GB"), .badgeOnly)
+        XCTAssertEqual(level(72, "0.4 GB"), .sizeOnly)
+        XCTAssertEqual(TileLabels.level(for: CGSize(width: 46, height: 20), sizeText: "54 MB"), .fillOnly, "the height still decides first")
+        XCTAssertEqual(TileLabels.level(for: CGSize(width: 120, height: 88), sizeText: "999.9 GB"), .nameAndSize, "a tile with room for the name always has it for the size")
+    }
+
+    func testTheWidthOfASizeIsAHairOverTheRealGlyphs() {
+        // measured with the system font at 12 pt medium and tabular figures
+        let measured: [(String, Double)] = [
+            ("55 MB", 37.43), ("0.1 GB", 39.61), ("10.0 GB", 47.35), ("999.9 GB", 55.09),
+            ("250 KB", 42.67), ("12 B", 26.80), ("1.4 TB", 38.31),
+        ]
+        for (text, real) in measured {
+            let estimate = TileLabels.sizeWidth(text)
+            XCTAssertGreaterThanOrEqual(estimate, real, "never under: a size cut short is the failure (\(text))")
+            XCTAssertLessThan(estimate - real, 1.0, "and not far over, or a tile loses a size that would have fit (\(text))")
+        }
+    }
+
     func testSmallerThanThatIsFillOnly() {
         XCTAssertEqual(level(22, 38), .fillOnly)
         XCTAssertEqual(level(0, 0), .fillOnly)
@@ -54,6 +83,13 @@ final class TileLabelTests: XCTestCase {
         XCTAssertEqual(TileLabels.badgeOrigin(for: CGSize(width: 37, height: 149)), CGPoint(x: 10, y: 8), "the board: left 10 in a 37 wide tile")
         XCTAssertEqual(TileLabels.badgeOrigin(for: CGSize(width: 79, height: 38)), CGPoint(x: 8, y: 11), "the board: top 11 in a 38 high tile")
         XCTAssertEqual(TileLabels.badgeOrigin(for: CGSize(width: 28, height: 28)), CGPoint(x: 6, y: 6))
+    }
+
+    func testABadgeAloneInATileTooNarrowForItsSizeIsCentredLikeTheBoardsNarrowTiles() {
+        let size = CGSize(width: 46, height: 88)
+        XCTAssertEqual(TileLabels.badgeOrigin(for: size), CGPoint(x: 8, y: 8), "beside a size it keeps its margin")
+        XCTAssertEqual(TileLabels.badgeOrigin(for: size, level: .sizeOnly), CGPoint(x: 8, y: 8))
+        XCTAssertEqual(TileLabels.badgeOrigin(for: size, level: .badgeOnly), CGPoint(x: 15, y: 8))
     }
 
     func testTheSizeIsSetLargerInLargerTiles() {

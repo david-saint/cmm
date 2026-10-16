@@ -16,15 +16,16 @@ struct MapTileView: View {
 
     var body: some View {
         let size = tile.rect.size
-        let level = TileLabels.level(for: size)
+        let level = TileLabels.level(for: size, sizeText: tile.sizeText)
         let radius = TileLabels.cornerRadius(for: size)
+        let badge = TileLabels.badgeOrigin(for: size, level: level)
         Button(action: select) {
             ZStack(alignment: .topLeading) {
                 TileSkin(tile: tile, hovered: hovered, radius: radius)
                 if level.showsBadge {
                     RoundCheck(state: tile.state, size: 16, solidOff: true)
-                        .padding(.leading, TileLabels.badgeOrigin(for: size).x)
-                        .padding(.top, TileLabels.badgeOrigin(for: size).y)
+                        .padding(.leading, badge.x)
+                        .padding(.top, badge.y)
                 }
                 words(level: level, size: size)
             }
@@ -68,7 +69,7 @@ struct MapTileView: View {
                 .monospacedDigit()
                 .foregroundStyle(Theme.ink)
                 .lineLimit(1)
-                .padding(.leading, 30)
+                .padding(.leading, TileLabels.sizeLeading)
                 .frame(width: size.width, height: size.height, alignment: .leading)
         case .badgeOnly, .fillOnly:
             EmptyView()
