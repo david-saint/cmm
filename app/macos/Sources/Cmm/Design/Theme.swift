@@ -107,6 +107,31 @@ enum Theme {
     /// The hairline between "List" and "Map".
     static let switchDivider = tone(RGBA(0x000000, 0.18), RGBA(0xFFFFFF, 0.22), lightStrong: RGBA(0x000000, 0.55), darkStrong: RGBA(0xFFFFFF, 0.65))
 
+    // The map: its tiles (safe green, review amber), the ring of the keyboard focus, the badge's ground, and the band's slices
+    static let nothing = tone(RGBA(0x000000, 0), RGBA(0x000000, 0))
+    static let tileOnFill = tone(RGBA(0x14975A, 0.14), RGBA(0x30C477, 0.20), lightStrong: RGBA(0x0B6B3F, 0.20), darkStrong: RGBA(0x5BE08F, 0.28))
+    static let tileOnLine = tone(RGBA(0x14975A, 0.38), RGBA(0x30C477, 0.45), lightStrong: RGBA(0x0B6B3F, 0.85), darkStrong: RGBA(0x5BE08F, 0.85))
+    static let tileOffFill = tone(RGBA(0x14975A, 0.04), RGBA(0x30C477, 0.06), lightStrong: RGBA(0x0B6B3F, 0.07), darkStrong: RGBA(0x5BE08F, 0.10))
+    static let tileOffLine = tone(RGBA(0x14975A, 0.22), RGBA(0x30C477, 0.26), lightStrong: RGBA(0x0B6B3F, 0.70), darkStrong: RGBA(0x5BE08F, 0.70))
+    /// Hover: the fill goes up by six points of green, the stroke to 60 and 65 %.
+    static let tileHoverOffFill = tone(RGBA(0x14975A, 0.10), RGBA(0x30C477, 0.12), lightStrong: RGBA(0x0B6B3F, 0.13), darkStrong: RGBA(0x5BE08F, 0.16))
+    static let tileHoverOnFill = tone(RGBA(0x14975A, 0.20), RGBA(0x30C477, 0.26), lightStrong: RGBA(0x0B6B3F, 0.26), darkStrong: RGBA(0x5BE08F, 0.34))
+    static let tileHoverLine = tone(RGBA(0x14975A, 0.60), RGBA(0x30C477, 0.65), lightStrong: RGBA(0x0B6B3F, 0.95), darkStrong: RGBA(0x5BE08F, 0.95))
+    /// A review tile has no fill until it is ticked (then 12 and 16 % amber); hover adds six points.
+    static let reviewTickedFill = tone(RGBA(0xD58A1E, 0.12), RGBA(0xE9A23B, 0.16), lightStrong: RGBA(0xA8650A, 0.18), darkStrong: RGBA(0xF4B656, 0.24))
+    static let reviewHoverFill = tone(RGBA(0xD58A1E, 0.06), RGBA(0xE9A23B, 0.08), lightStrong: RGBA(0xA8650A, 0.10), darkStrong: RGBA(0xF4B656, 0.12))
+    static let reviewTickedHoverFill = tone(RGBA(0xD58A1E, 0.18), RGBA(0xE9A23B, 0.22), lightStrong: RGBA(0xA8650A, 0.26), darkStrong: RGBA(0xF4B656, 0.32))
+    /// The ring of the keyboard focus: ink at 80 % (85 % in dark).
+    static let focusRing = tone(RGBA(0x0D0D0F, 0.80), RGBA(0xF5F5F7, 0.85), lightStrong: RGBA(0x0D0D0F, 1), darkStrong: RGBA(0xF5F5F7, 1))
+    /// The pane without its translucency: the gap between a focused tile and its ring.
+    static let paneSolid = tone(0xF6F6F7, 0x1E1E20)
+    /// The ground of an unticked badge, so a green tile does not show through its ring.
+    static let badgeOffFill = tone(0xFFFFFF, 0x1E1E20)
+    static let sliceOff = tone(RGBA(0x14975A, 0.22), RGBA(0x30C477, 0.26), lightStrong: RGBA(0x0B6B3F, 0.45), darkStrong: RGBA(0x5BE08F, 0.50))
+    static let sliceLit = tone(RGBA(0x14975A, 0.55), RGBA(0x30C477, 0.60), lightStrong: RGBA(0x0B6B3F, 0.80), darkStrong: RGBA(0x5BE08F, 0.85))
+    /// The bracket under the magnified end.
+    static let bracket = tone(RGBA(0x000000, 0.22), RGBA(0xFFFFFF, 0.25), lightStrong: RGBA(0x000000, 0.60), darkStrong: RGBA(0xFFFFFF, 0.65))
+
     // Buttons
     static let button = tone(0x0D0D0F, 0xF5F5F7)
     static let buttonText = tone(0xFFFFFF, 0x0B0B0C)

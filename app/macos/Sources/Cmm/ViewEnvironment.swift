@@ -13,6 +13,9 @@ struct ViewEnvironment: Sendable {
     /// +1 in the app. The offscreen snapshots (`NSView.cacheDisplay`) draw a layer's shadow offset upside down, so the
     /// snapshot renderer sets -1 and the PNGs show the shadow where the window does: below.
     var shadowDirection: CGFloat = 1
+    /// False in the app. The snapshot tests set it to draw the map's focus ring (and the caption that follows the focus)
+    /// for the focused tile although an offscreen window never has the keyboard.
+    var showsFocusWithoutKeyboard = false
 }
 
 private struct ViewEnvironmentKey: EnvironmentKey {

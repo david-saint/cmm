@@ -105,6 +105,7 @@ final class AppViewsTests: XCTestCase {
         case scanning
         case rest, restReview, restUnticked, restNoCapacity, restDockerTicked
         case details, detailsExpanded, detailsReviewExpanded
+        case map, mapDockerFocused, mapDockerTicked, mapHovered
         case sheet, sheetDockerTicked
         case cleaning, cleaningInside, done, doneProblems, doneStopped, doneInside
         case empty
@@ -118,7 +119,8 @@ final class AppViewsTests: XCTestCase {
         calendar: BoardClock.calendar,
         locale: Locale(identifier: "en_GB"),
         reveal: { _ in },
-        shadowDirection: -1  // cacheDisplay draws layer shadows upside down; see ViewEnvironment
+        shadowDirection: -1,  // cacheDisplay draws layer shadows upside down; see ViewEnvironment
+        showsFocusWithoutKeyboard: true  // an offscreen window never has the keyboard
     )
 
     struct Rig {
@@ -210,6 +212,31 @@ final class AppViewsTests: XCTestCase {
             let docker = try XCTUnwrap(model.selection?.groups.first { $0.section == .review })
             model.toggle(try XCTUnwrap(docker.items.first))
             return Rig(model: model, window: WindowState(detailsOpen: true, expanded: [docker.id], face: .list))
+
+        case .map, .mapDockerFocused, .mapDockerTicked, .mapHovered:
+            let (model, _) = await readyModel(board)
+            let window = WindowState(detailsOpen: true, face: .map)
+            func tile(_ title: String, _ subtitle: String? = nil) throws -> MapTile {
+                let map = MapModel(selection: try XCTUnwrap(model.selection), size: CGSize(width: 416, height: 520), home: "/Users/test")
+                return try XCTUnwrap(map.tiles.first { $0.title == title && $0.subtitle == subtitle }, title)
+            }
+            switch scenario {
+            case .mapDockerFocused:
+                // the board: two safe tiles ticked (lane-a node_modules and uv), Docker under the keyboard, the pointer on Go
+                for item in model.selection?.groups.flatMap(\.items) ?? [] where item.tier == .safe {
+                    if item.path != "/Users/test/lane-builds/lane-a/node_modules" && item.path != "/Users/test/.cache/uv" { model.toggle(item) }
+                }
+                window.focusedTile = try tile("Docker").id
+                window.hoveredTile = try tile("Go build cache", "~/Library/Caches/go-build").id
+            case .mapDockerTicked:
+                model.toggle(try XCTUnwrap(model.selection?.groups.first { $0.section == .review }))
+                window.focusedTile = try tile("Docker").id
+            case .mapHovered:
+                window.hoveredTile = try tile("uv cache", "~/.cache/uv").id
+            default:
+                break
+            }
+            return Rig(model: model, window: window)
 
         case .sheet:
             let (model, _) = await readyModel(board)
@@ -384,7 +411,8 @@ final class AppViewsTests: XCTestCase {
         let expected: [Scenario: AppModel.Phase] = [
             .scanning: .scanning, .rest: .ready, .restReview: .ready, .restUnticked: .ready, .restNoCapacity: .ready,
             .details: .ready, .detailsExpanded: .ready, .detailsReviewExpanded: .ready, .sheet: .ready,
-            .restDockerTicked: .ready, .sheetDockerTicked: .ready, .cleaningInside: .cleaning, .doneInside: .done,
+            .restDockerTicked: .ready, .sheetDockerTicked: .ready, .map: .ready, .mapDockerFocused: .ready,
+            .mapDockerTicked: .ready, .mapHovered: .ready, .cleaningInside: .cleaning, .doneInside: .done,
             .cleaning: .cleaning, .done: .done, .doneProblems: .done, .doneStopped: .done, .empty: .empty,
             .errorScan: .failed, .errorClean: .failed, .errorMissing: .failed,
         ]

@@ -50,11 +50,14 @@ struct CheckShape: Shape {
 struct RoundCheck: View {
     let state: TriState
     var size: CGFloat = 18
+    /// On a tinted tile the unticked ring sits on a ground of its own, so the tile's colour does not show through it.
+    var solidOff = false
 
     var body: some View {
         ZStack {
             switch state {
             case .off:
+                if solidOff { Circle().fill(Theme.badgeOffFill) }
                 Circle().strokeBorder(Theme.ring, lineWidth: 1.5)
             case .on:
                 Circle().fill(Theme.accent)

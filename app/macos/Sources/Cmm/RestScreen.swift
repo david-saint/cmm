@@ -39,7 +39,11 @@ struct RestScreen: View {
             RestHero(
                 copy: copy, layout: layout, detailsOpen: open, covered: covered,
                 clean: { model.requestClean() },
-                review: { withAnimation(motion.animation) { window.openDetails(showing: .review) } }
+                review: {
+                    // "Review 9.0 GB more": the pane on the map, the tile that needs a look under the keyboard
+                    let map = MapModel(selection: selection, size: CGSize(width: 416, height: 520), home: env.home)
+                    withAnimation(motion.animation) { window.openMap(focusing: map.reviewTileID) }
+                }
             )
             .padding(.leading, layout.leading)
             .padding(.top, layout.top)
