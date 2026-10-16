@@ -28,29 +28,44 @@ struct RestScreen: View {
 
     private func content(selection: SelectionModel, size: CGSize) -> some View {
         let open = window.detailsOpen
+        let mapOpen = window.mapOpen
         let motion = MotionStyle.resolve(reduceMotion: reduceMotion)
-        let layout = HeroLayout(screen: .rest, detailsOpen: open, width: size.width, height: size.height)
+        let layout = HeroLayout(screen: .rest, detailsOpen: open, mapOpen: mapOpen, width: size.width, height: size.height)
         let copy = RestCopy(selection: selection, volumeName: env.volumeName(selection.plan))
         // Under the confirmation card only the headline and the bar remain, dimmed; the sentence, the pill and the
         // captions give way to the card, which grew out of the pill.
         let covered = model.confirmation != nil
+        // The map as it is, or would be, in this window: the band's slices are its tiles, and the review link opens it
+        // on the tile that needs a look.
+        let host = selection.plan.host
+        let map = MapModel(selection: selection, size: HeroLayout.mapArea(windowHeight: size.height), home: env.home)
+        let doorway = BandDoorway(map: map, capacity: host.capacityBytes, free: host.freeBytes, width: layout.bandWidth)
+        let flight = window.flight
+        let plan = flight.flatMap { scheduled($0, map: map, host: host, size: size) }
+        let showMap: () -> Void = {
+            withAnimation(motion.animation) { window.openMap(focusing: map.reviewTileID) }
+        }
 
         return ZStack(alignment: .topLeading) {
             RestHero(
                 copy: copy, layout: layout, detailsOpen: open, covered: covered,
                 clean: { model.requestClean() },
-                review: {
-                    // "Review 9.0 GB more": the pane on the map, the tile that needs a look under the keyboard
-                    let map = MapModel(selection: selection, size: CGSize(width: 416, height: 520), home: env.home)
-                    withAnimation(motion.animation) { window.openMap(focusing: map.reviewTileID) }
-                }
+                // "Review 9.0 GB more": the pane on the map, the tile that needs a look under the keyboard
+                review: showMap
             )
             .padding(.leading, layout.leading)
             .padding(.top, layout.top)
 
             BandBlock(
                 band: copy.band, caption: copy.caption, sentence: copy.bandSentence, layout: layout,
-                insideLine: copy.insideLine, heldLine: open ? nil : copy.heldLine, covered: covered
+                insideLine: copy.insideLine, heldLine: open ? nil : copy.heldLine, covered: covered,
+                doorway: doorway.map { band in
+                    BandBlock.Doorway(
+                        band: band, window: window, motion: motion,
+                        open: { id in withAnimation(motion.animation) { window.openMap(focusing: id) } },
+                        showMap: showMap
+                    )
+                }
             )
             .offset(x: layout.bandLeading, y: layout.bandTop)
 
@@ -68,8 +83,39 @@ struct RestScreen: View {
                     .padding(.trailing, 20)
                     .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topTrailing)
             }
+
+            // the slices in the air: over everything, from the moment they leave to the moment the tiles take over
+            if let plan, let flight {
+                FlightOverlay(plan: plan, startedAt: flight.startedAt, fixedTime: env.flightTime)
+                    .transition(.asymmetric(insertion: .identity, removal: .opacity))
+            }
         }
         .animation(motion.animation, value: open)
+        .animation(motion.animation, value: mapOpen)
+        .task(id: window.flight?.generation) { await land(plan) }
+    }
+
+    /// Where the slices are going between, for the flight that is under way. Unfolding they leave the band as it was before
+    /// the pane opened (the narrow one when the pane was open already); folding they go back to the band of a closed pane.
+    private func scheduled(_ flight: WindowState.Flight, map: MapModel, host: CmmKit.Host, size: CGSize) -> FlightSchedule? {
+        let unfolding = flight.kind == .unfold
+        let band = HeroLayout(
+            screen: .rest, detailsOpen: unfolding ? flight.paneWasOpen : false, mapOpen: false, width: size.width, height: size.height
+        )
+        return FlightSchedule(
+            direction: unfolding ? .unfold : .fold, map: map, capacity: host.capacityBytes, free: host.freeBytes, band: band,
+            enlarged: flight.bandWasMagnified, windowWidth: size.width
+        )
+    }
+
+    /// When the flight's time is up the tiles take over from the shapes that flew, with a quick crossfade (the two look the
+    /// same, so there is nothing to see but the words arriving).
+    private func land(_ plan: FlightSchedule?) async {
+        guard env.flightTime == nil, let flight = window.flight else { return }
+        let remaining = (plan?.duration ?? 0) - Date().timeIntervalSince(flight.startedAt)
+        if remaining > 0 { try? await Task.sleep(for: .seconds(remaining)) }
+        guard !Task.isCancelled, window.flight?.generation == flight.generation else { return }
+        withAnimation(.easeOut(duration: 0.12)) { window.landFlight(flight.generation) }
     }
 }
 

@@ -16,6 +16,9 @@ struct ViewEnvironment: Sendable {
     /// False in the app. The snapshot tests set it to draw the map's focus ring (and the caption that follows the focus)
     /// for the focused tile although an offscreen window never has the keyboard.
     var showsFocusWithoutKeyboard = false
+    /// Nil in the app, where the flights between the band and the map run on the clock. The snapshot tests set a time (in
+    /// seconds since the flight began) to draw the same moment of a flight every time.
+    var flightTime: Double?
 }
 
 private struct ViewEnvironmentKey: EnvironmentKey {

@@ -106,6 +106,7 @@ final class AppViewsTests: XCTestCase {
         case rest, restReview, restUnticked, restNoCapacity, restDockerTicked
         case details, detailsExpanded, detailsReviewExpanded
         case map, mapDockerFocused, mapDockerTicked, mapHovered
+        case bandHovered, unfoldEarly, unfoldMid, unfoldLate, foldMid
         case sheet, sheetDockerTicked
         case cleaning, cleaningInside, done, doneProblems, doneStopped, doneInside
         case empty
@@ -122,6 +123,19 @@ final class AppViewsTests: XCTestCase {
         shadowDirection: -1,  // cacheDisplay draws layer shadows upside down; see ViewEnvironment
         showsFocusWithoutKeyboard: true  // an offscreen window never has the keyboard
     )
+
+    /// The environment a scenario is drawn in: the same, but for the moment of a flight that is frozen mid-air.
+    static func env(for scenario: Scenario) -> ViewEnvironment {
+        var env = Self.env
+        switch scenario {
+        case .unfoldEarly: env.flightTime = 0.08
+        case .unfoldMid: env.flightTime = 0.22
+        case .unfoldLate: env.flightTime = 0.45
+        case .foldMid: env.flightTime = 0.17
+        default: break
+        }
+        return env
+    }
 
     struct Rig {
         let model: AppModel
@@ -237,6 +251,31 @@ final class AppViewsTests: XCTestCase {
                 break
             }
             return Rig(model: model, window: window)
+
+        case .bandHovered, .unfoldEarly, .unfoldMid, .unfoldLate, .foldMid:
+            let (model, _) = await readyModel(board)
+            let map = MapModel(selection: try XCTUnwrap(model.selection), size: HeroLayout.mapArea(windowHeight: 720), home: "/Users/test")
+            func tile(_ title: String) throws -> String { try XCTUnwrap(map.tiles.first { $0.title == title }, title).id }
+            switch scenario {
+            case .bandHovered:
+                // the pointer is on uv's slice of the band, the pane closed
+                let window = WindowState(face: .map)
+                window.bandHovered = true
+                window.hoveredTile = try tile("uv cache")
+                return Rig(model: model, window: window)
+            case .foldMid:
+                let window = WindowState(detailsOpen: true, face: .map)
+                window.closeDetails()
+                return Rig(model: model, window: window)
+            default:
+                // the pointer was on uv's slice when it was clicked: the band's end was already enlarged
+                let window = WindowState(face: .map)
+                window.bandHovered = true
+                window.hoveredTile = try tile("uv cache")
+                window.openMap(focusing: try tile("uv cache"))
+                XCTAssertEqual(window.flight?.kind, .unfold)
+                return Rig(model: model, window: window)
+            }
 
         case .sheet:
             let (model, _) = await readyModel(board)
@@ -377,7 +416,7 @@ final class AppViewsTests: XCTestCase {
     func testEveryScreenDrawsInLightAndDarkAndFollowsTheAppearance() async throws {
         for scenario in Scenario.allCases {
             let rig = try await rig(for: scenario)
-            let view = RootView(model: rig.model, window: rig.window, env: Self.env)
+            let view = RootView(model: rig.model, window: rig.window, env: Self.env(for: scenario))
 
             let light = try render(view, name: scenario.rawValue, appearance: .aqua)
             let dark = try render(view, name: scenario.rawValue, appearance: .darkAqua)
@@ -412,7 +451,8 @@ final class AppViewsTests: XCTestCase {
             .scanning: .scanning, .rest: .ready, .restReview: .ready, .restUnticked: .ready, .restNoCapacity: .ready,
             .details: .ready, .detailsExpanded: .ready, .detailsReviewExpanded: .ready, .sheet: .ready,
             .restDockerTicked: .ready, .sheetDockerTicked: .ready, .map: .ready, .mapDockerFocused: .ready,
-            .mapDockerTicked: .ready, .mapHovered: .ready, .cleaningInside: .cleaning, .doneInside: .done,
+            .mapDockerTicked: .ready, .mapHovered: .ready, .bandHovered: .ready, .unfoldEarly: .ready, .unfoldMid: .ready,
+            .unfoldLate: .ready, .foldMid: .ready, .cleaningInside: .cleaning, .doneInside: .done,
             .cleaning: .cleaning, .done: .done, .doneProblems: .done, .doneStopped: .done, .empty: .empty,
             .errorScan: .failed, .errorClean: .failed, .errorMissing: .failed,
         ]

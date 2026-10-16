@@ -405,16 +405,16 @@ final class MotionStyleFlightTests: XCTestCase {
 
 /// The flights between the band's slices and the map's tiles, on the boards' layout: which leaves first, where from and to,
 /// and how the flight looks at any moment.
-final class UnfoldPlanTests: XCTestCase {
+final class FlightScheduleTests: XCTestCase {
     private func map() throws -> MapModel {
         MapModel(selection: SelectionModel(plan: try TestPlans.fixture("plan-c.json")), size: CGSize(width: 416, height: 520), home: "/Users/test")
     }
 
     private func plan(
-        _ direction: UnfoldPlan.Direction, enlarged: Bool = true, details: Bool = true, width: Double = 1100, height: Double = 720
-    ) throws -> UnfoldPlan {
+        _ direction: FlightSchedule.Direction, enlarged: Bool = true, details: Bool = true, width: Double = 1100, height: Double = 720
+    ) throws -> FlightSchedule {
         let band = HeroLayout(screen: .rest, detailsOpen: details, mapOpen: false, width: width, height: height)
-        return try XCTUnwrap(UnfoldPlan(
+        return try XCTUnwrap(FlightSchedule(
             direction: direction, map: try map(), capacity: 228_000_000_000, free: 19_800_000_000, band: band, enlarged: enlarged,
             windowWidth: width
         ))
@@ -475,7 +475,7 @@ final class UnfoldPlanTests: XCTestCase {
         XCTAssertEqual(docker.bandRect.height, 6)
         XCTAssertEqual(docker.bandRect.minY, 637)
         XCTAssertLessThan(docker.bandRect.width, 25, "the true width of 9 GB on a 520 pt band of 228 GB")
-        let total = try plan.flights.map(\.bandRect.width).reduce(0, +)
+        let total = plan.flights.map(\.bandRect.width).reduce(0, +)
         XCTAssertEqual(total, 17.4 / 228 * 520 - 9, accuracy: 0.6, "the slices together are the end's true width, less the points between them")
     }
 
@@ -508,9 +508,9 @@ final class UnfoldPlanTests: XCTestCase {
 
     func testWithoutACapacityOrTilesThereIsNothingToFly() throws {
         let band = HeroLayout(screen: .rest, detailsOpen: true, mapOpen: false, width: 1100, height: 720)
-        XCTAssertNil(UnfoldPlan(direction: .unfold, map: try map(), capacity: nil, free: 0, band: band, enlarged: true, windowWidth: 1100))
+        XCTAssertNil(FlightSchedule(direction: .unfold, map: try map(), capacity: nil, free: 0, band: band, enlarged: true, windowWidth: 1100))
         let empty = MapModel(selection: SelectionModel(plan: try TestPlans.fixture("plan-empty.json")), size: CGSize(width: 416, height: 520), home: "/Users/test")
-        XCTAssertNil(UnfoldPlan(direction: .unfold, map: empty, capacity: 228_000_000_000, free: 1, band: band, enlarged: true, windowWidth: 1100))
+        XCTAssertNil(FlightSchedule(direction: .unfold, map: empty, capacity: 228_000_000_000, free: 1, band: band, enlarged: true, windowWidth: 1100))
     }
 
     // MARK: how it looks at a moment

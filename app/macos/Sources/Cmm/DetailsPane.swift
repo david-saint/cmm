@@ -64,6 +64,9 @@ struct DetailsList: View {
     let details: DetailsModel
     let window: WindowState
     var listFocused: FocusState<Bool>.Binding
+    /// False behind the confirmation card, which disables the screen: a disabled view that already has the keyboard still gets
+    /// its key presses, so the list has to leave them alone itself.
+    @Environment(\.isEnabled) private var isEnabled
 
     var body: some View {
         ScrollViewReader { proxy in
@@ -131,6 +134,7 @@ struct DetailsList: View {
     // MARK: keyboard
 
     private func handle(_ press: KeyPress, proxy: ScrollViewProxy) -> KeyPress.Result {
+        guard isEnabled else { return .ignored }
         let key: DetailsNavigation.Key
         switch press.key {
         case .upArrow: key = .up

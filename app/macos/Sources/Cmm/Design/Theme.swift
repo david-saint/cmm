@@ -131,6 +131,11 @@ enum Theme {
     static let sliceLit = tone(RGBA(0x14975A, 0.55), RGBA(0x30C477, 0.60), lightStrong: RGBA(0x0B6B3F, 0.80), darkStrong: RGBA(0x5BE08F, 0.85))
     /// The bracket under the magnified end.
     static let bracket = tone(RGBA(0x000000, 0.22), RGBA(0xFFFFFF, 0.25), lightStrong: RGBA(0x000000, 0.60), darkStrong: RGBA(0xFFFFFF, 0.65))
+    /// The empty outline of the end while its slices are in the air.
+    static let sliceGhost = tone(RGBA(0x14975A, 0.35), RGBA(0x30C477, 0.40), lightStrong: RGBA(0x0B6B3F, 0.70), darkStrong: RGBA(0x5BE08F, 0.75))
+    /// The label over the slice the pointer is on: white at 92 % with a hairline, and its dark counterpart.
+    static let bubbleFill = tone(RGBA(0xFFFFFF, 0.92), RGBA(0x2C2C2F, 0.94))
+    static let bubbleLine = tone(RGBA(0x000000, 0.14), RGBA(0xFFFFFF, 0.16), lightStrong: RGBA(0x000000, 0.55), darkStrong: RGBA(0xFFFFFF, 0.65))
 
     // Buttons
     static let button = tone(0x0D0D0F, 0xF5F5F7)

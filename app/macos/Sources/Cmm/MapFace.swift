@@ -13,17 +13,17 @@ struct MapFace: View {
     let selection: SelectionModel
     let window: WindowState
     @Environment(\.cmm) private var env
+    /// False behind the confirmation card, which disables the screen: a disabled view that already has the keyboard still gets
+    /// its key presses, so the map has to leave them alone itself.
+    @Environment(\.isEnabled) private var isEnabled
     @FocusState private var mapFocused: Bool
 
     /// The board: 18 pt of the pane on each side, and under the map 16 pt, then the caption, then room to breathe.
-    private static let sideInset = 18.0
-    private static let belowMap = 106.0
+    private static let sideInset = HeroLayout.mapSideInset
 
     var body: some View {
         GeometryReader { geometry in
-            let area = CGSize(
-                width: HeroLayout.paneWidth - 2 * Self.sideInset, height: max(geometry.size.height - Self.belowMap, 120)
-            )
+            let area = HeroLayout.mapArea(paneContentHeight: geometry.size.height)
             let map = MapModel(selection: selection, size: area, home: env.home)
             VStack(alignment: .leading, spacing: 0) {
                 if map.tiles.isEmpty {
@@ -68,12 +68,40 @@ struct MapFace: View {
 
     private var focusVisible: Bool { mapFocused || env.showsFocusWithoutKeyboard }
 
+    /// The tiles are not there while the band's slices are still flying into them: the shapes in the air are the tiles until
+    /// the plan's time is up, and then these take over.
+    private var inTheAir: Bool { window.flight?.kind == .unfold }
+
     private func tiles(_ map: MapModel, area: CGSize) -> some View {
         ZStack(alignment: .topLeading) {
             // a click in a gap between tiles still takes the keyboard
             Color.clear
                 .contentShape(Rectangle())
                 .onTapGesture { requestFocus() }
+            tileViews(map)
+                .opacity(inTheAir ? 0 : 1)
+                .allowsHitTesting(!inTheAir)
+                // gone at once when the slices leave, back with a quick fade when they land
+                .animation(inTheAir ? nil : .easeOut(duration: 0.12), value: inTheAir)
+        }
+        .frame(width: area.width, height: area.height, alignment: .topLeading)
+        .focusable()
+        .focused($mapFocused)
+        .focusEffectDisabled()
+        .onKeyPress(keys: [.upArrow, .downArrow, .leftArrow, .rightArrow, .space, .return, .home, .end]) { press in
+            handle(press, in: map)
+        }
+        .onChange(of: window.mapFocusRequest) { _, _ in requestFocus() }
+        .onChange(of: mapFocused) { _, has in window.mapKeyboard = has }
+        .onAppear {
+            if window.focusedTile != nil { requestFocus() }
+        }
+        .accessibilityElement(children: .contain)
+        .accessibilityLabel("Reclaimable space map")
+    }
+
+    private func tileViews(_ map: MapModel) -> some View {
+        ZStack(alignment: .topLeading) {
             ForEach(map.tiles) { tile in
                 let isFocused = focusVisible && window.focusedTile == tile.id
                 MapTileView(
@@ -97,19 +125,6 @@ struct MapFace: View {
                 .zIndex(isFocused ? 1 : 0)
             }
         }
-        .frame(width: area.width, height: area.height, alignment: .topLeading)
-        .focusable()
-        .focused($mapFocused)
-        .focusEffectDisabled()
-        .onKeyPress(keys: [.upArrow, .downArrow, .leftArrow, .rightArrow, .space, .return, .home, .end]) { press in
-            handle(press, in: map)
-        }
-        .onChange(of: window.mapFocusRequest) { _, _ in requestFocus() }
-        .onAppear {
-            if window.focusedTile != nil { requestFocus() }
-        }
-        .accessibilityElement(children: .contain)
-        .accessibilityLabel("Reclaimable space map")
     }
 
     private func requestFocus() {
@@ -125,7 +140,7 @@ struct MapFace: View {
     }
 
     private func handle(_ press: KeyPress, in map: MapModel) -> KeyPress.Result {
-        guard press.modifiers.isEmpty else { return .ignored }
+        guard isEnabled, press.modifiers.isEmpty else { return .ignored }
         let key: MapNavigation.Key
         switch press.key {
         case .upArrow: key = .up

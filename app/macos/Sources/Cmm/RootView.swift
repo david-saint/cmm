@@ -62,6 +62,8 @@ struct RootView: View {
         .onPreferenceChange(PillFrameKey.self) { pillFrame = $0 }
         .onPreferenceChange(CardSizeKey.self) { if $0.height > 0 { cardSize = $0 } }
         .onChange(of: window.face) { _, face in FacePreference.save(face) }
+        // Reduce Motion: the band's slices do not fly, the pane fades in place
+        .onChange(of: reduceMotion, initial: true) { _, reduce in window.flightsEnabled = MotionStyle.resolve(reduceMotion: reduce).flies }
         .animation(motion.animation, value: model.confirmation != nil)
         .animation(.easeInOut(duration: 0.25), value: model.phase)
         .environment(\.cmm, env)

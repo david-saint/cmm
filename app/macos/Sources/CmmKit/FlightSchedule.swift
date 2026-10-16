@@ -60,7 +60,7 @@ public enum FlightClock {
 ///
 /// Unfolding, the slices lift off the band and grow into the tiles, the largest first (20 ms apart), while the pane slides
 /// in. Folding, all the tiles go back to the band together over 0.35 s and are gone when they arrive. Nothing here draws.
-public struct UnfoldPlan: Equatable, Sendable {
+public struct FlightSchedule: Equatable, Sendable {
     public enum Direction: Equatable, Sendable {
         case unfold
         case fold

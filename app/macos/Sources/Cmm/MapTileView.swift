@@ -20,8 +20,7 @@ struct MapTileView: View {
         let radius = TileLabels.cornerRadius(for: size)
         Button(action: select) {
             ZStack(alignment: .topLeading) {
-                RoundedRectangle(cornerRadius: radius, style: .continuous).fill(fill)
-                outline(radius: radius)
+                TileSkin(tile: tile, hovered: hovered, radius: radius)
                 if level.showsBadge {
                     RoundCheck(state: tile.state, size: 16, solidOff: true)
                         .padding(.leading, TileLabels.badgeOrigin(for: size).x)
@@ -45,37 +44,6 @@ struct MapTileView: View {
         .accessibilityHint(tile.accessibilityHint)
         .accessibilityAddTraits(.isButton)
         .accessibilityAction(.default, select)
-    }
-
-    // MARK: the tile itself
-
-    private var fill: Tone {
-        if tile.isReview {
-            switch (tile.state == .off, hovered) {
-            case (true, false): return Theme.nothing
-            case (true, true): return Theme.reviewHoverFill
-            case (false, false): return Theme.reviewTickedFill
-            case (false, true): return Theme.reviewTickedHoverFill
-            }
-        }
-        switch (tile.state == .off, hovered) {
-        case (true, false): return Theme.tileOffFill
-        case (true, true): return Theme.tileHoverOffFill
-        case (false, false): return Theme.tileOnFill
-        case (false, true): return Theme.tileHoverOnFill
-        }
-    }
-
-    @ViewBuilder private func outline(radius: Double) -> some View {
-        if tile.isReview {
-            // a dotted 1.5 pt amber edge at full strength, whatever the state
-            RoundedRectangle(cornerRadius: radius, style: .continuous)
-                .inset(by: 0.75)
-                .stroke(Theme.review, style: StrokeStyle(lineWidth: 1.5, lineCap: .round, dash: [0, 3]))
-        } else {
-            RoundedRectangle(cornerRadius: radius, style: .continuous)
-                .strokeBorder(hovered ? Theme.tileHoverLine : (tile.state == .off ? Theme.tileOffLine : Theme.tileOnLine), lineWidth: 1)
-        }
     }
 
     /// 2 pt of the pane's own colour, then a 2 pt ring of ink: the boards' `0 0 0 2px pane, 0 0 0 4px focus`.
@@ -179,5 +147,52 @@ struct MapTileView: View {
         .monospacedDigit()
         .lineLimit(1)
         .frame(width: size.width, height: size.height, alignment: .bottomLeading)
+    }
+}
+
+/// A tile's fill and edge, as the boards draw them, without its words. It is also what a band slice turns into on the way
+/// from the band to the map.
+///
+/// Safe tiles are green (a little when not ticked, more when ticked) with a 1 pt edge; review tiles have no fill until they
+/// are ticked and a dotted amber edge at full strength; hover lifts the fill.
+struct TileSkin: View {
+    let tile: MapTile
+    var hovered = false
+    let radius: Double
+
+    var body: some View {
+        ZStack {
+            RoundedRectangle(cornerRadius: radius, style: .continuous).fill(fill)
+            outline
+        }
+    }
+
+    private var fill: Tone {
+        if tile.isReview {
+            switch (tile.state == .off, hovered) {
+            case (true, false): return Theme.nothing
+            case (true, true): return Theme.reviewHoverFill
+            case (false, false): return Theme.reviewTickedFill
+            case (false, true): return Theme.reviewTickedHoverFill
+            }
+        }
+        switch (tile.state == .off, hovered) {
+        case (true, false): return Theme.tileOffFill
+        case (true, true): return Theme.tileHoverOffFill
+        case (false, false): return Theme.tileOnFill
+        case (false, true): return Theme.tileHoverOnFill
+        }
+    }
+
+    @ViewBuilder private var outline: some View {
+        if tile.isReview {
+            // a dotted 1.5 pt amber edge at full strength, whatever the state
+            RoundedRectangle(cornerRadius: radius, style: .continuous)
+                .inset(by: 0.75)
+                .stroke(Theme.review, style: StrokeStyle(lineWidth: 1.5, lineCap: .round, dash: [0, 3]))
+        } else {
+            RoundedRectangle(cornerRadius: radius, style: .continuous)
+                .strokeBorder(hovered ? Theme.tileHoverLine : (tile.state == .off ? Theme.tileOffLine : Theme.tileOnLine), lineWidth: 1)
+        }
     }
 }
