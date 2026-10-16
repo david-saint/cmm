@@ -62,7 +62,7 @@ public struct HistoryItem: Equatable, Sendable {
     public let reason: String?
 }
 
-/// One cleanup (one real `cmm apply` that deleted or failed something).
+/// One cleanup: one real run of cmm's cleaning, which deleted or failed something.
 public struct HistoryRun: Equatable, Sendable, Identifiable {
     /// Tells the runs of a report apart, and a marker of the timeline from the run's row: the second the run ended, with a
     /// number after it for runs that ended in the same second (which only a hand-edited history has).
