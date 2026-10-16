@@ -1,4 +1,5 @@
 import Foundation
+import Observation
 
 /// A window of cmm's own. The menu bar item's popover is not one of them: opening it never brings back the Dock icon.
 public enum AppWindow: String, CaseIterable, Sendable {
@@ -104,21 +105,22 @@ public protocol LaunchEventSource {
 /// window that opened with the app should stay. It tells the system only when the policy changes (`setPolicy`), and holds no
 /// reference to the system itself, so that its rules are tested with a closure that writes them down.
 @MainActor
+@Observable
 public final class Lifecycle {
     public private(set) var openWindows: Set<AppWindow> = []
     /// The policy last handed to the system.
     public private(set) var policy: ActivationPolicy?
 
-    private let menuBarEnabled: () -> Bool
-    private let setPolicy: (ActivationPolicy) -> Void
+    @ObservationIgnored private let menuBarEnabled: () -> Bool
+    @ObservationIgnored private let setPolicy: (ActivationPolicy) -> Void
     /// Whether the window that opened with the app should stay, once the launch is known.
-    private var launchDecision: Bool?
+    @ObservationIgnored private var launchDecision: Bool?
     /// A login launch with the menu bar item on: the window that opened with the app is to close, and until it has, it does not
     /// bring the Dock icon back.
-    private var launchWindowUnwanted = false
+    @ObservationIgnored private var launchWindowUnwanted = false
     /// The main window was told once that it should not stay.
-    private var launchWindowRefused = false
-    private var waiting: [CheckedContinuation<Bool, Never>] = []
+    @ObservationIgnored private var launchWindowRefused = false
+    @ObservationIgnored private var waiting: [CheckedContinuation<Bool, Never>] = []
 
     public init(menuBarEnabled: @escaping () -> Bool, setPolicy: @escaping (ActivationPolicy) -> Void) {
         self.menuBarEnabled = menuBarEnabled
@@ -168,12 +170,15 @@ public final class Lifecycle {
         return await withCheckedContinuation { waiting.append($0) }
     }
 
-    /// The person asked for the main window (the popover, the notification, the Dock or the app opened again): it is wanted,
-    /// and the Dock icon comes back at once, so that the window can come forward.
-    public func openingMainWindow() {
-        launchWindowUnwanted = false
-        launchWindowRefused = true
-        openWindows.insert(.main)
+    /// The person asked for one of cmm's windows (from the popover, the notification, the Dock, or by opening the app again): it
+    /// is wanted, and the Dock icon comes back at once, so that the window can come forward. A main window asked for is never
+    /// the unwanted window of a login launch.
+    public func opening(_ window: AppWindow) {
+        if window == .main {
+            launchWindowUnwanted = false
+            launchWindowRefused = true
+        }
+        openWindows.insert(window)
         update()
     }
 

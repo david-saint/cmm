@@ -133,6 +133,37 @@ final class SystemSafetyTests: XCTestCase {
         XCTAssertTrue(app.contains("services?.lifecycle.terminatesAfterLastWindowClosed ?? true"), "the menu bar switch decides whether closing quits")
     }
 
+    // MARK: the menu bar item
+
+    /// The popover and the item can look, open the window or Settings, and quit; nothing in their files can ask for a cleaning
+    /// (spec R5, R10: "the popover never offers Clean"), whatever a comment says.
+    func testThePopoverAndTheItemHaveNoWayToClean() throws {
+        let files = try Self.files(in: "Sources/Cmm").filter { $0.name.hasPrefix("MenuBar") }
+        XCTAssertEqual(files.map(\.name), ["MenuBarLabel.swift", "MenuBarPopoverView.swift", "MenuBarScene.swift"])
+        for file in files {
+            for token in ["requestClean", "confirmClean", "cancelClean", "apply", "toggle(", "Clean", "Delete"] {
+                XCTAssertFalse(file.raw.contains(token), "\(file.name) mentions `\(token)`")
+            }
+            XCTAssertFalse(file.code.contains("model."), "\(file.name) reaches the window's model itself")
+        }
+        // every action the popover can take is one of the five, and each one goes to a named place
+        let scene = try Self.source("MenuBarScene.swift").code
+        for line in [
+            "case .scan: services.scanFromMenuBar()", "case .openWindow: services.openMainWindow()",
+            "case .openHistory: services.openHistory()", "case .openSettings: services.openSettings(openSettings)",
+            "case .quit: NSApp.terminate(nil)",
+        ] {
+            XCTAssertTrue(scene.contains(line), "the popover's action is wired as `\(line)`")
+        }
+        XCTAssertEqual(scene.components(separatedBy: "case .").count - 1, 5)
+        // and its Scan is the window's own scan, asked again at the moment of the click
+        let services = try Self.source("AppServices.swift").code
+        let scan = try XCTUnwrap(services.range(of: "func scanFromMenuBar()"))
+        let body = services[scan.upperBound...].prefix(240)
+        XCTAssertTrue(body.contains("guard menuBarScanEnabled(menuBarPresentation()) else { return }"))
+        XCTAssertTrue(body.contains("Task { await model.scan() }"))
+    }
+
     /// The Dock icon is the lifecycle's to change, in one place.
     func testTheActivationPolicyIsSetInOnePlace() throws {
         let files = try Self.sources()

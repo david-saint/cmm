@@ -159,7 +159,7 @@ final class AppServices {
     }
 
     private func bringMainWindowForward() {
-        lifecycle.openingMainWindow()
+        lifecycle.opening(.main)
         if let openWindow {
             openWindow(id: "main")
         } else {
@@ -175,6 +175,37 @@ final class AppServices {
         guard settings.menuBarEnabled, !hasVisibleWindows else { return true }
         openMainWindow()
         return false
+    }
+
+    /// The Settings window, from the popover's `...` menu: the Dock icon back, then the window, then cmm forward.
+    func openSettings(_ openSettings: OpenSettingsAction) {
+        lifecycle.opening(.settings)
+        openSettings()
+        NSApp.activate()
+    }
+
+    // MARK: the menu bar item
+
+    /// What the menu bar item and its popover show at this moment.
+    func menuBarPresentation() -> MenuBarPresentation {
+        menuBar.presentation(
+            phase: model.phase, confirmationOpen: model.confirmation != nil,
+            volumeName: { VolumeName.display(forVolume: $0) }, calendar: .autoupdatingCurrent, locale: .autoupdatingCurrent
+        )
+    }
+
+    /// Whether the popover's Scan may scan now (`MenuBarModel.scanEnabled`).
+    func menuBarScanEnabled(_ presentation: MenuBarPresentation) -> Bool {
+        MenuBarModel.scanEnabled(
+            presentation.popover, phase: model.phase, confirmationOpen: model.confirmation != nil, mainWindowOpen: mainWindowOpen
+        )
+    }
+
+    /// The popover's Scan: the window's own scan, asked again at the moment of the click, so that it never takes a screen from
+    /// someone using it.
+    func scanFromMenuBar() {
+        guard menuBarScanEnabled(menuBarPresentation()) else { return }
+        Task { await model.scan() }
     }
 }
 

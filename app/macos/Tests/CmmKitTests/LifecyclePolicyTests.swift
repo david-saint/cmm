@@ -158,7 +158,7 @@ final class LifecycleTests: XCTestCase {
         XCTAssertEqual(rig.policies, [.accessory])
 
         // the person opens it from the menu bar item
-        rig.lifecycle.openingMainWindow()
+        rig.lifecycle.opening(.main)
         XCTAssertEqual(rig.policies.last, .regular)
         let opened = await rig.lifecycle.mainWindowShouldStay()
         XCTAssertTrue(opened)
@@ -167,7 +167,7 @@ final class LifecycleTests: XCTestCase {
     func testAWindowThePersonOpensIsNeverRefusedEvenIfTheLaunchWindowNeverAppeared() async {
         let rig = Rig(menuBar: true)
         rig.lifecycle.launched(by: login)
-        rig.lifecycle.openingMainWindow()
+        rig.lifecycle.opening(.main)
         let stays = await rig.lifecycle.mainWindowShouldStay()
         XCTAssertTrue(stays)
         XCTAssertEqual(rig.policies, [.accessory, .regular])

@@ -38,6 +38,20 @@ struct CmmApp: App {
         .windowStyle(.hiddenTitleBar)
         .windowResizability(.contentMinSize)
         .commands { CmmCommands(model: model, window: window) }
+
+        // The menu bar item, while the person has it switched on (they can also take it out of the menu bar themselves).
+        MenuBarExtra(isInserted: menuBarShown) {
+            MenuBarPopoverHost(services: services)
+        } label: {
+            MenuBarItemLabel(services: services)
+        }
+        .menuBarExtraStyle(.window)
+    }
+
+    /// The menu bar switch, read here so that the scene follows it.
+    private var menuBarShown: Binding<Bool> {
+        let settings = services.settings
+        return Binding(get: { settings.menuBarEnabled }, set: { settings.menuBarEnabled = $0 })
     }
 }
 
