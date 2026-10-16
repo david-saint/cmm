@@ -401,25 +401,47 @@ final class SafetyRulesTests: XCTestCase {
 
     // MARK: what the app remembers
 
-    func testTheOnlyThingTheAppRemembersIsWhichFaceOfTheDetailsWasLast() throws {
+    /// Spec R9, updated on purpose when the app began to keep a few choices more than the face of the Details pane. The version
+    /// of this test that came before pinned `FacePreference.swift` as the one file that touches the preferences and
+    /// `detailsFace` as the one key. Now `Settings.swift` is the one file, and the keys are exactly the eight below. Nothing
+    /// else is ever kept: no path, no size, no history of the app's own.
+    func testTheAppRemembersOnlyTheseChoicesAndOnlySettingsSwiftTouchesThePreferences() throws {
         let files = try sources("CmmKit") + sources("Cmm")
         for token in [
             "UserDefaults", "@AppStorage", "NSUserDefaults", "@SceneStorage", "SceneStorage", "NSUbiquitousKeyValueStore",
             "CFPreferences", "NSKeyedArchiver", "PropertyListEncoder", "NSPersistentContainer", "SwiftData",
         ] {
-            XCTAssertEqual(occurrences(of: token, in: files), token == "UserDefaults" ? ["FacePreference.swift"] : [],
-                           "`\(token)` is used outside the one file that remembers the face")
+            XCTAssertEqual(occurrences(of: token, in: files), token == "UserDefaults" ? ["Settings.swift"] : [],
+                           "`\(token)` is used outside the one file that keeps the app's choices")
         }
 
-        let store = try XCTUnwrap(files.first { $0.name == "FacePreference.swift" }).code
-        XCTAssertEqual(store.components(separatedBy: "UserDefaults.standard").count - 1, 2, "one read and one write")
-        XCTAssertEqual(store.components(separatedBy: ".string(forKey: key)").count - 1, 1)
-        XCTAssertEqual(store.components(separatedBy: ".set(face.rawValue, forKey: key)").count - 1, 1, "what is written is a face's word")
-        XCTAssertTrue(store.contains(#"static let key = "detailsFace""#), "one key")
-        XCTAssertEqual(store.components(separatedBy: "\"").count - 1, 2, "no other string in the file: the key's two quotes")
-        for token in ["removeObject", "synchronize", "register(", "dictionaryRepresentation", "setPersistentDomain", "addSuite", "suiteName"] {
-            XCTAssertFalse(store.contains(token), "FacePreference.swift uses `\(token)`")
+        // the keys: exactly these, in this order, and no other
+        XCTAssertEqual(
+            SettingsKey.allCases.map(\.rawValue),
+            ["detailsFace", "menuBarEnabled", "weeklyReminderEnabled", "historyEnabled", "optInAnswered", "lastWeeklyDate",
+             "weeklyWeekday", "weeklyMinuteOfDay"]
+        )
+
+        // the user defaults are reached in one place: one read, one write, one removal, each for a key of that list
+        let store = try XCTUnwrap(files.first { $0.name == "Settings.swift" }).code
+        XCTAssertEqual(store.components(separatedBy: "UserDefaults.standard").count - 1, 1, "the app's own preferences, once")
+        XCTAssertEqual(store.components(separatedBy: "defaults.object(forKey: key.rawValue)").count - 1, 1)
+        XCTAssertEqual(store.components(separatedBy: "defaults.set(value, forKey: key.rawValue)").count - 1, 1)
+        XCTAssertEqual(store.components(separatedBy: "defaults.removeObject(forKey: key.rawValue)").count - 1, 1)
+        XCTAssertEqual(store.components(separatedBy: "defaults.").count - 1, 3, "and nothing else is asked of them")
+        XCTAssertEqual(store.components(separatedBy: "\"").count - 1, 0, "no string in the file: the keys are the cases of SettingsKey")
+        for token in [
+            "synchronize", "register(", "dictionaryRepresentation", "setPersistentDomain", "removePersistentDomain", "addSuite",
+            "suiteName", "UserDefaults(", "volatileDomain", "persistentDomain",
+        ] {
+            XCTAssertFalse(store.contains(token), "Settings.swift uses `\(token)`")
         }
+
+        // and the face of the Details pane is kept through it, by name, with nothing of its own
+        let face = try XCTUnwrap(files.first { $0.name == "FacePreference.swift" }).code
+        XCTAssertFalse(face.contains("UserDefaults"))
+        XCTAssertEqual(face.components(separatedBy: "\"").count - 1, 0, "no string in the file")
+        XCTAssertEqual(face.components(separatedBy: "Settings.standard.detailsFace").count - 1, 2, "one read and one write")
     }
 
     func testTheRememberedFaceIsReadOnceAtStartAndWrittenOnlyWhenTheFaceChanges() throws {
