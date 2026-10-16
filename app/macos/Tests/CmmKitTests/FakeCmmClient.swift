@@ -34,6 +34,12 @@ final class FakeCmmClient: CmmClient, @unchecked Sendable {
         var planResults: [Result<Plan, CmmError>]
         var planCalls = 0
         var planGate: Gate?
+        var historyResults: [Result<HistoryReport, CmmError>]
+        var historyCalls = 0
+        var historyGate: Gate?
+        var sampleResults: [Result<SampleResult, CmmError>]
+        var sampleCalls = 0
+        var sampleGate: Gate?
         var applyCalls: [ApplySelection] = []
         var stopCalls = 0
         // Ends at once by default: a test that wrongly starts a cleanup then fails on its assertion instead of
@@ -45,8 +51,19 @@ final class FakeCmmClient: CmmClient, @unchecked Sendable {
 
     private let state: Locked<State>
 
-    init(plans: [Result<Plan, CmmError>]) {
-        state = Locked(State(planResults: plans))
+    /// A history with nothing in it, and a sample that was recorded: what the fake answers unless it is told otherwise.
+    static let emptyHistory = HistoryReport(
+        schemaVersion: 1, generatedAt: nil, host: HistoryHost(volume: "/", freeBytes: nil, capacityBytes: nil),
+        runs: [], samples: [], unreadableLines: 0, ignoredEntries: 0
+    )
+    static let recordedSample = SampleResult(recorded: true, t: nil, freeBytes: 20_000_000_000, capacityBytes: nil)
+
+    init(
+        plans: [Result<Plan, CmmError>],
+        histories: [Result<HistoryReport, CmmError>] = [.success(FakeCmmClient.emptyHistory)],
+        samples: [Result<SampleResult, CmmError>] = [.success(FakeCmmClient.recordedSample)]
+    ) {
+        state = Locked(State(planResults: plans, historyResults: histories, sampleResults: samples))
     }
 
     convenience init(plan: Plan) {
@@ -58,6 +75,18 @@ final class FakeCmmClient: CmmClient, @unchecked Sendable {
     func holdPlans() -> Gate {
         let gate = Gate()
         state.withLock { $0.planGate = gate }
+        return gate
+    }
+
+    func holdHistories() -> Gate {
+        let gate = Gate()
+        state.withLock { $0.historyGate = gate }
+        return gate
+    }
+
+    func holdSamples() -> Gate {
+        let gate = Gate()
+        state.withLock { $0.sampleGate = gate }
         return gate
     }
 
@@ -81,6 +110,8 @@ final class FakeCmmClient: CmmClient, @unchecked Sendable {
     // MARK: what was asked
 
     var planCalls: Int { state.withLock { $0.planCalls } }
+    var historyCalls: Int { state.withLock { $0.historyCalls } }
+    var sampleCalls: Int { state.withLock { $0.sampleCalls } }
     var applyCalls: [ApplySelection] { state.withLock { $0.applyCalls } }
     var stopCalls: Int { state.withLock { $0.stopCalls } }
 
@@ -104,6 +135,30 @@ final class FakeCmmClient: CmmClient, @unchecked Sendable {
         await gate?.wait()
         return try state.withLock { state in
             let result = state.planResults.count > 1 ? state.planResults.removeFirst() : state.planResults[0]
+            return try result.get()
+        }
+    }
+
+    func history() async throws -> HistoryReport {
+        let gate = state.withLock { state -> Gate? in
+            state.historyCalls += 1
+            return state.historyGate
+        }
+        await gate?.wait()
+        return try state.withLock { state in
+            let result = state.historyResults.count > 1 ? state.historyResults.removeFirst() : state.historyResults[0]
+            return try result.get()
+        }
+    }
+
+    func sample() async throws -> SampleResult {
+        let gate = state.withLock { state -> Gate? in
+            state.sampleCalls += 1
+            return state.sampleGate
+        }
+        await gate?.wait()
+        return try state.withLock { state in
+            let result = state.sampleResults.count > 1 ? state.sampleResults.removeFirst() : state.sampleResults[0]
             return try result.get()
         }
     }

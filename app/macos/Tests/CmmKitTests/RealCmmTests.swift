@@ -146,6 +146,37 @@ final class RealCmmTests: XCTestCase {
         XCTAssertEqual(plan.totalBytes, plan.items.reduce(0) { $0 + $1.bytes }, "the real total agrees with its items")
     }
 
+    /// Read-only apart from cmm's own note in the fake home's state folder: the real `cmm sample --json` and `cmm history
+    /// --json --limit 0 --days 90`, decoded through the client. Skipped unless CMM_BIN is set.
+    func testARealSampleAndHistoryDecodeThroughTheClient() async throws {
+        guard let binary = RealCmm.binary() else { throw XCTSkip("set CMM_BIN to a built cmm to run this") }
+        let sandbox = try Sandbox.make(in: self)
+        let client = sandbox.makeClient(binary: binary)
+
+        let before = try await client.history()
+        XCTAssertTrue(before.runs.isEmpty, "a fake home has no cleanups")
+        XCTAssertTrue(before.samples.isEmpty, "and no notes yet")
+        XCTAssertEqual(before.unreadableLines, 0)
+
+        let first = try await client.sample()
+        XCTAssertTrue(first.recorded, "the first note is always due")
+        XCTAssertGreaterThan(first.freeBytes, 0)
+        XCTAssertNotNil(first.t)
+
+        _ = try await client.sample()  // usually "not due"; the engine decides, the app only asks
+
+        let after = try await client.history()
+        XCTAssertEqual(after.schemaVersion, 1)
+        XCTAssertGreaterThanOrEqual(after.samples.count, 1)
+        XCTAssertEqual(after.samples.first?.t, first.t)
+        XCTAssertEqual(after.samples.first?.freeBytes, first.freeBytes)
+        XCTAssertNotNil(after.host.freeBytes, "the volume could be read")
+        XCTAssertGreaterThan(after.host.freeBytes ?? 0, 0)
+        XCTAssertEqual(after.ignoredEntries, 0, "everything cmm wrote, the app can read")
+        let written = sandbox.home.appendingPathComponent(".local/state/cmm/free.jsonl")
+        XCTAssertTrue(FileManager.default.fileExists(atPath: written.path), "the note went to the fake home, not the real one")
+    }
+
     /// A real apply, in the sandbox, through the Swift client. Off unless CMM_BIN and CMM_SANDBOX_APPLY=1 are set and
     /// the cmm has `--select-file`.
     func testASandboxedRealApplyDeletesExactlyTheSelectedItems() async throws {

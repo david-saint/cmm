@@ -98,6 +98,8 @@ final class AppModelTests: XCTestCase {
         struct Odd: LocalizedError { var errorDescription: String? { "odd failure" } }
         final class Throwing: CmmClient {
             func plan() async throws -> Plan { throw Odd() }
+            func history() async throws -> HistoryReport { throw Odd() }
+            func sample() async throws -> SampleResult { throw Odd() }
             func apply(selection: ApplySelection) -> AsyncThrowingStream<ApplyEvent, any Error> { .init { $0.finish() } }
             func stop() {}
         }

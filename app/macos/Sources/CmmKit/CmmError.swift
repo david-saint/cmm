@@ -21,6 +21,16 @@ public enum CmmError: Error, Equatable, Sendable {
     case applyFailed(status: Int32, stderr: String)
     /// `cmm apply` ended (cleanly, as far as its exit status goes) without the final summary event.
     case endedWithoutSummary(status: Int32, stderr: String)
+    /// `cmm history --json` exited with a non-zero status (or was ended because it did not answer).
+    case historyFailed(status: Int32, stderr: String)
+    /// The history is not the JSON the app expects.
+    case malformedHistory(String)
+    /// The history is valid JSON of a schema this app does not read.
+    case unsupportedHistorySchema(found: Int)
+    /// `cmm sample --json` exited with a non-zero status (or was ended because it did not answer).
+    case sampleFailed(status: Int32, stderr: String)
+    /// What `cmm sample --json` printed is not the one JSON line the app expects.
+    case malformedSample(String)
 }
 
 extension CmmError {
@@ -35,6 +45,11 @@ extension CmmError {
         case .selectionFileFailed: "Nothing was cleaned"
         case .applyFailed: "cmm stopped with an error"
         case .endedWithoutSummary: "cmm ended without a summary"
+        case .historyFailed: "cmm could not read the history"
+        case .malformedHistory: "cmm's history could not be read"
+        case .unsupportedHistorySchema: "This app cannot read cmm's history"
+        case .sampleFailed: "cmm could not note the free space"
+        case .malformedSample: "cmm's note of the free space could not be read"
         }
     }
 
@@ -59,6 +74,12 @@ extension CmmError {
             Self.joined("Exit status \(status). What cmm reported before it stopped is listed below; scan again to see what is left.", stderr)
         case .endedWithoutSummary(let status, let stderr):
             Self.joined("Exit status \(status). The results listed below may be incomplete; scan again to see what is left.", stderr)
+        case .historyFailed(let status, let stderr), .sampleFailed(let status, let stderr):
+            Self.joined("Exit status \(status).", stderr)
+        case .malformedHistory(let reason), .malformedSample(let reason):
+            reason
+        case .unsupportedHistorySchema(let found):
+            "The history uses schema \(found), but this app reads schema 1. Update the app and cmm so they match."
         }
     }
 

@@ -14,16 +14,24 @@ struct FakeCmm: Sendable {
 
     var releaseFile: URL { records.appendingPathComponent("release") }
 
+    /// What `cmm sample --json` prints when the fake is not told otherwise.
+    static let recordedSample = #"{"recorded":true,"t":"2026-10-15T09:00:00Z","free_bytes":24000000000,"capacity_bytes":245107195904}"#
+
     /// A client wired to the fake. `mode` picks the behaviour, see the header of fake-cmm.sh.
     func client(
         mode: String = "normal",
         plan: String = "plan-v1.json",
+        history: String = "history-v1.json",
+        sample: String = FakeCmm.recordedSample,
         environment extra: [String: String] = [:],
-        path: String? = nil
+        path: String? = nil,
+        quickCommandTimeout: TimeInterval? = nil
     ) -> ProcessCmmClient {
         var env = ProcessInfo.processInfo.environment
         env["FAKE_CMM_DIR"] = records.path
         env["FAKE_CMM_PLAN"] = Fixture.url(plan).path
+        env["FAKE_CMM_HISTORY"] = Fixture.url(history).path
+        env["FAKE_CMM_SAMPLE"] = sample
         env["FAKE_CMM_MODE"] = mode
         env["FAKE_CMM_RELEASE"] = releaseFile.path
         for (key, value) in extra { env[key] = value }
@@ -33,6 +41,7 @@ struct FakeCmm: Sendable {
         configuration.environment = env
         configuration.temporaryDirectory = temporaryFolder
         if let path { configuration.path = path }
+        if let quickCommandTimeout { configuration.quickCommandTimeout = quickCommandTimeout }
         return ProcessCmmClient(configuration: configuration)
     }
 

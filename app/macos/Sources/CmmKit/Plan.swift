@@ -246,23 +246,28 @@ extension Plan: Decodable {
 extension DecodingError {
     /// A short, human description that says where in the document the problem is, such as `items[0].path: missing`.
     var cmmDescription: String {
+        cmmDescription(subject: "the plan")
+    }
+
+    /// The same, for any document: `subject` names it when the problem is the document itself ("the history").
+    func cmmDescription(subject: String) -> String {
         switch self {
         case .keyNotFound(let key, let context):
-            "\(Self.render(context.codingPath + [key])): missing"
+            "\(Self.render(context.codingPath + [key], subject: subject)): missing"
         case .valueNotFound(_, let context):
-            "\(Self.render(context.codingPath)): missing value"
+            "\(Self.render(context.codingPath, subject: subject)): missing value"
         case .typeMismatch(let type, let context):
-            "\(Self.render(context.codingPath)): wrong type (expected \(type))"
+            "\(Self.render(context.codingPath, subject: subject)): wrong type (expected \(type))"
         case .dataCorrupted(let context):
             context.codingPath.isEmpty
                 ? "not valid JSON (\(context.debugDescription))"
-                : "\(Self.render(context.codingPath)): \(context.debugDescription)"
+                : "\(Self.render(context.codingPath, subject: subject)): \(context.debugDescription)"
         @unknown default:
             localizedDescription
         }
     }
 
-    private static func render(_ path: [any CodingKey]) -> String {
+    private static func render(_ path: [any CodingKey], subject: String) -> String {
         var text = ""
         for key in path {
             if let index = key.intValue {
@@ -271,6 +276,6 @@ extension DecodingError {
                 text += text.isEmpty ? key.stringValue : ".\(key.stringValue)"
             }
         }
-        return text.isEmpty ? "the plan" : text
+        return text.isEmpty ? subject : text
     }
 }

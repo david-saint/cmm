@@ -5,6 +5,8 @@
 #
 #   cmm plan --json                                  prints the plan in $FAKE_CMM_PLAN
 #   cmm apply --yes --json --select-file FILE        prints NDJSON events for the selected paths
+#   cmm history --json --limit 0 --days 90           prints the history in $FAKE_CMM_HISTORY
+#   cmm sample --json                                prints the one line in $FAKE_CMM_SAMPLE
 #
 # Anything else is refused with status 64. It never deletes or writes anything except its own records.
 #
@@ -26,7 +28,15 @@
 #       slow          waits for $FAKE_CMM_RELEASE after the first item; SIGINT ends it with done/stopped:true
 #       slow-start    has read the selection file but waits for $FAKE_CMM_RELEASE before its `start` event (the
 #                     real cmm plans again first); SIGINT ends it at once with status 130 and no output
-#   FAKE_CMM_RELEASE  file the test creates to let a `slow` or `plan-hang` run continue
+#       history-error `history` fails with status 2 and a message on stderr
+#       garbage-history `history` prints text that is not JSON
+#       sample-error  `sample` fails with status 1 and a message on stderr
+#       garbage-sample `sample` prints a line of text that is not JSON
+#       quick-hang    `history` and `sample` wait for $FAKE_CMM_RELEASE (at most 20 s) and then fail with status 3
+#   (`noisy` also applies to `history` and `sample`)
+#   FAKE_CMM_HISTORY  history JSON file for `history`
+#   FAKE_CMM_SAMPLE   the line `sample` prints
+#   FAKE_CMM_RELEASE  file the test creates to let a `slow`, `plan-hang` or `quick-hang` run continue
 set -u
 
 dir=${FAKE_CMM_DIR:?FAKE_CMM_DIR is not set}
@@ -188,6 +198,66 @@ emit({ event => 'done', deleted => $deleted, skipped => $skipped, failed => $fai
        warnings => [], log => '/Users/test/.local/state/cmm/cleanup.log' });
 exit($failed > 0 ? 1 : 0);
 PERL
+    ;;
+
+history)
+    if [ $# -ne 6 ] || [ "$2" != "--json" ] || [ "$3" != "--limit" ] || [ "$4" != "0" ] || [ "$5" != "--days" ] || [ "$6" != "90" ]; then
+        echo "fake-cmm: expected exactly: history --json --limit 0 --days 90 (got: $*)" >&2
+        exit 64
+    fi
+    case $mode in
+    history-error)
+        echo "cmm: cannot read the history: permission denied" >&2
+        exit 2
+        ;;
+    garbage-history)
+        echo "No cleanups recorded yet."
+        exit 0
+        ;;
+    quick-hang)
+        i=0
+        while [ ! -e "${FAKE_CMM_RELEASE:-/nonexistent}" ] && [ $i -lt 400 ]; do
+            sleep 0.05
+            i=$((i + 1))
+        done
+        exit 3
+        ;;
+    noisy)
+        head -c 1000000 /dev/zero | tr '\0' 'x' >&2
+        echo >&2
+        ;;
+    esac
+    cat "${FAKE_CMM_HISTORY:?FAKE_CMM_HISTORY is not set}"
+    ;;
+
+sample)
+    if [ $# -ne 2 ] || [ "$2" != "--json" ]; then
+        echo "fake-cmm: expected exactly: sample --json (got: $*)" >&2
+        exit 64
+    fi
+    case $mode in
+    sample-error)
+        echo "cmm: cannot record the free space: permission denied" >&2
+        exit 1
+        ;;
+    garbage-sample)
+        echo "Recorded: 19.6 GB free."
+        exit 0
+        ;;
+    quick-hang)
+        i=0
+        while [ ! -e "${FAKE_CMM_RELEASE:-/nonexistent}" ] && [ $i -lt 400 ]; do
+            sleep 0.05
+            i=$((i + 1))
+        done
+        exit 3
+        ;;
+    noisy)
+        head -c 1000000 /dev/zero | tr '\0' 'x' >&2
+        echo >&2
+        ;;
+    esac
+    printf '%s\n' "${FAKE_CMM_SAMPLE:?FAKE_CMM_SAMPLE is not set}"
     ;;
 
 *)

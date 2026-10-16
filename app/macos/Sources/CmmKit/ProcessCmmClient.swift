@@ -1,15 +1,21 @@
 import Foundation
 
-/// Talks to the real cmm program: `cmm plan --json` and `cmm apply --yes --json --select-file FILE`.
+/// Talks to the real cmm program: `cmm plan --json`, `cmm apply --yes --json --select-file FILE`, and the two quick
+/// read-only commands `cmm history --json --limit 0 --days 90` and `cmm sample --json`.
 ///
 /// The client only starts cmm and reads what it prints; it never deletes, moves or writes anything except the
-/// selection file it creates for one `apply` and removes again (see `SelectionFile`). One cmm runs at a time.
+/// selection file it creates for one `apply` and removes again (see `SelectionFile`). One scan or cleanup runs at a
+/// time; a `history` or a `sample` may run beside it, and beside each other.
 public final class ProcessCmmClient: CmmClient, @unchecked Sendable {
     /// A Finder-launched app gets a minimal PATH, and the Homebrew rule needs `brew`, so cmm is started with this.
     public static let defaultPath = "/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin"
 
     /// A plan is a few hundred kilobytes; anything beyond this is not a plan.
     static let maxPlanBytes = 64 * 1024 * 1024
+    /// cmm reads at most the last 8 MB of each of its history files; anything beyond this is not a history.
+    static let maxHistoryBytes = 64 * 1024 * 1024
+    /// A note of the free space is one short line.
+    static let maxSampleBytes = 64 * 1024
     /// How much of cmm's stderr is kept for error messages.
     static let stderrTailBytes = 8 * 1024
 
@@ -25,6 +31,9 @@ public final class ProcessCmmClient: CmmClient, @unchecked Sendable {
         public var temporaryDirectory: URL
         /// The environment of the app itself, where `CMM_BIN` is looked up.
         public var appEnvironment: [String: String]
+        /// How long `history` and `sample` may take before cmm is ended. Both read a file or two and answer in well under
+        /// a second; the limit keeps a cmm that is stuck from holding the sampler for ever.
+        public var quickCommandTimeout: TimeInterval
 
         public init(
             binaryURL: URL? = nil,
@@ -32,7 +41,8 @@ public final class ProcessCmmClient: CmmClient, @unchecked Sendable {
             path: String = ProcessCmmClient.defaultPath,
             resourceDirectory: URL? = Bundle.main.resourceURL,
             temporaryDirectory: URL = FileManager.default.temporaryDirectory,
-            appEnvironment: [String: String] = ProcessInfo.processInfo.environment
+            appEnvironment: [String: String] = ProcessInfo.processInfo.environment,
+            quickCommandTimeout: TimeInterval = 30
         ) {
             self.binaryURL = binaryURL
             self.environment = environment
@@ -40,6 +50,7 @@ public final class ProcessCmmClient: CmmClient, @unchecked Sendable {
             self.resourceDirectory = resourceDirectory
             self.temporaryDirectory = temporaryDirectory
             self.appEnvironment = appEnvironment
+            self.quickCommandTimeout = quickCommandTimeout
         }
     }
 
@@ -113,16 +124,85 @@ public final class ProcessCmmClient: CmmClient, @unchecked Sendable {
     }
 
     public func plan() async throws -> Plan {
+        let run = try await runToEnd(arguments: ["plan", "--json"], exclusive: true, maxOutput: Self.maxPlanBytes, timeout: nil)
+        if run.outputTooBig {
+            throw CmmError.malformedPlan("cmm printed more than \(Self.maxPlanBytes / 1024 / 1024) MB, which is not a plan")
+        }
+        guard run.reason == .exit, run.status == 0 else {
+            throw CmmError.planFailed(status: run.status, stderr: Self.failureText(run, timeout: nil))
+        }
+        return try Plan.parse(run.output)
+    }
+
+    public func history() async throws -> HistoryReport {
+        let timeout = configuration.quickCommandTimeout
+        let run = try await runToEnd(
+            arguments: ["history", "--json", "--limit", "0", "--days", "90"],
+            exclusive: false, maxOutput: Self.maxHistoryBytes, timeout: timeout
+        )
+        if run.outputTooBig {
+            throw CmmError.malformedHistory("cmm printed more than \(Self.maxHistoryBytes / 1024 / 1024) MB, which is not a history")
+        }
+        guard run.reason == .exit, run.status == 0 else {
+            throw CmmError.historyFailed(status: run.status, stderr: Self.failureText(run, timeout: timeout))
+        }
+        return try HistoryReport.parse(run.output)
+    }
+
+    public func sample() async throws -> SampleResult {
+        let timeout = configuration.quickCommandTimeout
+        let run = try await runToEnd(
+            arguments: ["sample", "--json"], exclusive: false, maxOutput: Self.maxSampleBytes, timeout: timeout
+        )
+        if run.outputTooBig {
+            throw CmmError.malformedSample("cmm printed more than \(Self.maxSampleBytes / 1024) KB, which is not a note of the free space")
+        }
+        guard run.reason == .exit, run.status == 0 else {
+            throw CmmError.sampleFailed(status: run.status, stderr: Self.failureText(run, timeout: timeout))
+        }
+        return try SampleResult.parse(run.output)
+    }
+
+    /// What one run of cmm left behind: all it printed (up to a limit), the tail of its stderr and how it ended.
+    fileprivate struct Finished {
+        let output: Data
+        let stderr: String
+        let status: Int32
+        let reason: Process.TerminationReason
+        /// cmm printed more than the limit and was ended.
+        let outputTooBig: Bool
+        /// cmm did not answer within the timeout and was ended.
+        let timedOut: Bool
+    }
+
+    /// Runs cmm with `arguments` until it ends, and collects what it printed.
+    ///
+    /// An `exclusive` run takes the one slot that `plan` and `apply` share: a second one fails with `busy`, and `stop()`
+    /// reaches it. The quick read-only commands (`history`, `sample`) are not exclusive, so a half-second `sample` can
+    /// never make a scan or a cleanup fail with "cmm is already running", and a Stop is never about them. With a
+    /// `timeout`, a cmm that has not answered by then is ended.
+    private func runToEnd(arguments: [String], exclusive: Bool, maxOutput: Int, timeout: TimeInterval?) async throws -> Finished {
         let binary = try resolveBinary()
         try Task.checkCancellation()
 
-        let child = makeChild(binary: binary, arguments: ["plan", "--json"])
-        try register(child)
-        defer { unregister(child) }
+        let child = makeChild(binary: binary, arguments: arguments)
+        if exclusive { try register(child) }
+        defer { if exclusive { unregister(child) } }
 
         let output = Locked(Data())
         let errors = Locked(Data())
         let tooBig = Locked(false)
+        let timedOut = Locked(false)
+
+        let watchdog = timeout.map { seconds -> DispatchWorkItem in
+            let item = DispatchWorkItem { [weak child] in
+                timedOut.withLock { $0 = true }
+                child?.terminate()
+            }
+            DispatchQueue.global().asyncAfter(deadline: .now() + seconds, execute: item)
+            return item
+        }
+        defer { watchdog?.cancel() }
 
         let exit: (status: Int32, reason: Process.TerminationReason) = try await withTaskCancellationHandler {
             try await withCheckedThrowingContinuation { continuation in
@@ -131,7 +211,7 @@ public final class ProcessCmmClient: CmmClient, @unchecked Sendable {
                         onStdout: { chunk in
                             let overflow = output.withLock { data -> Bool in
                                 data.append(chunk)
-                                return data.count > Self.maxPlanBytes
+                                return data.count > maxOutput
                             }
                             if overflow {
                                 tooBig.withLock { $0 = true }
@@ -151,17 +231,10 @@ public final class ProcessCmmClient: CmmClient, @unchecked Sendable {
         }
 
         if Task.isCancelled { throw CancellationError() }
-        if tooBig.withLock({ $0 }) {
-            throw CmmError.malformedPlan("cmm printed more than \(Self.maxPlanBytes / 1024 / 1024) MB, which is not a plan")
-        }
-        let stderr = Self.text(errors.withLock { $0 })
-        guard exit.reason == .exit, exit.status == 0 else {
-            throw CmmError.planFailed(
-                status: exit.status,
-                stderr: Self.joined(Self.describe(exit.status, exit.reason), stderr)
-            )
-        }
-        return try Plan.parse(output.withLock { $0 })
+        return Finished(
+            output: output.withLock { $0 }, stderr: Self.text(errors.withLock { $0 }), status: exit.status, reason: exit.reason,
+            outputTooBig: tooBig.withLock { $0 }, timedOut: timedOut.withLock { $0 }
+        )
     }
 
     public func apply(selection: ApplySelection) -> AsyncThrowingStream<ApplyEvent, any Error> {
@@ -242,6 +315,15 @@ public final class ProcessCmmClient: CmmClient, @unchecked Sendable {
 
     fileprivate static func joined(_ first: String, _ second: String) -> String {
         [first, second].filter { !$0.isEmpty }.joined(separator: "\n")
+    }
+
+    /// What a failed run says: for a cmm that was ended because it did not answer, that first; then how it ended, if by a
+    /// signal; then what it said on stderr.
+    fileprivate static func failureText(_ run: Finished, timeout: TimeInterval?) -> String {
+        var lines: [String] = []
+        if run.timedOut, let timeout { lines.append("cmm did not answer within \(Int(timeout.rounded(.up))) seconds.") }
+        lines.append(joined(describe(run.status, run.reason), run.stderr))
+        return lines.filter { !$0.isEmpty }.joined(separator: "\n")
     }
 
     /// "cmm was ended by signal 2 (SIGINT)." for a signal; empty for a plain exit.
