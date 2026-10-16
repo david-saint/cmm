@@ -164,6 +164,23 @@ final class SystemSafetyTests: XCTestCase {
         XCTAssertTrue(body.contains("Task { await model.scan() }"))
     }
 
+    // MARK: the one-time card
+
+    /// The card is placed by one line of the window's root view, and its two answers are the settings model's two answers.
+    func testTheCardIsOneLineInTheWindowAndItsAnswersAreTheSettingsOwn() throws {
+        let files = try Self.files(in: "Sources/Cmm")
+        XCTAssertEqual(files.filter { $0.code.contains("OptInSlot(") }.map(\.name), ["RootView.swift"])
+        let root = try Self.source("RootView.swift").code
+        XCTAssertEqual(root.components(separatedBy: "OptInSlot(").count - 1, 1)
+        XCTAssertTrue(root.contains(".overlay(alignment: .topLeading) { OptInSlot(model: model, window: window, pill: pillFrame) }"))
+        let card = try Self.source("OptInCard.swift").code
+        XCTAssertTrue(card.contains("turnOn: { Task { await settings.turnOnEverything() } }"))
+        XCTAssertTrue(card.contains("notNow: { settings.declineOptIn() }"))
+        let asked = Set(try Self.matches(#"settings\.(\w+)"#, in: card))
+        XCTAssertEqual(asked, ["optInAnswered", "turnOnEverything", "declineOptIn"], "the card reads its answer and gives one")
+        XCTAssertFalse(card.contains("model.scan") || card.contains("model.toggle"), "the card does nothing to the window's work")
+    }
+
     /// The Dock icon is the lifecycle's to change, in one place.
     func testTheActivationPolicyIsSetInOnePlace() throws {
         let files = try Self.sources()

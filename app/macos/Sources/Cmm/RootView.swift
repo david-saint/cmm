@@ -22,6 +22,7 @@ struct RootView: View {
                 Rectangle().fill(Theme.background).ignoresSafeArea()
 
                 screen
+                    .overlay(alignment: .topLeading) { OptInSlot(model: model, window: window, pill: pillFrame) }
                     .opacity(model.confirmation == nil ? 1 : 0.28)
                     .disabled(model.confirmation != nil)
                     .accessibilityHidden(model.confirmation != nil)
