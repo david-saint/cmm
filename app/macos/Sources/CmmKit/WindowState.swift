@@ -23,6 +23,35 @@ public final class WindowState {
     /// Changes every time something asks the map to take the keyboard (the review link, a band slice): the map watches it
     /// and focuses itself, because a view cannot be focused from here.
     public private(set) var mapFocusRequest = 0
+    /// The map has the keyboard (so the band rings the focused tile's slice only when its tile is ringed too).
+    public var mapKeyboard = false
+    /// The pointer is on the disk band, where the reclaimable end is shown enlarged.
+    public var bandHovered = false
+    /// Whether slices fly into tiles and back. Off with Reduce Motion, where the pane fades in place.
+    public var flightsEnabled = true
+    /// The slices flying between the band and the map, or nil when nothing is.
+    public private(set) var flight: Flight?
+    private var flightCount = 0
+
+    public enum FlightKind: Equatable, Sendable {
+        /// The band's slices lift off and become the map's tiles.
+        case unfold
+        /// The tiles go back into the band.
+        case fold
+    }
+
+    /// One flight. It begins in the same change as the pane opens or closes, so the views never draw a frame of the map's
+    /// tiles in the wrong place first; whoever draws it lands it when its time is up.
+    public struct Flight: Equatable, Sendable {
+        public let kind: FlightKind
+        /// Tells this flight from every one before it, so a late timer cannot land a later flight.
+        public let generation: Int
+        /// The pane was already open (on the list) when the slices left: the band was the narrow one.
+        public let paneWasOpen: Bool
+        /// The pointer was on the band: its end was already enlarged.
+        public let bandWasMagnified: Bool
+        public let startedAt: Date
+    }
 
     public init(detailsOpen: Bool = false, expanded: Set<String> = [], face: DetailsFace = .map) {
         self.detailsOpen = detailsOpen
@@ -30,22 +59,32 @@ public final class WindowState {
         self.face = face
     }
 
+    /// The pane is open and showing the map.
+    public var mapOpen: Bool { detailsOpen && face == .map }
+
+    /// The band's end is shown enlarged: while the pointer is on the band, and for as long as the map is open.
+    public var isBandMagnified: Bool { bandHovered || mapOpen }
+
     public func toggleDetails() {
         detailsOpen ? closeDetails() : openDetails()
     }
 
     public func openDetails(showing section: DetailsModel.SectionKind? = nil) {
+        let (wasOpen, wasMapOpen) = (detailsOpen, mapOpen)
         detailsOpen = true
         scrollTarget = section
+        if mapOpen, !wasMapOpen { beginFlight(.unfold, paneWasOpen: wasOpen) }
     }
 
     /// Opens the pane on the map, with this tile focused: what the review link and a click on a slice of the band do.
     public func openMap(focusing tile: String?) {
+        let (wasOpen, wasMapOpen) = (detailsOpen, mapOpen)
         face = .map
         detailsOpen = true
         scrollTarget = nil
         focusedTile = tile
         mapFocusRequest &+= 1
+        if !wasMapOpen { beginFlight(.unfold, paneWasOpen: wasOpen) }
     }
 
     /// The List | Map switch.
@@ -53,13 +92,31 @@ public final class WindowState {
         guard newFace != face else { return }
         face = newFace
         hoveredTile = nil
+        if newFace == .list { mapKeyboard = false }
     }
 
     public func closeDetails() {
+        let wasMapOpen = mapOpen
         detailsOpen = false
         focusedRow = nil
         focusedTile = nil
         hoveredTile = nil
+        mapKeyboard = false
+        if wasMapOpen { beginFlight(.fold, paneWasOpen: true) }
+    }
+
+    private func beginFlight(_ kind: FlightKind, paneWasOpen: Bool) {
+        guard flightsEnabled else { return }
+        flightCount &+= 1
+        flight = Flight(
+            kind: kind, generation: flightCount, paneWasOpen: paneWasOpen, bandWasMagnified: bandHovered, startedAt: Date()
+        )
+    }
+
+    /// The flight is over: the tiles take over from the shapes that flew. With a generation, only that flight is landed.
+    public func landFlight(_ generation: Int? = nil) {
+        guard let flight, generation == nil || flight.generation == generation else { return }
+        self.flight = nil
     }
 
     public func toggleExpanded(_ groupID: String) {

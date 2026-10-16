@@ -72,16 +72,23 @@ public struct BandMagnifier: Equatable, Sendable {
     public var isEnlarged: Bool { factor >= Self.enlargedThreshold }
 
     /// `17.4 GB reclaimable, enlarged ×5`, or without the second half when nothing is enlarged.
-    public var caption: String {
+    public var caption: String { caption(whileHovered: false) }
+
+    /// The caption as the board writes it under a band that is only enlarged while the pointer is on it: `enlarged ×5 while
+    /// hovered`. With the map open the band stays enlarged and says how much there is as well (`caption`).
+    public func caption(whileHovered: Bool) -> String {
         let bytes = SizeText.string(reclaimableBytes)
         guard isEnlarged else { return "\(bytes) reclaimable" }
         let nearest = factor.rounded()
         let text = abs(factor - nearest) < 0.05 ? "\(Int(nearest))" : String(format: "%.1f", factor)
-        return "\(bytes) reclaimable, enlarged ×\(text)"
+        return whileHovered ? "enlarged ×\(text) while hovered" : "\(bytes) reclaimable, enlarged ×\(text)"
     }
 
-    /// Nil without a believable capacity, without tiles, or without room.
-    public init?(capacity: Int64?, free freeBytes: Int64, tiles: [MapTile], width: Double) {
+    /// Nil without a believable capacity, without tiles, or without room. `enlargement` is how many times wider than its
+    /// truth the end is asked to be; 1 is the end as it is (never less), which is where the slices come from and go back to.
+    public init?(
+        capacity: Int64?, free freeBytes: Int64, tiles: [MapTile], width: Double, enlargement: Double = BandMagnifier.targetFactor
+    ) {
         guard let capacity = DiskBand.validCapacity(capacity, free: freeBytes), width > 0, !tiles.isEmpty else { return nil }
 
         let bytes = tiles.reduce(Int64(0)) { $0 + max($1.bytes, 0) }
@@ -90,7 +97,7 @@ public struct BandMagnifier: Equatable, Sendable {
         let freeWidth = Double(max(freeBytes, 0)) * perByte
         let room = width - 2 * Self.gap - freeWidth - Self.minimumUsedWidth
 
-        let enlarged = min(Self.targetFactor * trueWidth, max(room, trueWidth))
+        let enlarged = min(max(enlargement, 1) * trueWidth, max(room, trueWidth))
         let used = max(width - 2 * Self.gap - enlarged - freeWidth, 0)
         // when the room runs out entirely the free space gives way last, so the three still add up to the width
         let freeRoom = width - used - 2 * Self.gap - enlarged
@@ -142,11 +149,34 @@ public struct BandMagnifier: Equatable, Sendable {
         slices.first { $0.id == id }
     }
 
-    /// How the slice of a tile is lit: the pointer on the tile (or on the slice) lights it, and the keyboard focus rings it.
-    public static func emphasis(of id: String, hovered: String?, focused: String?) -> Emphasis {
+    /// How the slice of a tile is lit: the pointer on the tile (or on the slice) lights it, the keyboard focus on the tile
+    /// rings it, and so does the pointer when it is on the slice itself in the band, which is what the bubble is naming.
+    public static func emphasis(of id: String, hovered: String?, focused: String?, pointerOnBand: Bool = false) -> Emphasis {
         var emphasis: Emphasis = []
-        if hovered == id { emphasis.insert(.lit) }
+        if hovered == id {
+            emphasis.insert(.lit)
+            if pointerOnBand { emphasis.insert(.ringed) }
+        }
         if focused == id { emphasis.insert(.ringed) }
         return emphasis
+    }
+}
+
+/// The small label over the slice the pointer is on: the tile's name and how big it is, `uv cache 2.5 GB`.
+public struct BandBubble: Equatable, Sendable {
+    public let name: String
+    public let size: String
+
+    public init(tile: MapTile) {
+        name = tile.fullName
+        size = tile.sizeText
+    }
+
+    /// What VoiceOver would say, `uv cache, 2.5 GB`.
+    public var spoken: String { "\(name), \(size)" }
+
+    /// Where the bubble starts along the band: centred on its slice, and never past either end of the band.
+    public static func originX(sliceMidX: Double, bubbleWidth: Double, bandWidth: Double) -> Double {
+        max(0, min(sliceMidX - bubbleWidth / 2, bandWidth - bubbleWidth))
     }
 }

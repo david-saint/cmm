@@ -1,3 +1,4 @@
+import CoreGraphics
 import Foundation
 
 /// Where design C puts the headline block, the band and the Details pane, as numbers.
@@ -20,6 +21,12 @@ public struct HeroLayout: Equatable, Sendable {
     public static let paneInset = 8.0
     /// Where the content of either face of the pane starts: under the title and the List | Map switch.
     public static let paneContentTop = 78.0
+    /// The map: 18 pt of the pane on each side, and under it 16 pt, the caption's 40 and 50 to breathe in.
+    public static let mapSideInset = 18.0
+    public static let mapBelow = 106.0
+    public static let mapMinimumHeight = 120.0
+    /// How far the band rises while the map is open: it is thicker, and has a bracket and a caption under it.
+    public static let bandRise = 16.0
     public static let minimumWidth = 820.0
     public static let minimumHeight = 560.0
 
@@ -53,8 +60,16 @@ public struct HeroLayout: Equatable, Sendable {
     public let bandLeading: Double
     public let bandWidth: Double
     public let bandTop: Double
+    /// The row of small print above the band (the disk's size, what is free now and after), then 10 pt of air; the band
+    /// itself starts `bandLabelsHeight + bandLineGap` under `bandTop`.
+    public let bandLabelsHeight: Double
+    public let bandLineGap: Double
+    /// Where the band itself starts, from the top of the window.
+    public var bandLineTop: Double { bandTop + bandLabelsHeight + bandLineGap }
 
-    public init(screen: Screen, detailsOpen: Bool = false, width: Double, height: Double) {
+    /// - Parameter mapOpen: the pane is open on the map (only on the rest screen with the pane open): the band is raised
+    ///   16 pt to make room for its bracket.
+    public init(screen: Screen, detailsOpen: Bool = false, mapOpen: Bool = false, width: Double, height: Double) {
         let s = min(max(min(width / Self.boardWidth, height / Self.boardHeight), 0.66), 1.25)
         scale = s
 
@@ -86,8 +101,34 @@ public struct HeroLayout: Equatable, Sendable {
         } else {
             bandWidth = max(width - 2 * leading, 0)
         }
-        let fromBottom = (screen == .cleaning || screen == .done ? 80.0 : 108.0) * s
+        let raised = open && mapOpen
+        let fromBottom = ((screen == .cleaning || screen == .done ? 80.0 : 108.0) + (raised ? Self.bandRise : 0)) * s
         bandTop = height - fromBottom
+        bandLabelsHeight = 15 * s
+        bandLineGap = 10 * s
+    }
+
+    // MARK: the map
+
+    /// What the pane has under its header, in a window of this height: the window less the pane's margin on both sides
+    /// and the header.
+    public static func paneContentHeight(windowHeight: Double) -> Double {
+        windowHeight - 2 * paneInset - paneContentTop
+    }
+
+    /// The map's own size, given what the pane has under its header: the pane's width less its sides, and the height less the
+    /// caption's room, never under 120 pt.
+    public static func mapArea(paneContentHeight: Double) -> CGSize {
+        CGSize(width: paneWidth - 2 * mapSideInset, height: max(paneContentHeight - mapBelow, mapMinimumHeight))
+    }
+
+    public static func mapArea(windowHeight: Double) -> CGSize {
+        mapArea(paneContentHeight: paneContentHeight(windowHeight: windowHeight))
+    }
+
+    /// Where the map's top left is, in the window's coordinates (the pane hugs the right edge).
+    public static func mapOrigin(windowWidth: Double) -> CGPoint {
+        CGPoint(x: windowWidth - paneInset - paneWidth + mapSideInset, y: paneInset + paneContentTop)
     }
 }
 
