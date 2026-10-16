@@ -240,7 +240,7 @@ public enum HeroBody {
         for group in safeGroups {
             switch RuleCatalog.entries[group.rule]?.phrase {
             case .caches?:
-                add("Caches", group.bytes)
+                add("caches", group.bytes)
             case .laneDependencies?:
                 add("the dependencies of \(idleLanes(in: group))", group.bytes)
             case .laneOutput?:

@@ -170,6 +170,17 @@ final class CopyTests: XCTestCase {
         XCTAssertTrue(text.hasPrefix("Caches, "), "caches (4.1 GB together) outweigh the lanes (3.6 GB): \(text)")
     }
 
+    func testCachesAreNotCapitalisedWhenSomethingBiggerComesFirst() {
+        let lanes = "Idle lane dependencies (untouched 5+ days; rebuild with npm ci / pod install)"
+        let plan = TestPlans.plan([
+            TestPlans.item("/Users/test/lane-builds/a/node_modules", group: lanes, rule: "lane-deps", bytes: 900, note: "lane a: untouched for 7 days"),
+            TestPlans.item("/Users/test/lane-builds/b/node_modules", group: lanes, rule: "lane-deps", bytes: 800, note: "lane b: untouched for 7 days"),
+            TestPlans.item("/Users/test/Library/Caches/go-build", group: "Go build cache", rule: "go-build", bytes: 100),
+        ])
+        XCTAssertEqual(HeroBody.text(for: SelectionModel(plan: plan)),
+                       "The dependencies of two idle lanes and caches. All of it can be regenerated.")
+    }
+
     func testLongListsAreCutAtThreeKinds() {
         let plan = TestPlans.plan([
             TestPlans.item("/a", group: "Go build cache", rule: "go-build", bytes: 500),
