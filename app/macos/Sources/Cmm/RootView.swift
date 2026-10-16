@@ -26,6 +26,18 @@ struct RootView: View {
                     .disabled(model.confirmation != nil)
                     .accessibilityHidden(model.confirmation != nil)
 
+                // Esc. It is a key equivalent, so it works whether or not any view holds the keyboard focus: on a Mac
+                // without Full Keyboard Access a button cannot take the focus, `onExitCommand` only fires for a
+                // focused view, and Esc then reached nothing (found by pressing it in the running window). It is
+                // outside the dimmed screen, so the card does not disable it, and it only ever cancels or closes.
+                Button("Close") {
+                    window.escape(confirmationOpen: model.confirmation != nil, cancelConfirmation: { model.cancelClean() })
+                }
+                .keyboardShortcut(.cancelAction)
+                .frame(width: 0, height: 0)
+                .opacity(0)
+                .accessibilityHidden(true)
+
                 if let confirmation = model.confirmation {
                     let placement = CardPlacement(pill: pillFrame, card: cardSize, window: geometry.size)
                     ConfirmCard(
@@ -52,9 +64,6 @@ struct RootView: View {
         .animation(motion.animation, value: model.confirmation != nil)
         .animation(.easeInOut(duration: 0.25), value: model.phase)
         .environment(\.cmm, env)
-        .onExitCommand {
-            window.escape(confirmationOpen: model.confirmation != nil, cancelConfirmation: { model.cancelClean() })
-        }
     }
 
     @ViewBuilder private var screen: some View {

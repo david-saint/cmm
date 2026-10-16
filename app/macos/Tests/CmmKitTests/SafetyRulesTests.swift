@@ -275,6 +275,26 @@ final class SafetyRulesTests: XCTestCase {
         XCTAssertTrue(root.contains("cancel: { model.cancelClean() }"))
     }
 
+    /// Found in the running window: `onExitCommand` only fires for a focused view, and on a Mac without Full Keyboard
+    /// Access no button can take the focus, so Esc did nothing. Esc is a key equivalent now, which needs no focus.
+    func testRule3_EscIsAKeyEquivalentNotSomethingThatNeedsFocus() throws {
+        let files = try sources("Cmm")
+        XCTAssertEqual(occurrences(of: ".onExitCommand", in: files), [], "it only fires for a focused view")
+        XCTAssertEqual(occurrences(of: ".keyboardShortcut(.cancelAction)", in: files), ["RootView.swift"], "one place binds Esc")
+        let root = try XCTUnwrap(files.first { $0.name == "RootView.swift" }).code
+        let shortcut = try XCTUnwrap(root.range(of: ".keyboardShortcut(.cancelAction)"))
+        let button = try XCTUnwrap(root.range(of: #"Button("Close") {"#))
+        let escape = try XCTUnwrap(root.range(of: "window.escape(confirmationOpen:"))
+        XCTAssertTrue(button.upperBound <= escape.lowerBound && escape.upperBound <= shortcut.lowerBound,
+                      "the Esc button's whole action is window.escape, which only cancels or closes")
+        let action = root[button.upperBound..<shortcut.lowerBound]
+        XCTAssertFalse(action.contains("confirmClean"), "Esc can never confirm")
+        XCTAssertFalse(action.contains("requestClean"), "nor ask")
+        // it sits outside the dimmed, disabled screen, or the open card would switch it off
+        let screenModifiers = try XCTUnwrap(root.range(of: ".disabled(model.confirmation != nil)"))
+        XCTAssertTrue(screenModifiers.upperBound <= button.lowerBound, "the button is not part of `screen`")
+    }
+
     func testRule3_ConfirmCleanIsCalledOnlyFromTheCardsDeleteButton() throws {
         let files = try sources("Cmm")
         XCTAssertEqual(occurrences(of: "confirmClean(", in: files), ["RootView.swift"])
