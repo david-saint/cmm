@@ -108,6 +108,7 @@ func dockerDown(stderr string) bool {
 	s := strings.ToLower(stderr)
 	return strings.Contains(s, "cannot connect to the docker daemon") ||
 		strings.Contains(s, "docker daemon running") ||
+		strings.Contains(s, "failed to connect to the docker api") || // Docker 29
 		strings.Contains(s, "error during connect")
 }
 

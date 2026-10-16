@@ -192,6 +192,8 @@ func TestDocker_NotRunningIsASkipThatSaysSo(t *testing.T) {
 	for _, stderr := range []string{
 		"Cannot connect to the Docker daemon at unix:///Users/x/.docker/run/docker.sock. Is the docker daemon running?\n",
 		"error during connect: Get \"http://%2FUsers%2Fx%2F.docker%2Frun%2Fdocker.sock/v1.47/system/df\": dial unix: connect: no such file or directory\n",
+		// what Docker 29 prints when Docker Desktop is not running (seen on the real machine on 2026-10-16)
+		"failed to connect to the docker API at unix:///Users/x/.docker/run/docker.sock; check if the path is correct and if the daemon is running: dial unix /Users/x/.docker/run/docker.sock: connect: no such file or directory\n",
 	} {
 		sb := systest.NewSandbox(t)
 		dockerIdle(sb)
