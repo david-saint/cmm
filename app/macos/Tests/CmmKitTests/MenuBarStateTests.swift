@@ -515,4 +515,94 @@ final class MenuBarStateTests: XCTestCase {
         XCTAssertEqual(MenuBarAction.allCases.map(\.rawValue), ["scan", "openWindow", "openHistory", "openSettings", "quit"])
         XCTAssertFalse(MenuBarAction.allCases.map { $0.rawValue.lowercased() }.contains { $0.contains("clean") || $0.contains("delete") || $0.contains("remove") })
     }
+
+    // MARK: edges that hand-written mutants found
+
+    func testAScanAtTheVeryMomentACleaningEndedStands() {
+        // the scan is not older than the cleaning, so what it says can still be believed
+        var context = MenuBarContext()
+        context.recordCleaning(summary(freed: gigabytes(5.4), at: now.addingTimeInterval(-7_200)))
+        context.recordScan(plan: plan(free: 25_200_000_000, safe: [gigabytes(1)]), at: now.addingTimeInterval(-7_200))
+        XCTAssertEqual(context.state(phase: .ready, now: now), .ready(canGo: gigabytes(1), free: 25_200_000_000))
+    }
+
+    func testTwoCleaningsAtTheSameMomentKeepTheFirstToArrive() {
+        var context = MenuBarContext()
+        context.recordCleaning(summary(freed: gigabytes(1), at: now.addingTimeInterval(-100)))
+        context.recordCleaning(summary(freed: gigabytes(2), at: now.addingTimeInterval(-100)))
+        XCTAssertEqual(context.cleaning?.freedBytes, gigabytes(1))
+    }
+
+    func testASampleDatedAfterTheMomentItArrivedIsDatedWhenItArrivedAndShutsNothingOut() {
+        var context = MenuBarContext()
+        context.recordSample(SampleResult(recorded: true, t: now.addingTimeInterval(3_600), freeBytes: 7_000_000_000, capacityBytes: nil), receivedAt: now)
+        XCTAssertEqual(context.reading?.at, now, "cmm's clock is ahead of ours: ours")
+        context.recordSample(SampleResult(recorded: false, t: nil, freeBytes: 9_000_000_000, capacityBytes: nil), receivedAt: now.addingTimeInterval(60))
+        XCTAssertEqual(context.reading?.bytes, 9_000_000_000, "a note from the future does not keep out the next real one")
+    }
+
+    func testAHistoryDatedInTheFutureDoesNotShutOutTheReadingsAfterIt() throws {
+        var json = HistoryJSON()
+        json.host = #"{"volume":"/System/Volumes/Data","free_bytes":24000000000}"#
+        json.generatedAt = TestTime.iso(now.addingTimeInterval(86_400))
+        var context = MenuBarContext()
+        context.recordHistory(try json.report(), now: now)
+        XCTAssertEqual(context.reading?.at, now)
+        context.recordSample(SampleResult(recorded: true, t: nil, freeBytes: 22_000_000_000, capacityBytes: nil), receivedAt: now.addingTimeInterval(600))
+        XCTAssertEqual(context.reading?.bytes, 22_000_000_000)
+    }
+
+    func testACleaningDatedInTheFutureInTheHistoryIsNotTheNewestCleaning() throws {
+        var json = HistoryJSON()
+        json.runs = [
+            HistoryJSON.run(finished: TestTime.iso(now.addingTimeInterval(86_400)), freed: gigabytes(50)),
+            HistoryJSON.run(finished: TestTime.iso(now.addingTimeInterval(-3 * 86_400)), freed: gigabytes(2)),
+        ]
+        XCTAssertEqual(CleaningRecord.newest(in: try json.report(), now: now)?.freedBytes, gigabytes(2))
+    }
+
+    func testAnItemOfNegativeSizeIsNoSizeAndTakesNothingAwayFromItsGroup() {
+        let tampered = TestPlans.plan([
+            TestPlans.item("/a", group: "A", rule: "a", bytes: gigabytes(1)),
+            TestPlans.item("/b", group: "A", rule: "a", bytes: -gigabytes(5)),
+        ], freeBytes: 20_000_000_000)
+        let scan = LastScan(plan: tampered, scannedAt: now)
+        XCTAssertEqual(scan.canGo, gigabytes(1))
+        XCTAssertEqual(scan.groups.map(\.bytes), [gigabytes(1)])
+    }
+
+    func testAPlanThatSaysNegativeFreeSpaceIsReadAsNoneAndNeverShownNegative() {
+        let context = scanned(plan(free: -5_000_000_000, safe: [gigabytes(1)]))
+        XCTAssertEqual(LastScan(plan: TestPlans.plan([], freeBytes: -5_000_000_000), scannedAt: now).free, 0)
+        XCTAssertEqual(context.state(phase: .ready, now: now), .low(free: 0, canGo: gigabytes(1)))
+        let item = presentation(context).item
+        XCTAssertEqual(item.title, SizeText.string(0))
+        XCTAssertTrue(item.isLow)
+        XCTAssertFalse(item.accessibilityLabel.contains("-"), item.accessibilityLabel)
+    }
+
+    func testJustCleanedShowsTheFreshestFreeSpaceAndNotTheCleaningsOwn() {
+        var context = MenuBarContext()
+        context.recordCleaning(summary(freed: gigabytes(5.4), before: 19_800_000_000, at: now.addingTimeInterval(-600)))
+        context.recordSample(SampleResult(recorded: true, t: now.addingTimeInterval(-60), freeBytes: 26_000_000_000, capacityBytes: nil), receivedAt: now)
+        XCTAssertEqual(context.state(phase: .done, now: now), .justCleaned(freed: gigabytes(5.4), free: 26_000_000_000))
+    }
+
+    func testTheItemIsNotLowAtExactlyTenGigabytesAndIsOneByteUnder() {
+        let ten = presentation(scanned(plan(free: 10_000_000_000, safe: []))).item
+        XCTAssertFalse(ten.isLow)
+        XCTAssertEqual(ten.accessibilityLabel, "10.0 GB free")
+        let under = presentation(scanned(plan(free: 9_999_999_999, safe: []))).item
+        XCTAssertTrue(under.isLow)
+        XCTAssertTrue(under.accessibilityLabel.hasSuffix("low on space"), under.accessibilityLabel)
+    }
+
+    func testTheBandUsesTheSizeOfTheDiskASampleSaidWhenNoScanHas() {
+        var context = MenuBarContext()
+        context.recordSample(SampleResult(recorded: true, t: nil, freeBytes: 20_000_000_000, capacityBytes: 245_107_195_904), receivedAt: now)
+        let popover = presentation(context, phase: .idle).popover
+        XCTAssertNotNil(popover.band, "a note that carries the disk's size is enough to draw the band")
+        let withoutSize = MenuBarContext()
+        XCTAssertNil(presentation(withoutSize, phase: .idle).popover.band)
+    }
 }

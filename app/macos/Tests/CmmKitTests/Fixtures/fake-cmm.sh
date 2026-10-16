@@ -33,6 +33,8 @@
 #       sample-error  `sample` fails with status 1 and a message on stderr
 #       garbage-sample `sample` prints a line of text that is not JSON
 #       quick-hang    `history` and `sample` wait for $FAKE_CMM_RELEASE (at most 20 s) and then fail with status 3
+#       big-history   `history` prints a real-looking history of $FAKE_CMM_SAMPLES notes (30 minutes apart) and no runs
+#       big-output    `sample` prints exactly $FAKE_CMM_BYTES bytes of text, no newline
 #   (`noisy` also applies to `history` and `sample`)
 #   FAKE_CMM_HISTORY  history JSON file for `history`
 #   FAKE_CMM_SAMPLE   the line `sample` prints
@@ -214,6 +216,19 @@ history)
         echo "No cleanups recorded yet."
         exit 0
         ;;
+    big-history)
+        exec /usr/bin/perl -e '
+            use strict; use warnings; use POSIX qw(strftime);
+            my $n = $ARGV[0]; my $end = 1760518800;   # 2025-10-15T09:00:00Z
+            print "{\"schema_version\":1,\"generated_at\":\"2025-10-15T09:00:00Z\",\"host\":{\"volume\":\"/System/Volumes/Data\",\"free_bytes\":24000000000},\"runs\":[],\"samples\":[";
+            for my $i (0 .. $n - 1) {
+                my $t = $end - ($n - $i) * 1800;
+                print "," if $i;
+                printf "{\"t\":\"%s\",\"free_bytes\":%d,\"capacity_bytes\":245107195904}", strftime("%Y-%m-%dT%H:%M:%SZ", gmtime($t)), 20000000000 + ($i % 50) * 100000000;
+            }
+            print "],\"unreadable_lines\":0}\n";
+        ' "${FAKE_CMM_SAMPLES:?FAKE_CMM_SAMPLES is not set}"
+        ;;
     quick-hang)
         i=0
         while [ ! -e "${FAKE_CMM_RELEASE:-/nonexistent}" ] && [ $i -lt 400 ]; do
@@ -242,6 +257,10 @@ sample)
         ;;
     garbage-sample)
         echo "Recorded: 19.6 GB free."
+        exit 0
+        ;;
+    big-output)
+        head -c "${FAKE_CMM_BYTES:?FAKE_CMM_BYTES is not set}" /dev/zero | tr '\0' 'x'
         exit 0
         ;;
     quick-hang)

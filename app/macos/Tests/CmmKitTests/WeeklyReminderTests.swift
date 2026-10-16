@@ -266,22 +266,47 @@ final class WeeklyReminderTests: XCTestCase {
 
     // MARK: one at a time, and off means off
 
+    /// A check running in the background of the test, with what it came to; waiting for it can fail the test, never hang it.
+    private func begin(_ rig: Rig) -> (job: SamplerJob, outcome: Locked<WeeklyReminder.Outcome?>) {
+        let outcome = Locked<WeeklyReminder.Outcome?>(nil)
+        let job = SamplerJob {
+            let result = await rig.reminder.check()
+            outcome.withLock { $0 = result }
+        }
+        return (job, outcome)
+    }
+
+    private func finish(_ job: SamplerJob, _ what: String) async throws {
+        let reached = await eventuallyOnMain(timeout: 3) { job.isFinished }
+        if !reached { throw SamplerStuck("\(what) never returned") }
+    }
+
     func testOnlyOneCheckRunsAtATime() async throws {
         let rig = try rig()
         let gate = rig.scans.hold()
-        let first = Task { await rig.reminder.check() }
+        let first = begin(rig)
         await eventuallyOnMain(timeout: 3) { rig.scans.calls == 1 }
         XCTAssertTrue(rig.reminder.isChecking)
 
-        let second = await rig.reminder.check()
-        XCTAssertEqual(second, .busy)
+        let second = begin(rig)
+        try await finish(second.job, "the second check, which should be turned away at once")
+        XCTAssertEqual(second.outcome.withLock { $0 }, .busy)
         XCTAssertEqual(rig.scans.calls, 1, "a second scan is not started")
 
         gate.open()
-        let outcome = await first.value
-        guard case .delivered = outcome else { return XCTFail("\(outcome)") }
+        try await finish(first.job, "the first check")
+        guard case .delivered? = first.outcome.withLock({ $0 }) else { return XCTFail("\(String(describing: first.outcome.withLock { $0 }))") }
         XCTAssertEqual(rig.notes.count, 1)
         XCTAssertFalse(rig.reminder.isChecking)
+    }
+
+    func testAnotherCheckAtTheSameInstantFindsTheWeekDone() async throws {
+        let rig = try rig()
+        await rig.reminder.check()
+        let again = await rig.reminder.check()  // the clock has not moved
+        XCTAssertEqual(again, .notDue(until: rome.local(2026, 10, 26, 10, 0)))
+        XCTAssertEqual(rig.scans.calls, 1)
+        XCTAssertEqual(rig.notes.count, 1)
     }
 
     func testTurningTheReminderOffWhileItScansSpeaksNothingAndWritesNothingDown() async throws {

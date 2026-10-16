@@ -217,19 +217,20 @@ final class HistoryModelTests: XCTestCase {
         let fake = FakeCmmClient(plans: [], histories: [.success(try report(freed: 1)), .success(try report(freed: 2))])
         let gate = fake.holdHistories()
         let model = HistoryModel(client: fake)
-        let first = Task { await model.load() }
+        let first = SamplerJob { await model.load() }
         await eventuallyOnMain(timeout: 3) { fake.historyCalls == 1 }
         XCTAssertTrue(model.isLoading)
 
         // a cleaning ended while the first read was out: five asks, and one more read
-        var more: [Task<Void, Never>] = []
-        for _ in 0..<5 { more.append(Task { await model.load() }) }
+        let more = (0..<5).map { _ in SamplerJob { await model.load() } }
         try await Task.sleep(for: .milliseconds(40))
         XCTAssertEqual(fake.historyCalls, 1, "none of them starts a second read at once")
+        XCTAssertFalse(first.isFinished)
+        XCTAssertEqual(more.filter(\.isFinished).count, 0, "and each waits for the read that is out and the one after it")
 
         gate.open()
-        await first.value
-        for task in more { await task.value }
+        let reached = await eventuallyOnMain(timeout: 3) { first.isFinished && more.allSatisfy(\.isFinished) }
+        XCTAssertTrue(reached, "everyone is served")
         XCTAssertEqual(fake.historyCalls, 2, "one more read, not five")
         XCTAssertEqual(face(model)?.summary, "Freed 2.0 GB in 1 cleaning since 14 Oct.", "the face has the newer report")
         XCTAssertFalse(model.isLoading)

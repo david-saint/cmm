@@ -344,6 +344,26 @@ final class WeeklyPlannerTests: XCTestCase {
         XCTAssertGreaterThan(spoken, 50, "the sweep reached the notifications")
     }
 
+    // MARK: edges that hand-written mutants found
+
+    func testACheckRecordedAtThisVeryMomentIsAlreadyDone() {
+        let planner = planner()
+        let moment = rome.local(2026, 10, 19, 10, 5)
+        guard case .wait(let until) = planner.decision(now: moment, lastWeeklyDate: moment) else { return XCTFail("a check done this very moment is done") }
+        XCTAssertEqual(until, rome.local(2026, 10, 26, 10, 0))
+        // a moment later, still done; a note from a moment ahead is no note, and then it is due
+        guard case .wait = planner.decision(now: moment.addingTimeInterval(1), lastWeeklyDate: moment) else { return XCTFail("still done") }
+        XCTAssertEqual(planner.decision(now: moment, lastWeeklyDate: moment.addingTimeInterval(1)), .due(scheduledFor: rome.local(2026, 10, 19, 10, 0)))
+    }
+
+    func testATimeThatTheClocksSkipIsTheFirstMomentAfterTheGap() {
+        // Sunday 29 March 2026: in Rome 02:00 becomes 03:00, so there is no 02:30
+        let planner = planner(rome, WeeklySchedule(weekday: 1, hour: 2, minute: 30))
+        XCTAssertEqual(planner.nextFire(after: rome.local(2026, 3, 28, 12, 0)), rome.local(2026, 3, 29, 3, 0))
+        XCTAssertEqual(planner.nextFire(after: rome.local(2026, 3, 22, 12, 0)), rome.local(2026, 3, 29, 3, 0), "asked from the Sunday before, the same one")
+        XCTAssertEqual(planner.nextFire(after: rome.local(2026, 3, 29, 3, 0)), rome.local(2026, 4, 5, 2, 30), "and the week after has its 02:30")
+    }
+
     // MARK: what a plan makes of it
 
     func testTheBoardsPlanSpeaksAsTheBoardDoes() throws {

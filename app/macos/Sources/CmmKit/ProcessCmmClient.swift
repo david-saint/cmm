@@ -321,7 +321,10 @@ public final class ProcessCmmClient: CmmClient, @unchecked Sendable {
     /// signal; then what it said on stderr.
     fileprivate static func failureText(_ run: Finished, timeout: TimeInterval?) -> String {
         var lines: [String] = []
-        if run.timedOut, let timeout { lines.append("cmm did not answer within \(Int(timeout.rounded(.up))) seconds.") }
+        if run.timedOut, let timeout {
+            let seconds = Int(timeout.rounded(.up))
+            lines.append("cmm did not answer within \(seconds == 1 ? "1 second" : "\(seconds) seconds").")
+        }
         lines.append(joined(describe(run.status, run.reason), run.stderr))
         return lines.filter { !$0.isEmpty }.joined(separator: "\n")
     }

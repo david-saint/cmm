@@ -283,6 +283,18 @@ final class HistoryRunRowsTests: XCTestCase {
         XCTAssertTrue(row.hasDetails)
     }
 
+    func testADeletedItemShowsWhatItFreedAndIsPlacedBySizeByThat() throws {
+        // an item that was deleted can have freed less than it was worth when the plan was made (it shrank, or part of it was
+        // in use): the row says what the disk got back, and the list is in the order of what the rows say
+        let row = try onlyRow(HistoryJSON.run(finished: "2026-10-14T12:06:00Z", items: [
+            HistoryJSON.item(path: "/Users/test/a", status: "deleted", bytes: gigabytes(3), freed: gigabytes(1)),
+            HistoryJSON.item(path: "/Users/test/b", status: "deleted", bytes: gigabytes(1.5), freed: gigabytes(1.5)),
+            HistoryJSON.item(path: "/Users/test/c", status: "failed", bytes: gigabytes(2), reason: "permission denied"),
+        ]))
+        XCTAssertEqual(row.items.map(\.title), ["~/c", "~/b", "~/a"])
+        XCTAssertEqual(row.items.map(\.sizeText), ["2.0 GB", "1.5 GB", "1.0 GB"])
+    }
+
     func testARunWithNoItemsAndNothingOmittedHasNothingToOpen() throws {
         let row = try onlyRow(HistoryJSON.run(finished: "2026-10-14T12:06:00Z"))
         XCTAssertFalse(row.hasDetails)
@@ -318,6 +330,13 @@ final class HistoryRunRowsTests: XCTestCase {
         let utc = RunRows(report: try report([HistoryJSON.run(finished: "2026-10-14T22:30:00Z")]), now: now, calendar: TestCalendars.utc, locale: british, home: home)
         XCTAssertEqual(utc.weeks[0].rows[0].dateText, "Wed 14 Oct")
         XCTAssertEqual(utc.weeks[0].rows[0].timeText, "22:30")
+    }
+
+    func testTheTimeFollowsThePersonsClockStyle() throws {
+        let american = RunRows(report: try report([HistoryJSON.run(finished: "2026-10-14T22:30:00Z")]), now: now, calendar: rome, locale: Locale(identifier: "en_US"), home: home)
+        let row = american.weeks[0].rows[0]
+        XCTAssertTrue(row.timeText.contains("12:30") && row.timeText.contains("AM"), "half past midnight in Rome: \(row.timeText)")
+        XCTAssertTrue(row.dateText.hasPrefix("Thu"), row.dateText)
     }
 
     // MARK: weeks

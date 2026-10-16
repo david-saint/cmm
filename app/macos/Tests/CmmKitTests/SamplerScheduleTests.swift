@@ -560,6 +560,32 @@ final class SamplerScheduleTests: XCTestCase {
         XCTAssertTrue(line.contains("NSError"), line)
     }
 
+    func testTurningItOffForgetsWhatWasWaitingBehindTheNoteThatWasOut() async throws {
+        let rig = makeRig()
+        let first = SamplerJob { await rig.sampler.start() }
+        try await waitForAsks(1, rig)
+        let waiting = SamplerJob { await rig.sampler.trigger(.wake) }
+        await settle()
+
+        rig.sampler.stop()
+        rig.samples.answer(freeBytes: 1)
+        try await finish(first, "start()")
+        try await finish(waiting, "the ask that was waiting")
+        XCTAssertEqual(rig.samples.asked, 1, "no follow-up for something that was asked before it was turned off")
+        XCTAssertTrue(rig.notes.isEmpty)
+    }
+
+    func testAFailureOnTheSystemsVisitIsLoggedAsTheSchedule() async throws {
+        let rig = makeRig()
+        try await turnOn(rig)
+        let visit = SamplerJob { _ = await rig.scheduler.fire() }
+        try await waitForAsks(2, rig)
+        rig.samples.answer(.failure(.sampleFailed(status: 1, stderr: "")))
+        try await finish(visit, "the visit")
+        let line = try XCTUnwrap(rig.lines.first)
+        XCTAssertTrue(line.contains("(schedule)"), line)
+    }
+
     // MARK: through the client
 
     func testThroughTheClientItAsksForASampleAndForNothingElse() async throws {

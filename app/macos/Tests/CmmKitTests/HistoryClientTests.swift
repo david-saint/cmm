@@ -68,7 +68,7 @@ final class HistoryClientTests: XCTestCase {
             _ = try await client.history()
             XCTFail("a cmm that does not answer is an error")
         } catch let CmmError.historyFailed(_, stderr) {
-            XCTAssertTrue(stderr.contains("did not answer"), stderr)
+            XCTAssertTrue(stderr.contains("cmm did not answer within 1 second."), stderr)
         }
         XCTAssertLessThan(Date().timeIntervalSince(started), 10, "the timeout, not the fake's own 20 s, ended it")
         let ended = await eventually { !fake.processIsAlive() }
@@ -138,10 +138,54 @@ final class HistoryClientTests: XCTestCase {
             _ = try await client.sample()
             XCTFail("a cmm that does not answer is an error")
         } catch let CmmError.sampleFailed(_, stderr) {
-            XCTAssertTrue(stderr.contains("did not answer"), stderr)
+            XCTAssertTrue(stderr.contains("cmm did not answer within 1 second."), stderr)
         }
         let ended = await eventually { !fake.processIsAlive() }
         XCTAssertTrue(ended, "cmm sample must not be left running")
+    }
+
+    func testTheTimeoutIsSaidInWholeSecondsRoundedUp() async throws {
+        let fake = try makeFakeCmm()
+        let client = fake.client(mode: "quick-hang", quickCommandTimeout: 1.2)
+        do {
+            _ = try await client.sample()
+            XCTFail("a cmm that does not answer is an error")
+        } catch let CmmError.sampleFailed(_, stderr) {
+            XCTAssertTrue(stderr.contains("cmm did not answer within 2 seconds."), stderr)
+        }
+    }
+
+    // MARK: how much cmm may print
+
+    func testARealisticallyLongHistoryIsNotTooBig() async throws {
+        // ninety days of notes every half hour is about 4,300; this is nearly five times that, a megabyte and a half
+        let fake = try makeFakeCmm()
+        let report = try await fake.client(mode: "big-history", environment: ["FAKE_CMM_SAMPLES": "20000"]).history()
+        XCTAssertEqual(report.samples.count, 20_000)
+        XCTAssertEqual(report.ignoredEntries, 0)
+        XCTAssertEqual(report.host.freeBytes, 24_000_000_000)
+    }
+
+    func testTheLimitsOnWhatCmmMayPrintAreTheOnesTheDocumentationStates() {
+        XCTAssertEqual(ProcessCmmClient.maxHistoryBytes, 64 * 1024 * 1024, "cmm reads at most 8 MB of each history file")
+        XCTAssertEqual(ProcessCmmClient.maxSampleBytes, 64 * 1024, "a note of the free space is one short line")
+    }
+
+    func testASampleOfExactlyTheLimitIsNotTooBigAndOneByteMoreIs() async throws {
+        let fake = try makeFakeCmm()
+        let limit = ProcessCmmClient.maxSampleBytes
+        do {
+            _ = try await fake.client(mode: "big-output", environment: ["FAKE_CMM_BYTES": "\(limit)"]).sample()
+            XCTFail("text is not a note")
+        } catch let CmmError.malformedSample(why) {
+            XCTAssertFalse(why.contains("printed more than"), "exactly the limit is allowed: \(why)")
+        }
+        do {
+            _ = try await fake.client(mode: "big-output", environment: ["FAKE_CMM_BYTES": "\(limit + 1)"]).sample()
+            XCTFail("text is not a note")
+        } catch let CmmError.malformedSample(why) {
+            XCTAssertEqual(why, "cmm printed more than 64 KB, which is not a note of the free space")
+        }
     }
 
     func testAMissingBinaryIsReportedForBothCommands() async throws {

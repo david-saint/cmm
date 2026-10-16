@@ -535,6 +535,14 @@ final class SettingsModelTests: XCTestCase {
         XCTAssertEqual(denied.model.notifications, .denied)
     }
 
+    func testTurningTheReminderOffNeverAsksMacOSAnythingNorEvenLooks() async {
+        let rig = rig()
+        await rig.model.setWeeklyReminder(false)
+        XCTAssertEqual(rig.permission.requestCalls, 0)
+        XCTAssertEqual(rig.permission.statusCalls, 0, "off is off")
+        XCTAssertTrue(rig.store.writes.isEmpty, "and it was off already")
+    }
+
     func testNoOtherChoiceAsksMacOSAnything() async {
         let rig = rig()
         rig.model.menuBarEnabled = true

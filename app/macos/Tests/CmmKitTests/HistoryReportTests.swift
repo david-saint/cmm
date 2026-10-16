@@ -130,6 +130,18 @@ final class HistoryReportTests: XCTestCase {
         XCTAssertEqual(report.ignoredEntries, 0)
     }
 
+    func testTheCountOfUnreadableLinesIsACountWhateverTheFileSays() throws {
+        func count(_ field: String) throws -> Int {
+            let text = HistoryJSON().text.replacingOccurrences(of: #""unreadable_lines":0"#, with: field)
+            return try HistoryReport.parse(Data(text.utf8)).unreadableLines
+        }
+        XCTAssertEqual(try count(#""unreadable_lines":7"#), 7)
+        XCTAssertEqual(try count(#""unreadable_lines":-5"#), 0, "never negative")
+        XCTAssertEqual(try count(#""unreadable_lines":9000000000000000000"#), 1_000_000, "and never more than a history can hold")
+        XCTAssertEqual(try count(#""unreadable_lines":"many""#), 0, "what is no number counts nothing")
+        XCTAssertEqual(try count(#""unreadable_lines":null"#), 0)
+    }
+
     func testTheEnginesOwnUnreadableLineCountIsKept() throws {
         var json = HistoryJSON()
         json.unreadable = 3
@@ -214,6 +226,24 @@ final class HistoryReportTests: XCTestCase {
         var json = HistoryJSON()
         json.host = #"{"volume":"/","free_bytes":5,"capacity_bytes":-1}"#
         XCTAssertNil(try json.report().host.capacityBytes, "a capacity that cannot be is no capacity")
+    }
+
+    func testADiskOfNoSizeOrOfASizeNoDiskHasIsOfUnknownSizeWhereverItIsRead() throws {
+        for bad in ["0", "-1", "9000000000000000000"] {
+            var json = HistoryJSON()
+            json.host = #"{"volume":"/","free_bytes":5,"capacity_bytes":\#(bad)}"#
+            json.samples = [HistoryJSON.sample("2026-10-14T09:00:00Z", free: 5, capacity: nil).replacingOccurrences(of: "}", with: #","capacity_bytes":\#(bad)}"#)]
+            json.runs = [HistoryJSON.run(finished: "2026-10-14T12:06:00Z", extra: #""capacity_bytes":\#(bad)"#)]
+            let report = try json.report()
+            XCTAssertNil(report.host.capacityBytes, "host \(bad)")
+            XCTAssertNil(report.samples.first?.capacityBytes, "sample \(bad)")
+            XCTAssertNil(report.runs.first?.capacityBytes, "run \(bad)")
+            XCTAssertEqual(report.samples.count, 1, "the note stays")
+            XCTAssertEqual(report.runs.count, 1, "and so does the run")
+        }
+        var json = HistoryJSON()
+        json.host = #"{"volume":"/","free_bytes":5,"capacity_bytes":1}"#
+        XCTAssertEqual(try json.report().host.capacityBytes, 1, "one byte is a size")
     }
 
     // MARK: runs that cannot be used

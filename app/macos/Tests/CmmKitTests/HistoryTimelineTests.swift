@@ -202,6 +202,13 @@ final class HistoryTimelineTests: XCTestCase {
         XCTAssertEqual(gap.rangeText(calendar: rome, locale: british), "Sat 3 Oct, 12:00 \u{2013} 19:05")
     }
 
+    func testAGapInsideADayFollowsThePersonsClockStyle() throws {
+        let gap = HistoryTimeline.Gap(start: rome.local(2026, 10, 3, 12, 0), end: rome.local(2026, 10, 3, 19, 5))
+        let american = gap.rangeText(calendar: rome, locale: Locale(identifier: "en_US"))
+        XCTAssertTrue(american.contains("PM"), american)
+        XCTAssertFalse(american.contains("19:05"), american)
+    }
+
     func testAGapIsWrittenInTheCalendarsOwnTime() throws {
         // 23:30 UTC on the 3rd is half past one on the 4th in Rome
         let gap = HistoryTimeline.Gap(start: TestTime.utc("2026-10-03T23:30:00Z"), end: TestTime.utc("2026-10-06T10:00:00Z"))
