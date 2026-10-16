@@ -88,6 +88,13 @@ func (e *Engine) Apply(ctx context.Context, plan *Plan, opts ApplyOptions) (*Rep
 		byID[r.ID()] = r
 	}
 
+	planned := 0
+	for _, c := range plan.Items {
+		if len(only) == 0 || only[c.Rule] {
+			planned++
+		}
+	}
+
 	var stopped error
 	for _, c := range plan.Items {
 		if len(only) > 0 && !only[c.Rule] {
@@ -131,7 +138,7 @@ func (e *Engine) Apply(ctx context.Context, plan *Plan, opts ApplyOptions) (*Rep
 	}
 	_, rep.FreeAfter, _ = e.free()
 	if !opts.DryRun && e.History != nil && (rep.Deleted > 0 || rep.Failed > 0) {
-		if err := e.History.Append(e.run(rep, started, stopped != nil)); err != nil {
+		if err := e.History.Append(e.run(rep, started, stopped != nil, planned)); err != nil {
 			rep.warn("history: " + err.Error())
 		}
 	}
@@ -140,12 +147,12 @@ func (e *Engine) Apply(ctx context.Context, plan *Plan, opts ApplyOptions) (*Rep
 
 // run turns a finished report into the record kept in the history: the totals, and the items that were deleted or
 // failed (skipped ones changed nothing and are only counted).
-func (e *Engine) run(rep *Report, started time.Time, stopped bool) Run {
+func (e *Engine) run(rep *Report, started time.Time, stopped bool, planned int) Run {
 	r := Run{
 		StartedAt: started, FinishedAt: e.Deps.Env.Clock(),
 		Deleted: rep.Deleted, Skipped: rep.Skipped, Failed: rep.Failed, FreedBytes: rep.FreedBytes, FreedInsideBytes: rep.FreedInsideBytes,
 		FreeBefore: rep.FreeBefore, FreeAfter: rep.FreeAfter, CapacityBytes: e.capacity(),
-		Stopped: stopped, Items: []RunItem{},
+		Stopped: stopped, Planned: planned, Items: []RunItem{},
 	}
 	for _, res := range rep.Results {
 		if res.Status != StatusDeleted && res.Status != StatusFailed {

@@ -9,8 +9,8 @@ The app (and later the menu bar and the weekly notification) needs to say "you f
 Both files live in `~/.local/state/cmm/` (cmm's own folder, mode 0700; files 0600; appended with `O_APPEND|O_NOFOLLOW`, one write per line; a link in their place is never followed).
 
 - `history.jsonl`: one line per real apply that deleted or failed something (a dry run, or a run in which everything was skipped, leaves no line, like `cleanup.log`):
-  `{"schema_version":1,"started_at":RFC3339,"finished_at":RFC3339,"deleted":N,"skipped":N,"failed":N,"freed_bytes":N,"free_before":N,"free_after":N,"capacity_bytes":N,"stopped":false,"items":[{"rule","group","path","status":"deleted|failed","bytes","freed_bytes","reason"}]}`
-  Items list what was deleted or failed (skipped ones are only counted). `capacity_bytes` is left out when unknown.
+  `{"schema_version":1,"started_at":RFC3339,"finished_at":RFC3339,"deleted":N,"skipped":N,"failed":N,"freed_bytes":N,"free_before":N,"free_after":N,"capacity_bytes":N,"stopped":false,"planned":N,"items":[{"rule","group","path","status":"deleted|failed","bytes","freed_bytes","reason"}]}`
+  Items list what was deleted or failed (skipped ones are only counted). `capacity_bytes` is left out when unknown. `planned` (added 2026-10-16 for the app's History face) is how many items the run set out to do, skipped ones included; with deleted+skipped+failed it tells how many a stopped run never reached ("stopped after 2 of 9"); it is left out of lines written before it existed.
 - `free.jsonl`: one line per free-space sample: `{"t":RFC3339,"free_bytes":N,"capacity_bytes":N}` (capacity left out when unknown). A sample is added only when it is due: at least 30 minutes after the last one, or when free space moved by 256 MiB or more since then. `cmm sample` takes one; nothing else writes samples (`cmm plan` stays read-only).
 
 ## Commands

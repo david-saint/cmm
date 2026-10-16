@@ -458,3 +458,18 @@ func TestHistoryDirectory_IsTheSameStateFolderAsTheJournal(t *testing.T) {
 		t.Error("a nil clock means time.Now")
 	}
 }
+
+func TestRun_PlannedIsWrittenOnlyWhenKnown(t *testing.T) {
+	without, _ := json.Marshal(Run{SchemaVersion: 1, Items: []RunItem{}})
+	if strings.Contains(string(without), "planned") {
+		t.Errorf("a run that does not know how many items it planned leaves the key out: %s", without)
+	}
+	with, _ := json.Marshal(Run{SchemaVersion: 1, Planned: 9, Items: []RunItem{}})
+	if !strings.Contains(string(with), `"planned":9`) {
+		t.Errorf("a known count is written: %s", with)
+	}
+	var old Run
+	if err := json.Unmarshal([]byte(`{"schema_version":1,"deleted":2,"stopped":true,"items":[]}`), &old); err != nil || old.Planned != 0 {
+		t.Errorf("a line written before the field existed reads back as unknown (0): %+v %v", old, err)
+	}
+}

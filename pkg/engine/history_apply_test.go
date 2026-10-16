@@ -137,6 +137,53 @@ func TestApply_ARunCutShortIsRecordedAsStopped(t *testing.T) {
 	}
 }
 
+func TestApply_TheRecordSaysHowManyItemsTheRunSetOutToDo(t *testing.T) {
+	f, _, _, _ := threeItems(t)
+	plan, _ := f.eng.Plan(ctx)
+	log := &fakeRunLog{}
+	f.eng.History = log
+	if _, err := f.eng.Apply(ctx, plan, ApplyOptions{}); err != nil {
+		t.Fatal(err)
+	}
+	if len(log.runs) != 1 || log.runs[0].Planned != 3 {
+		t.Errorf("planned is how many items the run set out to do, skipped ones included: %+v", log.runs)
+	}
+}
+
+func TestApply_AStoppedRunKnowsHowManyItemsItNeverReached(t *testing.T) {
+	f, _, _, _ := twoItemPlan(t)
+	plan, _ := f.eng.Plan(ctx)
+	log := &fakeRunLog{}
+	f.eng.History = log
+	cctx, cancel := context.WithCancel(ctx)
+	f.eng.Remove = func(path string) error {
+		err := os.RemoveAll(path)
+		cancel()
+		return err
+	}
+	if _, err := f.eng.Apply(cctx, plan, ApplyOptions{}); !errors.Is(err, context.Canceled) {
+		t.Fatalf("setup: %v", err)
+	}
+	r := log.runs[0]
+	if r.Planned != 2 || r.Deleted+r.Skipped+r.Failed != 1 || !r.Stopped {
+		t.Errorf("two were planned and one was reached, so the app can say \"stopped after 1 of 2\": %+v", r)
+	}
+}
+
+func TestApply_PlannedCountsOnlyTheRulesAskedFor(t *testing.T) {
+	f, _, _, _ := threeItems(t)
+	plan, _ := f.eng.Plan(ctx)
+	plan.Items = append(plan.Items, cand("other", "Other", "/nowhere/else", 1)) // filtered out by Only, never looked at
+	log := &fakeRunLog{}
+	f.eng.History = log
+	if _, err := f.eng.Apply(ctx, plan, ApplyOptions{Only: []string{"deps"}}); err != nil {
+		t.Fatal(err)
+	}
+	if len(log.runs) != 1 || log.runs[0].Planned != 3 {
+		t.Errorf("an item the run was told to leave alone was never planned: %+v", log.runs)
+	}
+}
+
 func TestApply_AHistoryThatFailsIsAWarningNotAFailure(t *testing.T) {
 	f, _, a, b := twoItemPlan(t)
 	plan, _ := f.eng.Plan(ctx)

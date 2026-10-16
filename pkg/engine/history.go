@@ -78,12 +78,15 @@ type Run struct {
 	Failed        int       `json:"failed"`
 	FreedBytes    int64     `json:"freed_bytes"` // what the volume got back
 	// FreedInsideBytes is what was freed inside another program's storage (Docker's disk image) and so is not in FreedBytes.
-	FreedInsideBytes int64     `json:"freed_inside_bytes,omitempty"`
-	FreeBefore       int64     `json:"free_before"`
-	FreeAfter        int64     `json:"free_after"`
-	CapacityBytes    int64     `json:"capacity_bytes,omitempty"` // how big the volume was; left out when unknown
-	Stopped          bool      `json:"stopped"`                  // the run was ended early (Stop, or the program was told to quit)
-	Items            []RunItem `json:"items"`
+	FreedInsideBytes int64 `json:"freed_inside_bytes,omitempty"`
+	FreeBefore       int64 `json:"free_before"`
+	FreeAfter        int64 `json:"free_after"`
+	CapacityBytes    int64 `json:"capacity_bytes,omitempty"` // how big the volume was; left out when unknown
+	Stopped          bool  `json:"stopped"`                  // the run was ended early (Stop, or the program was told to quit)
+	// Planned is how many items the run set out to do (the ones its rule filter let through, skipped ones included).
+	// With Deleted+Skipped+Failed it says how many a stopped run never reached. Left out when unknown (older lines).
+	Planned int       `json:"planned,omitempty"`
+	Items   []RunItem `json:"items"`
 	// ItemsOmitted is how many items did not fit in a line of the file and are only counted in the totals.
 	ItemsOmitted int `json:"items_omitted,omitempty"`
 }

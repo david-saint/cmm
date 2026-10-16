@@ -149,6 +149,9 @@ func writeHistory(w io.Writer, rep *engine.HistoryReport, days int, loc *time.Lo
 			stopped := ""
 			if r.Stopped {
 				stopped = ", stopped early"
+				if r.Planned > 0 {
+					stopped = fmt.Sprintf(", stopped after %d of %d", r.Deleted+r.Skipped+r.Failed, r.Planned)
+				}
 			}
 			fmt.Fprintf(w, "  %s  freed %-8s %d deleted, %d skipped, %d failed%s%s\n",
 				r.FinishedAt.In(loc).Format("2006-01-02 15:04"), formatBytes(r.FreedBytes), r.Deleted, r.Skipped, r.Failed, stopped, insideSuffix(r))

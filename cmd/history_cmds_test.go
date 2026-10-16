@@ -155,6 +155,21 @@ func TestHistory_ShowsEachCleanupAndHowFreeSpaceMoved(t *testing.T) {
 	}
 }
 
+func TestHistory_AStoppedRunSaysHowFarItGot(t *testing.T) {
+	rep := &engine.HistoryReport{SchemaVersion: 1, Runs: []engine.Run{
+		{FinishedAt: time.Date(2026, 10, 11, 16, 40, 0, 0, time.UTC), Deleted: 2, Stopped: true, Planned: 9},
+		{FinishedAt: time.Date(2026, 10, 10, 16, 40, 0, 0, time.UTC), Deleted: 1, Stopped: true}, // written before the count existed
+	}}
+	var out strings.Builder
+	writeHistory(&out, rep, 90, time.UTC)
+	if !strings.Contains(out.String(), "stopped after 2 of 9") {
+		t.Errorf("a stopped run that knows its plan says how far it got:\n%s", out.String())
+	}
+	if !strings.Contains(out.String(), "stopped early") {
+		t.Errorf("an older line without the count still says it was stopped:\n%s", out.String())
+	}
+}
+
 func TestHistory_JSONIsPureOnStdoutAndMatchesTheSchema(t *testing.T) {
 	a := newApp(t)
 	a.withHistory()
