@@ -100,14 +100,19 @@ final class BackgroundSafetyTests: XCTestCase {
         }
     }
 
-    func testOnlyTheSamplersConvenienceInitializerTakesTheClientAndItCallsOneThingOnIt() throws {
+    func testOnlyTheSamplerAndTheHistoryModelTakeTheClientAndEachCallsOneThingOnIt() throws {
         // Nothing else of the new files holds a client at all.
         let files = try newBehaviourFiles()
-        let holders = files.filter { $0.code.contains("CmmClient") }.map(\.name)
-        XCTAssertEqual(holders, ["SamplerSchedule.swift"], "only the sampler's convenience initializer takes the client")
-        let sampler = try XCTUnwrap(files.first { $0.name == "SamplerSchedule.swift" }).code
-        XCTAssertEqual(sampler.components(separatedBy: "client.").count - 1, 1, "and it calls one thing on it")
-        XCTAssertTrue(sampler.contains("{ try await client.sample() }"))
+        let calls = [
+            "SamplerSchedule.swift": "{ try await client.sample() }",
+            "HistoryModel.swift": "{ try await client.history() }",
+        ]
+        XCTAssertEqual(Set(files.filter { $0.code.contains("CmmClient") }.map(\.name)), Set(calls.keys))
+        for (name, call) in calls {
+            let code = try XCTUnwrap(files.first { $0.name == name }).code
+            XCTAssertEqual(code.components(separatedBy: "client.").count - 1, 1, "\(name) calls one thing on the client")
+            XCTAssertTrue(code.contains(call), name)
+        }
     }
 
     // MARK: the engine client is the only code that starts cmm
