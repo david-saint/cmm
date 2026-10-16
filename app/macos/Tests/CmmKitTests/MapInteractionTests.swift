@@ -4,14 +4,6 @@ import XCTest
 @testable import Cmm
 @testable import CmmKit
 
-/// A window that stays where it is put, however far off the screen that is, so a test can have a real, key window with a real
-/// first responder without showing anything to the person running it.
-private final class OffscreenWindow: NSWindow {
-    override func constrainFrameRect(_ frameRect: NSRect, to screen: NSScreen?) -> NSRect { frameRect }
-    override var canBecomeKey: Bool { true }
-    override var canBecomeMain: Bool { true }
-}
-
 /// The keyboard and the pointer on the real views: the whole window is hosted in a window of its own and keys and clicks are
 /// sent to it as the system sends them, so what is tested is what happens when a key is pressed, and not only what the logic
 /// behind it would do. (Hovering is not here: SwiftUI's hover and tap gestures only answer the real pointer, which a test
@@ -69,10 +61,7 @@ final class MapInteractionTests: XCTestCase {
         let hosting = NSHostingView(
             rootView: RootView(model: model, window: state, env: AppViewsTests.env).frame(width: size.width, height: size.height)
         )
-        let window = OffscreenWindow(
-            contentRect: CGRect(x: -20_000, y: -20_000, width: size.width, height: size.height), styleMask: [.borderless],
-            backing: .buffered, defer: false
-        )
+        let window = OffscreenWindow(size: size)
         window.contentView = hosting
         window.makeKeyAndOrderFront(nil)
         addTeardownBlock { @MainActor in
