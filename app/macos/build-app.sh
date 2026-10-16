@@ -4,8 +4,9 @@
 #
 #   1. builds the Go engine from this repository (the folder two levels up) into Contents/Resources/cmm,
 #   2. builds the app with `swift build -c release`,
-#   3. assembles the bundle (Info.plist: com.davidsaint.cmm, "cmm", macOS 14 or later),
-#   4. signs it ad hoc (no developer account needed; the app runs on the Mac that built it) and checks the result.
+#   3. builds the app icon (Icon/AppIcon.icon, an Icon Composer document) with actool,
+#   4. assembles the bundle (Info.plist: com.davidsaint.cmm, "cmm", macOS 14 or later),
+#   5. signs it ad hoc (no developer account needed; the app runs on the Mac that built it) and checks the result.
 #
 # Safe to run again: the bundle is rebuilt from scratch each time and only its own output folder is touched.
 # Nothing is installed anywhere (no `go install`), and nothing is deleted outside app/macos/build/Cmm.app.
@@ -56,6 +57,24 @@ BIN_DIR="$(swift build -c release --package-path "$HERE" --show-bin-path)"
 [ -x "$BIN_DIR/Cmm" ] || die "swift build did not produce $BIN_DIR/Cmm."
 cp "$BIN_DIR/Cmm" "$APP/Contents/MacOS/Cmm"
 
+# --- the icon -------------------------------------------------------------------------------------------------
+
+# Icon/AppIcon.icon is an Icon Composer document with a light, a dark and a tinted look. actool turns it into the
+# asset catalog the system draws the icon from on macOS 26 and later (Assets.car) and an AppIcon.icns for older
+# systems; both go into the bundle's Resources, and Info.plist below names the icon.
+ICON_SRC="$HERE/Icon/AppIcon.icon"
+[ -d "$ICON_SRC" ] || die "the app icon is missing: $ICON_SRC"
+xcrun --find actool >/dev/null 2>&1 || die "actool was not found (it ships with Xcode), so the app icon cannot be built."
+echo "==> Building the app icon (actool)"
+ICON_LOG="$(xcrun actool "$ICON_SRC" --compile "$APP/Contents/Resources" --platform macosx --target-device mac \
+    --minimum-deployment-target 14.0 --app-icon AppIcon --output-partial-info-plist "$HERE/build/icon-info.plist" \
+    --output-format human-readable-text --notices --warnings --errors 2>&1)" || {
+    echo "$ICON_LOG" >&2
+    die "actool could not build the app icon (see the messages above)."
+}
+[ -f "$APP/Contents/Resources/Assets.car" ] && [ -f "$APP/Contents/Resources/AppIcon.icns" ] ||
+    die "actool did not produce the icon files in $APP/Contents/Resources."
+
 # --- the bundle -----------------------------------------------------------------------------------------------
 
 cat > "$APP/Contents/Info.plist" <<'PLIST'
@@ -67,6 +86,10 @@ cat > "$APP/Contents/Info.plist" <<'PLIST'
     <string>en</string>
     <key>CFBundleExecutable</key>
     <string>Cmm</string>
+    <key>CFBundleIconFile</key>
+    <string>AppIcon</string>
+    <key>CFBundleIconName</key>
+    <string>AppIcon</string>
     <key>CFBundleIdentifier</key>
     <string>com.davidsaint.cmm</string>
     <key>CFBundleInfoDictionaryVersion</key>

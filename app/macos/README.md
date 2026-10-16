@@ -14,7 +14,8 @@ open build/Cmm.app
 ```
 
 `build-app.sh` builds `cmm` from this repository (two folders up) into `Cmm.app/Contents/Resources/cmm`, runs
-`swift build -c release`, assembles `build/Cmm.app` (bundle id `com.davidsaint.cmm`, name "cmm", macOS 14+) and signs
+`swift build -c release`, compiles the app icon (`Icon/AppIcon.icon`, see [Icon/README.md](Icon/README.md)) with
+`actool`, assembles `build/Cmm.app` (bundle id `com.davidsaint.cmm`, name "cmm", macOS 14+) and signs
 it with `codesign --sign -` (no developer account; the app is meant to run on the Mac that built it). It can be run
 again at any time and only ever replaces its own `build/Cmm.app`. Without Go on `PATH` it stops and says so; it never
 runs `go install`.
