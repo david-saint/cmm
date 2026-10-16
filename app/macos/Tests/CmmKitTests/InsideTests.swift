@@ -171,7 +171,8 @@ final class InsideTests: XCTestCase {
         selection.toggle(try XCTUnwrap(selection.groups.first { $0.section == .review }))
 
         let c = rest(selection)
-        XCTAssertEqual(c.number.text, "8.4 GB")
+        XCTAssertEqual(c.number.text, "17.4 GB", "will go: Docker's 9.0 GB counts here like on the pill")
+        XCTAssertEqual(c.sentence, "will go.")
         XCTAssertEqual(c.pillTitle, "Clean 17.4 GB…", "the pill says what will be removed")
         XCTAssertEqual(c.tickedText, "12 items ticked")
         XCTAssertEqual(c.caption.trailingText, "19.8 GB free now → 28.2 GB after", "28.2, not 37.2: the disk does not get Docker's")

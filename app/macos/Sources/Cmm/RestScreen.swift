@@ -132,11 +132,22 @@ struct RestHero: View {
         VStack(alignment: .leading, spacing: 0) {
             HeroHeader(layout: layout, eyebrow: copy.eyebrow, number: copy.number, phrase: copy.sentence)
 
-            if let body = copy.body {
-                Paragraph(text: body, size: layout.bodySize, lineHeight: layout.bodyLineHeight)
-                    .frame(maxWidth: layout.bodyMaxWidth, alignment: .leading)
-                    .padding(.top, layout.bodyTopGap)
-                    .opacity(covered ? 0 : 1)
+            if copy.body != nil || copy.followsSelection {
+                Group {
+                    if let body = copy.body {
+                        Paragraph(text: body, size: layout.bodySize, lineHeight: layout.bodyLineHeight)
+                    } else {
+                        Color.clear.frame(height: 0)  // not Color.clear alone, which would take all the room there is
+                    }
+                }
+                // Once the headline follows the ticks, its line may be there or not, one line or two: the pill stays where
+                // it is, so the ticking does not move it.
+                .frame(
+                    maxWidth: layout.bodyMaxWidth, minHeight: copy.followsSelection ? 2 * layout.bodyLineHeight : 0,
+                    alignment: .topLeading
+                )
+                .padding(.top, layout.bodyTopGap)
+                .opacity(covered ? 0 : 1)
             }
 
             HStack(spacing: layout.actionsGap) {

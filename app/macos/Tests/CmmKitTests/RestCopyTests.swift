@@ -40,13 +40,15 @@ final class RestCopyTests: XCTestCase {
 
     // MARK: what the ticks change, and what they do not
 
-    func testUntickingChangesThePillTheBandAndTheAfterFigureButNotTheHeadline() throws {
+    func testUntickingChangesTheHeadlineThePillTheBandAndTheAfterFigure() throws {
         var selection = try board()
         let lane = try XCTUnwrap(selection.groups.first { $0.name.hasPrefix("Idle lane") }?.items.first)  // 1.4 GB
         selection.toggle(lane)
 
         let c = copy(selection)
-        XCTAssertEqual(c.number.text, "8.4 GB", "the headline is what is safe, not what is ticked")
+        XCTAssertEqual(c.number.text, "7.0 GB", "with a selection that is not the default the headline is what will go: the pill's number")
+        XCTAssertEqual(c.sentence, "will go.")
+        XCTAssertEqual(c.body, "1.4 GB more is safe to remove. Docker's 9.0 GB is yours to review.")
         XCTAssertEqual(c.pillTitle, "Clean 7.0 GB…")
         XCTAssertEqual(c.tickedText, "8 items ticked")
         XCTAssertEqual(c.caption.trailingText, "19.8 GB free now → 26.8 GB after")
@@ -61,7 +63,9 @@ final class RestCopyTests: XCTestCase {
         selection.toggle(docker)
 
         let c = copy(selection)
-        XCTAssertEqual(c.number.text, "8.4 GB", "review never joins the safe figure")
+        XCTAssertEqual(c.number.text, "17.4 GB", "what will go, as the pill says it, Docker's 9.0 GB included")
+        XCTAssertEqual(c.sentence, "will go.")
+        XCTAssertNil(c.body, "nothing safe is left unticked and nothing is left to review")
         XCTAssertEqual(c.pillTitle, "Clean 17.4 GB…")
         XCTAssertEqual(c.tickedText, "12 items ticked")
         XCTAssertEqual(c.reviewLink, "Includes 9.0 GB you reviewed")
@@ -82,6 +86,8 @@ final class RestCopyTests: XCTestCase {
         selection.toggle(images)
 
         let c = copy(selection)
+        XCTAssertEqual(c.number.text, "14.6 GB")
+        XCTAssertEqual(c.body, "Docker's 2.8 GB is yours to review.")
         XCTAssertEqual(c.pillTitle, "Clean 14.6 GB…")
         XCTAssertEqual(c.reviewLink, "Review 2.8 GB more")
         XCTAssertEqual(
@@ -95,6 +101,9 @@ final class RestCopyTests: XCTestCase {
         for group in selection.groups where group.section == .safe { selection.toggle(group) }
 
         let c = copy(selection)
+        XCTAssertEqual(c.number, SizeText.Parts(value: "0", unit: "GB"))
+        XCTAssertEqual(c.sentence, "will go.")
+        XCTAssertEqual(c.body, "8.4 GB more is safe to remove. Docker's 9.0 GB is yours to review.")
         XCTAssertEqual(c.pillTitle, "Nothing ticked")
         XCTAssertFalse(c.pillEnabled)
         XCTAssertEqual(c.tickedText, "0 items ticked")
@@ -108,6 +117,7 @@ final class RestCopyTests: XCTestCase {
         selection.toggle(uv)
         XCTAssertEqual(copy(selection).tickedText, "1 item ticked")
         XCTAssertEqual(copy(selection).pillTitle, "Clean 2.5 GB…")
+        XCTAssertEqual(copy(selection).number.text, "2.5 GB")
     }
 
     // MARK: what is not there

@@ -103,7 +103,7 @@ final class AppViewsTests: XCTestCase {
 
     enum Scenario: String, CaseIterable {
         case scanning
-        case rest, restReview, restUnticked, restNoCapacity, restDockerTicked
+        case rest, restReview, restUnticked, restNothingTicked, restNoCapacity, restDockerTicked
         case details, detailsExpanded, detailsReviewExpanded
         case map, mapDockerFocused, mapDockerTicked, mapHovered
         case bandHovered, unfoldEarly, unfoldMid, unfoldLate, foldMid
@@ -200,6 +200,12 @@ final class AppViewsTests: XCTestCase {
             let lane = try XCTUnwrap(model.selection?.groups.first { $0.rule == "lane-deps" }?.items.first)
             model.toggle(lane)
             model.toggle(try XCTUnwrap(model.selection?.groups.first { $0.rule == "uv-cache" }))
+            return Rig(model: model, window: WindowState())
+
+        case .restNothingTicked:
+            let (model, _) = await readyModel(board)
+            for group in model.selection?.groups ?? [] where group.section == .safe { model.toggle(group) }
+            XCTAssertEqual(model.selection?.selectedCount, 0)
             return Rig(model: model, window: WindowState())
 
         case .restDockerTicked:
@@ -448,7 +454,7 @@ final class AppViewsTests: XCTestCase {
 
     func testTheModelReachedEachScenarioItClaims() async throws {
         let expected: [Scenario: AppModel.Phase] = [
-            .scanning: .scanning, .rest: .ready, .restReview: .ready, .restUnticked: .ready, .restNoCapacity: .ready,
+            .scanning: .scanning, .rest: .ready, .restReview: .ready, .restUnticked: .ready, .restNothingTicked: .ready, .restNoCapacity: .ready,
             .details: .ready, .detailsExpanded: .ready, .detailsReviewExpanded: .ready, .sheet: .ready,
             .restDockerTicked: .ready, .sheetDockerTicked: .ready, .map: .ready, .mapDockerFocused: .ready,
             .mapDockerTicked: .ready, .mapHovered: .ready, .bandHovered: .ready, .unfoldEarly: .ready, .unfoldMid: .ready,
@@ -490,9 +496,15 @@ final class AppViewsTests: XCTestCase {
     }
 
     func testTheWindowDrawsAtItsSmallestSize() async throws {
-        let rig = try await rig(for: .detailsExpanded)
         let size = CGSize(width: HeroLayout.minimumWidth, height: HeroLayout.minimumHeight)
-        let bitmap = try render(RootView(model: rig.model, window: rig.window, env: Self.env), name: "details-smallest", appearance: .aqua, size: size)
-        XCTAssertGreaterThan(distinctColors(bitmap), 8)
+        for (scenario, name) in [(Scenario.detailsExpanded, "details-smallest"), (.mapDockerFocused, "map-smallest"), (.bandHovered, "bandHovered-smallest")] {
+            let rig = try await rig(for: scenario)
+            for appearance in [NSAppearance.Name.aqua, .darkAqua] {
+                let bitmap = try render(
+                    RootView(model: rig.model, window: rig.window, env: Self.env(for: scenario)), name: name, appearance: appearance, size: size
+                )
+                XCTAssertGreaterThan(distinctColors(bitmap), 8, "\(name)")
+            }
+        }
     }
 }

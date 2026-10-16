@@ -2,7 +2,8 @@ import Foundation
 
 /// Everything the "at rest" screen says and draws, derived from the plan and from what is ticked:
 ///
-/// - the headline is the **safe** total, whatever is ticked;
+/// - the headline is the **safe** total while everything safe is ticked and nothing for review is, and follows **what is
+///   ticked** in any other state (`Headline`);
 /// - the pill and the "N items ticked" line follow **what is ticked**, all of it, because that is what will be removed;
 /// - the band and the "after" figure follow what the **disk gets back**: free space now plus the ticked items that do not
 ///   free their space inside another program's own storage (a Docker prune frees it inside Docker's disk image). What
@@ -10,11 +11,14 @@ import Foundation
 public struct RestCopy: Equatable, Sendable {
     /// `Macintosh HD · 19.8 GB free of 228 GB`
     public let eyebrow: String
-    /// The big number: the safe total.
+    /// The big number: the safe total, or, once the selection is not the default, what will go (`Headline`).
     public let number: SizeText.Parts
-    /// `is safe to remove.`
+    /// `is safe to remove.` or `will go.`
     public let sentence: String
     public let body: String?
+    /// The headline follows what is ticked (`will go.`) and not the safe total: the sentence under it may come and go as
+    /// ticks change, and the screen keeps its place for it so that nothing moves.
+    public let followsSelection: Bool
     /// `Clean 8.4 GB…`, or `Nothing ticked` (and the button is off).
     public let pillTitle: String
     public let pillEnabled: Bool
@@ -45,10 +49,11 @@ public struct RestCopy: Equatable, Sendable {
         if let capacity { freeText += " of \(SizeText.capacity(capacity))" }
         eyebrow = ([volumeName.isEmpty ? nil : volumeName, freeText].compactMap { $0 }).joined(separator: " · ")
 
-        number = SizeText.parts(selection.plannedBytes)
-        sentence = "is safe to remove."
-        body = HeroBody.text(for: selection)
-            ?? (selection.reviewBytes > 0 ? "Nothing regenerable was found. What cmm offers for review is your call." : nil)
+        let headline = Headline(selection: selection)
+        number = headline.number
+        sentence = headline.sentence
+        body = headline.body
+        followsSelection = headline.followsSelection
 
         pillTitle = selection.selectedCount == 0 ? "Nothing ticked" : "Clean \(SizeText.string(selected))…"
         pillEnabled = selection.selectedCount > 0
