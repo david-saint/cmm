@@ -27,6 +27,138 @@ final class HistoryFaceStateTests: XCTestCase {
         state.setExpanded("a", false)
         XCTAssertEqual(state.expanded, [])
     }
+
+    // MARK: "Reading the history…", only after a moment
+
+    func testAReadIsMentionedOnlyOnceItHasTakenThreeTenthsOfASecond() async throws {
+        let waits = HeldWaits()
+        addTeardownBlock { waits.releaseAll() }
+        let state = HistoryFaceState(wait: { await waits.wait($0) })
+        state.readingChanged(true)
+        try await waits.untilHolding(1)
+        XCTAssertEqual(waits.asked, [.milliseconds(300)], "the face waits 300 ms, and only that")
+        XCTAssertEqual(HistoryFaceState.readingDelay, .milliseconds(300))
+        XCTAssertFalse(state.showsReading, "nothing is said while the moment lasts")
+
+        waits.releaseAll()
+        let said = await eventuallyOnMain(timeout: 2) { state.showsReading }
+        XCTAssertTrue(said, "a read that outlasts the moment is mentioned")
+
+        state.readingChanged(false)
+        XCTAssertFalse(state.showsReading, "and the words go the moment the read is done")
+    }
+
+    func testAReadThatEndsWithinTheMomentIsNeverMentioned() async throws {
+        let waits = HeldWaits()
+        addTeardownBlock { waits.releaseAll() }
+        let state = HistoryFaceState(wait: { await waits.wait($0) })
+        state.readingChanged(true)
+        try await waits.untilHolding(1)
+        state.readingChanged(false)
+        waits.releaseAll()  // the moment ends after the read did
+        try await Task.sleep(for: .milliseconds(60))
+        XCTAssertFalse(state.showsReading)
+    }
+
+    func testOnlyTheReadThatIsOutCounts() async throws {
+        let waits = HeldWaits()
+        addTeardownBlock { waits.releaseAll() }
+        let state = HistoryFaceState(wait: { await waits.wait($0) })
+        state.readingChanged(true)
+        try await waits.untilHolding(1)
+        state.readingChanged(false)
+        state.readingChanged(true)  // a second read began
+        try await waits.untilHolding(2)
+        waits.releaseFirst()  // the first read's moment ends: it is over, and says nothing
+        try await Task.sleep(for: .milliseconds(60))
+        XCTAssertFalse(state.showsReading)
+        waits.releaseAll()
+        let said = await eventuallyOnMain(timeout: 2) { state.showsReading }
+        XCTAssertTrue(said, "the second read's moment is the one that counts")
+    }
+
+    func testTheRealWaitIsTheClockAndAQuickReadSaysNothing() async throws {
+        let state = HistoryFaceState()
+        state.readingChanged(true)
+        try await Task.sleep(for: .milliseconds(100))
+        XCTAssertFalse(state.showsReading, "100 ms in, nothing is said")
+        let said = await eventuallyOnMain(timeout: 2) { state.showsReading }
+        XCTAssertTrue(said)
+        state.readingChanged(false)
+        XCTAssertFalse(state.showsReading)
+    }
+}
+
+/// What the face says about reading the history, apart from the history itself.
+final class HistoryReadStatusTests: XCTestCase {
+    func testNothingIsSaidOfAReadThatWorkedOrHasNotBegun() {
+        XCTAssertEqual(HistoryReadStatus(phase: .idle, showsReading: false), .quiet)
+        XCTAssertEqual(HistoryReadStatus(phase: .loaded, showsReading: false), .quiet)
+    }
+
+    func testAFailureIsOneSentenceAndKeepsCmmsDetailApart() {
+        let status = HistoryReadStatus(phase: .failed(title: "cmm could not read the history", detail: "Exit status 1.\n/Users/x"), showsReading: false)
+        XCTAssertEqual(status, .failed(sentence: "cmm could not read the history.", detail: "Exit status 1.\n/Users/x"))
+        XCTAssertEqual(
+            HistoryReadStatus(phase: .failed(title: "Already a sentence.", detail: ""), showsReading: false),
+            .failed(sentence: "Already a sentence.", detail: ""), "a full stop is not doubled"
+        )
+    }
+
+    func testAReadThatIsOutIsSaidBeforeAnOldFailure() {
+        XCTAssertEqual(HistoryReadStatus(phase: .failed(title: "cmm could not read the history", detail: ""), showsReading: true), .reading)
+        XCTAssertEqual(HistoryReadStatus(phase: .loaded, showsReading: true), .reading)
+    }
+
+    func testTheWords() {
+        XCTAssertEqual(HistoryReadStatus.readingText, "Reading the history\u{2026}")
+        XCTAssertEqual(HistoryReadStatus.retryTitle, "Retry")
+    }
+}
+
+/// Waits a test controls: each is held until the test lets it go, and what was asked for is written down.
+final class HeldWaits: @unchecked Sendable {
+    private struct Contents {
+        var asked: [Duration] = []
+        var held: [CheckedContinuation<Void, Never>] = []
+    }
+
+    private let box = Locked(Contents())
+
+    func wait(_ duration: Duration) async {
+        await withCheckedContinuation { continuation in
+            box.withLock {
+                $0.asked.append(duration)
+                $0.held.append(continuation)
+            }
+        }
+    }
+
+    var asked: [Duration] { box.withLock { $0.asked } }
+    var holding: Int { box.withLock { $0.held.count } }
+
+    /// Lets every held wait go (they are let go when the test ends in any case).
+    func releaseAll() {
+        let held = box.withLock { contents -> [CheckedContinuation<Void, Never>] in
+            defer { contents.held = [] }
+            return contents.held
+        }
+        held.forEach { $0.resume() }
+    }
+
+    func releaseFirst() {
+        let first = box.withLock { contents -> CheckedContinuation<Void, Never>? in
+            contents.held.isEmpty ? nil : contents.held.removeFirst()
+        }
+        first?.resume()
+    }
+
+    /// Waits, at most two seconds, until this many waits are held.
+    @MainActor
+    func untilHolding(_ count: Int) async throws {
+        let reached = await eventuallyOnMain(timeout: 2) { self.holding >= count }
+        if !reached { throw SamplerStuck("only \(holding) of \(count) waits began") }
+    }
 }
 
 /// What VoiceOver says for the History list: each week and each cleaning as one line of words, in the order the row is read.

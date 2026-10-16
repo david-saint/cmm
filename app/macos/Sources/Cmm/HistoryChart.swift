@@ -18,6 +18,7 @@ struct HistoryChart: View {
         }
         .frame(width: layout.width, height: HistoryChartLayout.height)
         .overlay(alignment: .topLeading) {
+            HistoryChartGapWords(layout: layout, state: state)
             HistoryChartReadout(layout: layout, state: state)
         }
         .contentShape(Rectangle())
@@ -58,9 +59,6 @@ struct HistoryChart: View {
             context.fill(Path(ellipseIn: CGRect(x: rise.x - 2.5, y: rise.toY - 2.5, width: 5, height: 5)), with: .style(Theme.accent))
         }
 
-        for gap in layout.gaps {
-            if let label = gap.label { write(label, in: &context, font: Typeface.ui(HistoryChartLayout.labelSize), tone: Theme.historyQuiet) }
-        }
         for label in layout.valueLabels + layout.timeLabels {
             write(label, in: &context, font: Typeface.ui(HistoryChartLayout.labelSize), tone: Theme.ink2)
         }
@@ -69,13 +67,34 @@ struct HistoryChart: View {
         }
     }
 
-    private static func write(_ label: HistoryChartLayout.Label, in context: inout GraphicsContext, font: Font, tone: Tone) {
+    static func write(_ label: HistoryChartLayout.Label, in context: inout GraphicsContext, font: Font, tone: Tone) {
         let anchor: UnitPoint = switch label.anchor {
         case .leading: UnitPoint(x: 0, y: 0.5)
         case .center: .center
         case .trailing: UnitPoint(x: 1, y: 0.5)
         }
         context.draw(Text(label.text).font(font).monospacedDigit().foregroundStyle(tone), at: CGPoint(x: label.x, y: label.y), anchor: anchor)
+    }
+}
+
+/// "No samples" over each gap wide enough for the words, in the quiet ink; the gap under the pointer leaves them to the read-out,
+/// which says the same and names the days.
+struct HistoryChartGapWords: View {
+    let layout: HistoryChartLayout
+    let state: HistoryFaceState
+
+    var body: some View {
+        let hovered = state.pointerTime.flatMap(layout.gap(at:))
+        Canvas { context, _ in
+            for gap in layout.gaps where gap != hovered {
+                if let label = gap.label {
+                    HistoryChart.write(label, in: &context, font: Typeface.ui(HistoryChartLayout.labelSize), tone: Theme.historyQuiet)
+                }
+            }
+        }
+        .frame(width: layout.width, height: HistoryChartLayout.height)
+        .allowsHitTesting(false)
+        .accessibilityHidden(true)
     }
 }
 

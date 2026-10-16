@@ -18,7 +18,7 @@ final class HistoryViewsTests: XCTestCase {
         _ = NSApplication.shared
     }
 
-    static let env = ViewEnvironment(
+    nonisolated static let env = ViewEnvironment(
         home: "/Users/test",
         volumeName: { _ in "Macintosh HD" },
         now: { HistoryBoard.now },
@@ -33,18 +33,26 @@ final class HistoryViewsTests: XCTestCase {
 
     func render<V: View>(
         _ view: V, name: String, appearance: NSAppearance.Name, increasedContrast: Bool = false, size: CGSize = HistoryViewsTests.size
-    ) throws -> NSBitmapImageRep {
+    ) async throws -> NSBitmapImageRep {
         let hosting = NSHostingView(
             rootView: view.environment(\.cmmIncreasedContrast, increasedContrast).frame(width: size.width, height: size.height)
         )
-        let window = NSWindow(contentRect: CGRect(origin: .zero, size: size), styleMask: [.titled], backing: .buffered, defer: false)
+        // A window that is really ordered in (far off every screen), and waits that let go of the main actor (spinning the run
+        // loop from inside this test would not), so the face's own work runs as it does in the app: its read when it appears,
+        // and what it says while the read is out.
+        let window = OffscreenWindow(size: size)
         window.appearance = NSAppearance(named: appearance)
         window.contentView = hosting
+        window.orderFront(nil)
         hosting.frame = CGRect(origin: .zero, size: size)
         hosting.layoutSubtreeIfNeeded()
-        RunLoop.current.run(until: Date().addingTimeInterval(0.25))
+        try await Task.sleep(for: .milliseconds(300))
         hosting.layoutSubtreeIfNeeded()
-        RunLoop.current.run(until: Date().addingTimeInterval(0.1))
+        try await Task.sleep(for: .milliseconds(150))
+        defer {
+            window.contentView = nil
+            window.orderOut(nil)
+        }
 
         let bitmap = try XCTUnwrap(hosting.bitmapImageRepForCachingDisplay(in: hosting.bounds))
         hosting.cacheDisplay(in: hosting.bounds, to: bitmap)
@@ -53,7 +61,6 @@ final class HistoryViewsTests: XCTestCase {
             let url = URL(fileURLWithPath: directory).appendingPathComponent("history-\(name)-\(label).png")
             if let png = bitmap.representation(using: .png, properties: [:]) { try png.write(to: url) }
         }
-        window.contentView = nil
         return bitmap
     }
 
@@ -91,8 +98,31 @@ final class HistoryViewsTests: XCTestCase {
     // MARK: the states
 
     enum Scenario: String, CaseIterable {
-        /// C-History: the four cleanings, the one with the failed item open.
+        /// C-History: the four cleanings, the one with the failed item open (panel 4 of C-History-States too), the pointer on
+        /// the board's reading.
         case board
+        /// Panel 1: nothing cleaned yet.
+        case firstRun
+        /// Panel 2: two and a bit days of notes and one cleaning.
+        case fewSamples
+        /// Panel 3: a gap of two days, the pointer in it.
+        case gap
+        /// Panel 5: a run that was stopped after two of nine, open.
+        case stopped
+        /// Panel 6: a run that only pruned Docker, open.
+        case dockerOnly
+        /// The line under the panels: "Keep a free-space history" is off.
+        case historyOff
+        /// Not on the boards: no report yet, and a read that is taking a while.
+        case reading
+        /// Not on the boards: the last report, and a new read that is taking a while.
+        case readingAgain
+        /// Not on the boards: cmm could not be read, and there is no report to show.
+        case readFailed
+        /// Not on the boards: the last report kept, and the failure of the read after it.
+        case readFailedAgain
+        /// Two lines of the history could not be read.
+        case unreadable
     }
 
     struct Rig {
@@ -101,10 +131,13 @@ final class HistoryViewsTests: XCTestCase {
         let history: HistoryModel
         let state: HistoryFaceState
         var settings: SettingsModel?
+        var env = HistoryViewsTests.env
+        /// Lets go of whatever the scenario holds (a read that is kept waiting).
+        var finish: () -> Void = {}
 
         @MainActor
-        func view(env: ViewEnvironment? = nil) -> some View {
-            RootView(model: model, window: window, env: env ?? HistoryViewsTests.env)
+        func view() -> some View {
+            RootView(model: model, window: window, env: env)
                 .environment(history)
                 .environment(state)
                 .environment(settings)
@@ -112,27 +145,76 @@ final class HistoryViewsTests: XCTestCase {
     }
 
     /// The window at rest on the board's plan, with the pane open on History.
-    func rig(report: @escaping @Sendable () throws -> HistoryReport, state: HistoryFaceState? = nil) async throws -> Rig {
+    func rig(history: HistoryModel, state: HistoryFaceState? = nil) async throws -> Rig {
         let model = AppModel(client: FakeCmmClient(plan: try TestPlans.fixture("plan-c.json")), now: { HistoryBoard.now })
         await model.scan()
-        let history = HistoryModel(fetch: report)
-        await history.load()
         return Rig(
             model: model, window: WindowState(detailsOpen: true, face: .history), history: history, state: state ?? HistoryFaceState()
         )
     }
 
+    /// The same, with a History model that has read this report.
+    func rig(report: HistoryReport, state: HistoryFaceState? = nil) async throws -> Rig {
+        let history = HistoryModel(fetch: { report })
+        await history.load()
+        return try await rig(history: history, state: state)
+    }
+
     func rig(for scenario: Scenario) async throws -> Rig {
+        let ninthOctober = HistoryBoard.runID(HistoryBoard.at(10, 9, 9, 41))
+        let failure = CmmError.historyFailed(status: 1, stderr: "cmm: cannot read /Users/test/.local/state/cmm/history.jsonl")
         switch scenario {
         case .board:
-            // the cleaning with the failed item open, and the pointer on the board's reading
-            let report = try HistoryBoard.report()
             return try await rig(
-                report: { report },
-                state: HistoryFaceState(
-                    expanded: [HistoryBoard.runID(HistoryBoard.at(10, 9, 9, 41))], pointerTime: HistoryBoard.at(10, 7, 15, 0)
-                )
+                report: try HistoryBoard.report(),
+                state: HistoryFaceState(expanded: [ninthOctober], pointerTime: HistoryBoard.at(10, 7, 15, 0))
             )
+        case .firstRun:
+            return try await rig(report: try HistoryBoard.report(runs: [], samples: []))
+        case .fewSamples:
+            return try await rig(report: try HistoryBoard.report(runs: [HistoryBoard.lanes], samples: HistoryBoard.fewSamples))
+        case .gap:
+            var rig = try await rig(
+                report: try HistoryBoard.report(runs: [], samples: HistoryBoard.gapSamples, now: HistoryBoard.gapNow, freeNow: 21.6),
+                state: HistoryFaceState(pointerTime: HistoryBoard.at(10, 4, 12, 0))
+            )
+            rig.env.now = { HistoryBoard.gapNow }
+            return rig
+        case .stopped:
+            return try await rig(
+                report: try HistoryBoard.report(runs: [HistoryBoard.stopped], samples: []),
+                state: HistoryFaceState(expanded: [HistoryBoard.runID(HistoryBoard.at(10, 11, 16, 40))])
+            )
+        case .dockerOnly:
+            return try await rig(
+                report: try HistoryBoard.report(runs: [HistoryBoard.dockerOnly], samples: []),
+                state: HistoryFaceState(expanded: [HistoryBoard.runID(HistoryBoard.at(10, 14, 14, 20))])
+            )
+        case .historyOff:
+            var rig = try await rig(report: try HistoryBoard.report(), state: HistoryFaceState(expanded: [ninthOctober]))
+            rig.settings = SettingsModel(
+                settings: Settings(store: MemorySettingsStore([.historyEnabled: false])), loginItem: FakeLoginItem(),
+                notifications: FakeNotificationPermission()
+            )
+            return rig
+        case .reading, .readingAgain:
+            let fake = FakeCmmClient(plans: [], histories: [.success(try HistoryBoard.report())])
+            let history = HistoryModel(client: fake)
+            if scenario == .readingAgain { await history.load() }
+            let gate = fake.holdHistories()
+            // the moment is over at once, so the picture shows what is said after it
+            var rig = try await rig(history: history, state: HistoryFaceState(wait: { _ in }))
+            rig.finish = { gate.open() }
+            return rig
+        case .readFailed, .readFailedAgain:
+            let fake = FakeCmmClient(
+                plans: [], histories: scenario == .readFailed ? [.failure(failure)] : [.success(try HistoryBoard.report()), .failure(failure)]
+            )
+            let history = HistoryModel(client: fake)
+            await history.load()
+            return try await rig(history: history)
+        case .unreadable:
+            return try await rig(report: try HistoryBoard.report(unreadable: 2))
         }
     }
 
@@ -141,12 +223,71 @@ final class HistoryViewsTests: XCTestCase {
     func testEveryStateDrawsInLightAndDark() async throws {
         for scenario in Scenario.allCases {
             let rig = try await rig(for: scenario)
-            let light = try render(rig.view(), name: scenario.rawValue, appearance: .aqua)
-            let dark = try render(rig.view(), name: scenario.rawValue, appearance: .darkAqua)
+            let light = try await render(rig.view(), name: scenario.rawValue, appearance: .aqua)
+            let dark = try await render(rig.view(), name: scenario.rawValue, appearance: .darkAqua)
+            rig.finish()
             XCTAssertGreaterThan(distinctColors(light, in: Self.face), 8, "\(scenario) draws nothing in the pane in light mode")
             XCTAssertGreaterThan(distinctColors(dark, in: Self.face), 8, "\(scenario) draws nothing in the pane in dark mode")
             XCTAssertGreaterThan(brightness(light), 0.6, "\(scenario) is not light in light mode")
             XCTAssertLessThan(brightness(dark), 0.4, "\(scenario) is not dark in dark mode")
+        }
+    }
+
+    func testIncreaseContrastDrawsToo() async throws {
+        for scenario in [Scenario.board, .gap] {
+            let rig = try await rig(for: scenario)
+            let light = try await render(rig.view(), name: scenario.rawValue, appearance: .aqua, increasedContrast: true)
+            let dark = try await render(rig.view(), name: scenario.rawValue, appearance: .darkAqua, increasedContrast: true)
+            rig.finish()
+            XCTAssertGreaterThan(distinctColors(light, in: Self.face), 8, "\(scenario)")
+            XCTAssertGreaterThan(distinctColors(dark, in: Self.face), 8, "\(scenario)")
+        }
+    }
+
+    func testEachStateIsWhatItClaims() async throws {
+        func face(_ rig: Rig) -> HistoryPresentation? {
+            rig.history.presentation(
+                historyEnabled: rig.settings?.historyEnabled ?? true, now: rig.env.now(), calendar: HistoryBoard.calendar,
+                locale: HistoryBoard.locale, home: "/Users/test"
+            )
+        }
+        for scenario in Scenario.allCases {
+            let rig = try await rig(for: scenario)
+            defer { rig.finish() }
+            let shown = face(rig)
+            switch scenario {
+            case .firstRun:
+                XCTAssertEqual(shown?.emptyMessage, HistoryPresentation.emptyMessage)
+                XCTAssertNil(shown?.summary)
+            case .fewSamples:
+                XCTAssertEqual(shown?.timeline?.caption, "History fills in as cmm runs: 3 days so far.")
+                XCTAssertNotNil(shown?.timeline?.chart)
+            case .gap:
+                XCTAssertEqual(shown?.timeline?.chart?.gaps.count, 1)
+                XCTAssertNotNil(shown?.emptyMessage, "a line and no cleaning")
+            case .stopped:
+                XCTAssertEqual(shown?.rows.weeks.first?.rows.first?.stoppedText, "Stopped after 2 of 9")
+            case .dockerOnly:
+                XCTAssertEqual(shown?.rows.weeks.first?.rows.first?.freedText, "0 GB freed")
+                XCTAssertNil(shown?.summary, "nothing came back to the disk")
+            case .historyOff:
+                XCTAssertNil(shown?.timeline)
+                XCTAssertEqual(shown?.summary, "Freed 44.0 GB in 3 cleanings since 29 Sep.")
+            case .reading:
+                XCTAssertNil(rig.history.report)
+            case .readingAgain:
+                XCTAssertNotNil(rig.history.report)
+            case .readFailed:
+                XCTAssertNil(rig.history.report)
+                XCTAssertEqual(HistoryReadStatus(phase: rig.history.phase, showsReading: false),
+                               .failed(sentence: "cmm could not read the history.", detail: "Exit status 1.\ncmm: cannot read /Users/test/.local/state/cmm/history.jsonl"))
+            case .readFailedAgain:
+                XCTAssertNotNil(rig.history.report)
+            case .unreadable:
+                XCTAssertEqual(shown?.rows.footnote, "2 lines of the history could not be read.")
+            case .board:
+                XCTAssertNotNil(shown?.timeline?.chart)
+            }
         }
     }
 

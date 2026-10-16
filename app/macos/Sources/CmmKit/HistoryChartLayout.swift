@@ -221,10 +221,16 @@ public struct HistoryChartLayout: Equatable, Sendable {
         return start.addingTimeInterval(fraction * end.timeIntervalSince(start))
     }
 
+    /// The gap a moment falls in, if it falls in one. While the pointer is there the read-out says what the gap's own words say,
+    /// so those give way to it.
+    public func gap(at time: Date) -> GapMark? {
+        gaps.first { $0.start < time && time < $0.end }
+    }
+
     /// What to show for a moment: the words of the gap it falls in, or else the reading nearest to it.
     public func readout(at time: Date) -> Readout? {
         guard time >= start.addingTimeInterval(-1), time <= end.addingTimeInterval(1) else { return nil }
-        if let gap = gaps.first(where: { $0.start < time && time < $0.end }) {
+        if let gap = gap(at: time) {
             let fraction = min(max(time.timeIntervalSince(start) / end.timeIntervalSince(start), 0), 1)
             return Readout(
                 lineX: plot.minX + fraction * plot.width, point: nil, first: HistoryTimeline.Gap.title, second: gap.range,

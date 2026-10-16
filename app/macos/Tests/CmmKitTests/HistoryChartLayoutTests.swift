@@ -13,19 +13,6 @@ final class HistoryChartLayoutTests: XCTestCase {
         return HistoryChartLayout(chart: chart, width: width, calendar: calendar, locale: locale)
     }
 
-    /// Hourly notes between two moments, each `free(hour index)` gigabytes.
-    private func hourly(from first: Date, to last: Date, _ free: (Int) -> Double) -> [String] {
-        var notes: [String] = []
-        var hour = first
-        var index = 0
-        while hour <= last {
-            notes.append(HistoryJSON.sample(HistoryBoard.iso(hour), free: gigabytes(free(index))))
-            hour = hour.addingTimeInterval(3_600)
-            index += 1
-        }
-        return notes
-    }
-
     private func report(runs: [String] = [], samples: [String], now: Date = HistoryBoard.now, freeNow: Double? = 19.8) throws -> HistoryReport {
         var json = HistoryJSON()
         json.generatedAt = HistoryBoard.iso(now)
@@ -138,6 +125,15 @@ final class HistoryChartLayoutTests: XCTestCase {
         XCTAssertTrue(readout.lineX > gap.minX && readout.lineX < gap.maxX)
     }
 
+    func testTheGapUnderThePointerIsTheOneTheReadoutNames() throws {
+        let board = try layout(try HistoryBoard.report())
+        let gap = try XCTUnwrap(board.gaps.first)
+        XCTAssertEqual(board.gap(at: HistoryBoard.at(10, 4, 12, 0)), gap, "its words give way to the read-out, which says them")
+        XCTAssertNil(board.gap(at: HistoryBoard.at(10, 7, 15, 0)), "over the line there is no gap")
+        XCTAssertNil(board.gap(at: gap.start), "the readings at its two ends are not in it")
+        XCTAssertNil(board.gap(at: gap.end))
+    }
+
     func testNearTheRightEdgeTheReadoutsBoxGoesLeftOfItsLine() throws {
         let board = try layout(try HistoryBoard.report())
         let readout = try XCTUnwrap(board.readout(at: HistoryBoard.now))
@@ -177,7 +173,7 @@ final class HistoryChartLayoutTests: XCTestCase {
     func testAFewDaysAreMarkedDayByDay() throws {
         // C-History-States, panel 2: 12 Oct to now, marked 13 Oct and 14 Oct
         let now = HistoryBoard.at(10, 14, 14, 50)
-        let chart = try layout(try report(samples: hourly(from: HistoryBoard.at(10, 12, 8, 0), to: HistoryBoard.at(10, 14, 14, 0)) { 16.7 - Double($0) * 0.04 }, now: now), now: now)
+        let chart = try layout(try report(samples: HistoryBoard.hourly(from: HistoryBoard.at(10, 12, 8, 0), to: HistoryBoard.at(10, 14, 14, 0)) { 16.7 - Double($0) * 0.04 }, now: now), now: now)
         XCTAssertEqual(chart.timeLabels.map(\.text), ["12 Oct", "13 Oct", "14 Oct", "now"])
         XCTAssertEqual(HistoryChartLayout.tickStep(start: chart.start, end: chart.end, plotWidth: chart.plot.width), .day)
     }
@@ -185,8 +181,8 @@ final class HistoryChartLayoutTests: XCTestCase {
     func testAWeekIsMarkedEveryOtherDayFromTheFirst() throws {
         // C-History-States, panel 3: 1 Oct to 7 Oct, marked 3, 5 and 7 Oct
         let now = HistoryBoard.at(10, 7, 22, 0)
-        let samples = hourly(from: HistoryBoard.at(10, 1, 0, 30), to: HistoryBoard.at(10, 3, 8, 0)) { 41 - Double($0) * 0.1 }
-            + hourly(from: HistoryBoard.at(10, 5, 8, 40), to: HistoryBoard.at(10, 7, 21, 0)) { 29 - Double($0) * 0.1 }
+        let samples = HistoryBoard.hourly(from: HistoryBoard.at(10, 1, 0, 30), to: HistoryBoard.at(10, 3, 8, 0)) { 41 - Double($0) * 0.1 }
+            + HistoryBoard.hourly(from: HistoryBoard.at(10, 5, 8, 40), to: HistoryBoard.at(10, 7, 21, 0)) { 29 - Double($0) * 0.1 }
         let chart = try layout(try report(samples: samples, now: now), now: now)
         XCTAssertEqual(chart.timeLabels.map(\.text), ["1 Oct", "3 Oct", "5 Oct", "7 Oct", "now"])
         XCTAssertEqual(chart.gaps.map(\.range), ["Fri 3 \u{2013} Sun 5 Oct"])
@@ -207,7 +203,7 @@ final class HistoryChartLayoutTests: XCTestCase {
     func testAMarkThatWouldTouchNowOrTheFirstDayIsLeftOut() throws {
         // a day's mark an hour before now would sit on the word now
         let now = HistoryBoard.at(10, 14, 1, 0)
-        let chart = try layout(try report(samples: hourly(from: HistoryBoard.at(10, 12, 8, 0), to: HistoryBoard.at(10, 14, 0, 30)) { _ in 20 }, now: now), now: now)
+        let chart = try layout(try report(samples: HistoryBoard.hourly(from: HistoryBoard.at(10, 12, 8, 0), to: HistoryBoard.at(10, 14, 0, 30)) { _ in 20 }, now: now), now: now)
         XCTAssertEqual(chart.timeLabels.map(\.text), ["12 Oct", "13 Oct", "now"])
         // and none of the words that are kept touch each other
         let extents = chart.timeLabels.map(HistoryChartLayout.extent(of:)).sorted { $0.lowerBound < $1.lowerBound }
@@ -221,7 +217,7 @@ final class HistoryChartLayoutTests: XCTestCase {
             finished: HistoryBoard.iso(HistoryBoard.at(10, 13, 12, 0)), started: HistoryBoard.iso(HistoryBoard.at(10, 13, 11, 59)),
             freed: 0, inside: gigabytes(9), before: gigabytes(20)
         )
-        let samples = hourly(from: HistoryBoard.at(10, 12, 0, 0), to: HistoryBoard.at(10, 14, 14, 0)) { _ in 20 }
+        let samples = HistoryBoard.hourly(from: HistoryBoard.at(10, 12, 0, 0), to: HistoryBoard.at(10, 14, 14, 0)) { _ in 20 }
             + [HistoryJSON.sample(HistoryBoard.iso(HistoryBoard.at(10, 13, 11, 59)), free: gigabytes(20)),
                HistoryJSON.sample(HistoryBoard.iso(HistoryBoard.at(10, 13, 12, 0)), free: gigabytes(20))]
         let chart = try layout(try report(runs: [docker], samples: samples.sorted()))
@@ -246,7 +242,7 @@ final class HistoryChartLayoutTests: XCTestCase {
     }
 
     func testAValueNowAtTheTopOfTheAxisIsWrittenUnderItsReading() throws {
-        let samples = hourly(from: HistoryBoard.at(10, 12, 8, 0), to: HistoryBoard.at(10, 14, 14, 0)) { _ in 20 }
+        let samples = HistoryBoard.hourly(from: HistoryBoard.at(10, 12, 8, 0), to: HistoryBoard.at(10, 14, 14, 0)) { _ in 20 }
         let chart = try layout(try report(samples: samples, freeNow: 50))
         let label = try XCTUnwrap(chart.nowLabel)
         XCTAssertEqual(chart.valueLabels.first?.text, "50 GB")
@@ -254,7 +250,7 @@ final class HistoryChartLayoutTests: XCTestCase {
     }
 
     func testAWideTopOfTheAxisMovesThePlotRightSoItsWordsFit() throws {
-        let samples = hourly(from: HistoryBoard.at(10, 12, 8, 0), to: HistoryBoard.at(10, 14, 14, 0)) { _ in 510 }
+        let samples = HistoryBoard.hourly(from: HistoryBoard.at(10, 12, 8, 0), to: HistoryBoard.at(10, 14, 14, 0)) { _ in 510 }
         let chart = try layout(try report(samples: samples, freeNow: 510))
         XCTAssertEqual(chart.valueLabels.first?.text, "525 GB")
         XCTAssertGreaterThan(chart.plot.minX, 30)
@@ -281,7 +277,7 @@ final class HistoryChartLayoutTests: XCTestCase {
         XCTAssertEqual(board.chartLabel, board.summary)
         // a line of two days and no cleaning: no paragraph, so the words under the line
         let short = HistoryPresentation(
-            report: try report(samples: hourly(from: HistoryBoard.at(10, 12, 18, 0), to: HistoryBoard.at(10, 14, 14, 0)) { _ in 20 }),
+            report: try report(samples: HistoryBoard.hourly(from: HistoryBoard.at(10, 12, 18, 0), to: HistoryBoard.at(10, 14, 14, 0)) { _ in 20 }),
             historyEnabled: true, now: HistoryBoard.now, calendar: calendar, locale: locale, home: "/Users/test"
         )
         XCTAssertNil(short.summary)

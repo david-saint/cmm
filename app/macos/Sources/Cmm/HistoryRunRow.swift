@@ -168,8 +168,9 @@ struct HistoryInsideChip: View {
             .padding(.horizontal, 8)
             .padding(.vertical, 2)
             .overlay {
+                // CSS's 1 px dotted border: square dots one point apart
                 RoundedRectangle(cornerRadius: 6, style: .continuous)
-                    .strokeBorder(Theme.review, style: StrokeStyle(lineWidth: 1, lineCap: .round, dash: [0.01, 2.2]))
+                    .strokeBorder(Theme.review, style: StrokeStyle(lineWidth: 1, lineCap: .butt, dash: [1, 1]))
             }
     }
 }

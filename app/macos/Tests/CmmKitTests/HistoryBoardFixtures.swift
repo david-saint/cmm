@@ -123,16 +123,58 @@ enum HistoryBoard {
         return notes.sorted { $0.0 < $1.0 }.map { HistoryJSON.sample(iso($0.0), free: gigabytes($0.1), capacity: 228_000_000_000) }
     }
 
-    /// C-History: the four cleanings and the line, with 19.8 GB free now.
-    static func report(runs: [String] = runs, samples: [String]? = nil, unreadable: Int = 0) throws -> HistoryReport {
+    /// C-History: the four cleanings and the line, with 19.8 GB free now (or another report made the same way).
+    static func report(
+        runs: [String] = runs, samples: [String]? = nil, now: Date = now, freeNow: Double = 19.8, unreadable: Int = 0
+    ) throws -> HistoryReport {
         var json = HistoryJSON()
         json.generatedAt = iso(now)
-        json.host = host
+        json.host = #"{"volume":"/System/Volumes/Data","free_bytes":\#(gigabytes(freeNow)),"capacity_bytes":228000000000}"#
         json.runs = runs
         json.samples = samples ?? Self.samples
         json.unreadable = unreadable
         return try json.report()
     }
+
+    /// A note every hour from `first` to `last`, the `index`-th one `free(index)` gigabytes.
+    static func hourly(from first: Date, to last: Date, _ free: (Int) -> Double) -> [String] {
+        var notes: [String] = []
+        var hour = first
+        var index = 0
+        while hour <= last {
+            notes.append(HistoryJSON.sample(iso(hour), free: gigabytes(free(index))))
+            hour = hour.addingTimeInterval(3_600)
+            index += 1
+        }
+        return notes
+    }
+
+    // MARK: the panels of C-History-States
+
+    /// Panel 2: two and a bit days of notes, from Sunday 12 Oct at 08:00, and the one cleaning of 14 Oct.
+    static var fewSamples: [String] {
+        hourly(from: at(10, 12, 8, 0), to: at(10, 14, 14, 0)) { 16.7 - Double($0) * 0.04 } + [
+            HistoryJSON.sample(iso(at(10, 14, 14, 5, 20)), free: gigabytes(14.4)),
+            HistoryJSON.sample(iso(at(10, 14, 14, 6)), free: gigabytes(19.8)),
+        ]
+    }
+
+    /// Panel 3: 1 to 7 Oct, nothing from Friday 3 to Sunday 5, and no cleaning; it is Tuesday 7 Oct, 22:00.
+    static let gapNow = at(10, 7, 22, 0)
+    static var gapSamples: [String] {
+        hourly(from: at(10, 1, 0, 30), to: at(10, 3, 8, 0)) { 41 - Double($0) * 0.1 }
+            + hourly(from: at(10, 5, 8, 40), to: at(10, 7, 21, 0)) { 29 - Double($0) * 0.14 }
+    }
+
+    /// Panel 5: Stop was pressed after two of nine items, on Saturday 11 Oct.
+    static let stopped = HistoryJSON.run(
+        finished: iso(at(10, 11, 16, 40)), started: iso(at(10, 11, 16, 38)), freed: gigabytes(2.3), before: gigabytes(17.5),
+        deleted: 2, stopped: true, planned: 9,
+        items: [
+            HistoryJSON.item(rule: "lane-deps", group: "Idle lane dependencies", path: "/Users/test/lane-builds/lane-a/node_modules", bytes: gigabytes(1.4)),
+            HistoryJSON.item(rule: "lane-deps", group: "Idle lane dependencies", path: "/Users/test/lane-builds/lane-a/ios/Pods", bytes: gigabytes(0.9)),
+        ]
+    )
 
     /// The id the report gives a run that ended at this moment (the second it ended).
     static func runID(_ finished: Date) -> String { "\(Int64(finished.timeIntervalSince1970))" }

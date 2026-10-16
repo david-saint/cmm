@@ -3,7 +3,7 @@ import SwiftUI
 
 /// The History face of the Details pane (the boards `C-History`, `C-History-Dark` and `C-History-States`): what past cleanings
 /// gave the disk back and how its free space has moved. It draws what `HistoryPresentation` says and decides nothing; it asks
-/// the History model for a report each time it appears.
+/// the History model for a report each time it appears, and says so only when a read takes longer than a moment.
 struct HistoryFace: View {
     @Environment(HistoryModel.self) private var history: HistoryModel?
     @Environment(SettingsModel.self) private var settings: SettingsModel?
@@ -15,14 +15,18 @@ struct HistoryFace: View {
     var body: some View {
         Group {
             if let history {
+                let state = givenState ?? ownState
                 HistoryFaceContent(
                     presentation: history.presentation(
                         historyEnabled: settings?.historyEnabled ?? true, now: env.now(), calendar: env.calendar,
                         locale: env.locale, home: env.home
                     ),
-                    state: givenState ?? ownState
+                    phase: history.phase,
+                    state: state,
+                    retry: { Task { await history.load() } }
                 )
                 .task { await history.load() }
+                .onChange(of: history.isLoading, initial: true) { _, reading in state.readingChanged(reading) }
             } else {
                 Color.clear
             }
@@ -31,26 +35,59 @@ struct HistoryFace: View {
     }
 }
 
-/// The face once there is something to show: the paragraph, the chart and the words under it, then the weeks of cleanings. It
-/// scrolls as one sheet, like the List.
+/// The face: the paragraph, the chart and the words under it, then the weeks of cleanings, scrolling as one sheet like the
+/// List. Before there is a report it says only that it is reading, or that it could not read, with Retry; once there is one,
+/// that report stays, and either of those is a quiet line at the foot.
 struct HistoryFaceContent: View {
     let presentation: HistoryPresentation?
+    let phase: HistoryModel.Phase
     let state: HistoryFaceState
+    let retry: () -> Void
     @Environment(\.cmm) private var env
 
     /// The board's column: the pane less 18 pt on each side.
     static let width = HeroLayout.paneWidth - 36
 
     var body: some View {
-        ScrollView {
-            LazyVStack(alignment: .leading, spacing: 0) {
-                if let presentation {
-                    face(presentation)
+        let status = HistoryReadStatus(phase: phase, showsReading: state.showsReading)
+        VStack(spacing: 0) {
+            ScrollView {
+                LazyVStack(alignment: .leading, spacing: 0) {
+                    if let presentation {
+                        face(presentation)
+                    } else {
+                        alone(status)
+                    }
                 }
+                .padding(.bottom, 16)
             }
-            .padding(.bottom, 16)
+            .scrollIndicators(.hidden)
+            if presentation != nil, status != .quiet {
+                HistoryReadFooter(status: status, retry: retry)
+            }
         }
-        .scrollIndicators(.hidden)
+    }
+
+    /// With no report yet: nothing for the first moment, then that it is reading, or the one sentence of a failure and Retry.
+    @ViewBuilder
+    private func alone(_ status: HistoryReadStatus) -> some View {
+        switch status {
+        case .quiet:
+            EmptyView()
+        case .reading:
+            Text(HistoryReadStatus.readingText)
+                .font(Typeface.ui(12.5))
+                .foregroundStyle(Theme.ink2)
+                .padding(.horizontal, 18)
+                .padding(.top, 4)
+        case .failed(let sentence, let detail):
+            VStack(alignment: .leading, spacing: 14) {
+                HistoryParagraph(text: sentence)
+                    .help(detail)
+                HistoryRetryButton(action: retry, height: 28, fontSize: 12.5)
+                    .padding(.horizontal, 18)
+            }
+        }
     }
 
     @ViewBuilder
@@ -120,6 +157,54 @@ struct HistoryFaceContent: View {
                 .id("run:\(row.id)")
             }
         }
+    }
+}
+
+/// The quiet line at the foot of the face while it keeps showing the last report: "Reading the history…", or the one sentence
+/// of a failure, with Retry. It takes its room from the list's sheet, so nothing above it moves.
+struct HistoryReadFooter: View {
+    let status: HistoryReadStatus
+    let retry: () -> Void
+
+    var body: some View {
+        HStack(spacing: 8) {
+            switch status {
+            case .quiet:
+                Spacer(minLength: 0)
+            case .reading:
+                Text(HistoryReadStatus.readingText)
+                Spacer(minLength: 0)
+            case .failed(let sentence, let detail):
+                Text(sentence)
+                    .lineLimit(1)
+                    .truncationMode(.tail)
+                    .help(detail)
+                Spacer(minLength: 8)
+                HistoryRetryButton(action: retry, height: 22, fontSize: 11.5)
+            }
+        }
+        .font(Typeface.ui(11.5))
+        .foregroundStyle(Theme.ink2)
+        .padding(.horizontal, 18)
+        .frame(height: 34)
+        .overlay(alignment: .top) {
+            Rectangle().fill(Theme.hair).frame(height: 1).padding(.horizontal, 18)
+        }
+    }
+}
+
+/// Retry: a soft pill, like the app's other second buttons. It only asks the History model to read again.
+struct HistoryRetryButton: View {
+    let action: () -> Void
+    let height: Double
+    let fontSize: Double
+
+    var body: some View {
+        Button(action: action) {
+            Text(HistoryReadStatus.retryTitle)
+        }
+        .buttonStyle(PillStyle(look: .soft(text: Theme.ink), height: height, horizontal: height / 2, fontSize: fontSize, shadowed: false))
+        .accessibilityHint(HistoryReadStatus.retryHint)
     }
 }
 
