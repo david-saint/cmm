@@ -433,6 +433,69 @@ final class SafetyRulesTests: XCTestCase {
         XCTAssertTrue(root.contains(".onChange(of: window.face) { _, face in FacePreference.save(face) }"))
     }
 
+    // MARK: the map and the band
+
+    private func code(_ name: String) throws -> String {
+        try XCTUnwrap(sources("Cmm").first { $0.name == name }, name).code
+    }
+
+    /// The map and the band are a way to tick and to look: a click or a key on them ticks (through the same `toggle` the
+    /// list uses), focuses, hovers or opens the pane, and nothing else. They hold no way to start a clean.
+    func testTheMapAndTheBandCanOnlyTickFocusHoverAndOpenThePane() throws {
+        let views = ["MapFace.swift", "MapTileView.swift", "BandViews.swift", "FlightOverlay.swift"]
+        for name in views {
+            let source = try code(name)
+            for token in ["confirmClean", "requestClean", "cancelClean", ".scan(", "client", "Client", "selection?.", "apply"] {
+                XCTAssertFalse(source.contains(token), "\(name) uses `\(token)`")
+            }
+        }
+        // what the map asks of the model: to tick or untick, and nothing else
+        let face = try code("MapFace.swift")
+        let asked = try NSRegularExpression(pattern: #"model\.(\w+)"#).matches(in: face, range: NSRange(face.startIndex..., in: face))
+            .map { (face as NSString).substring(with: $0.range(at: 1)) }
+        XCTAssertEqual(Set(asked), ["toggle"], "the map only ticks and unticks, through the model that guards it")
+        XCTAssertFalse(try code("BandViews.swift").contains("model."), "the band does not touch the model: it opens the pane")
+        // a click on a slice is a button that opens the map on its tile
+        XCTAssertTrue(try code("BandViews.swift").contains("Button { doorway.open(slice.id) }"))
+        let rest = try code("RestScreen.swift")
+        XCTAssertTrue(rest.contains("open: { id in withAnimation(motion.animation) { window.openMap(focusing: id) } }"))
+    }
+
+    /// Found by pressing keys through a real window: a disabled view that already has the keyboard still gets its key
+    /// presses, so the map and the list leave them alone themselves while the card has disabled the screen. And the arrows are
+    /// key equivalents of the map alone, so they work without a click and are as disabled as the screen they are in.
+    func testTheKeysOfTheMapAndTheListStopBehindTheCardAndTheMapsArrowsNeedNoFocus() throws {
+        let files = try sources("Cmm")
+        XCTAssertEqual(occurrences(of: ".onKeyPress", in: files), ["DetailsPane.swift", "MapFace.swift"])
+        for name in ["DetailsPane.swift", "MapFace.swift"] {
+            let source = try code(name)
+            XCTAssertTrue(source.contains("@Environment(\\.isEnabled)") && source.contains("guard isEnabled"), "\(name) ignores keys while disabled")
+        }
+        XCTAssertEqual(
+            occurrences(of: ".keyboardShortcut(", in: files), ["CmmApp.swift", "ConfirmCard.swift", "MapFace.swift", "RootView.swift"],
+            "the only key equivalents: the menu's ⌘R and ⌘I, the card's default, Esc, and the map's arrows"
+        )
+        let face = try code("MapFace.swift")
+        XCTAssertEqual(face.components(separatedBy: ".keyboardShortcut(").count - 1, 6, "up, down, left, right, home, end")
+        XCTAssertEqual(face.components(separatedBy: "modifiers: [])").count - 1, 6, "plain keys: a modifier is somebody else's shortcut")
+        for token in [".keyboardShortcut(.space", ".keyboardShortcut(.return", ".keyboardShortcut(.escape", ".keyboardShortcut(.cancelAction", ".keyboardShortcut(.defaultAction"] {
+            XCTAssertFalse(face.contains(token), "the map takes `\(token)`, which belongs to the control that has the focus")
+        }
+    }
+
+    /// The band's flights are only paint: they take no clicks, say nothing to VoiceOver, and are off with Reduce Motion.
+    func testTheFlightsArePaintOnlyAndFollowReduceMotion() throws {
+        let overlay = try code("FlightOverlay.swift")
+        XCTAssertTrue(overlay.contains(".allowsHitTesting(false)"))
+        XCTAssertTrue(overlay.contains(".accessibilityHidden(true)"))
+        let root = try code("RootView.swift")
+        XCTAssertTrue(root.contains("window.flightsEnabled = MotionStyle.resolve(reduceMotion: reduce).flies"))
+        let band = try code("BandViews.swift")
+        XCTAssertEqual(band.components(separatedBy: "motion.animatesMagnifier").count - 1, 2, "the enlarging is animated only with motion")
+        // the tiles under a flight cannot be hit
+        XCTAssertTrue(try code("MapFace.swift").contains(".allowsHitTesting(!inTheAir)"))
+    }
+
     // MARK: rule 6: tests never clean the real disk
 
     func testRule6_TheRealBinaryTestsAreOffUnlessAskedForTwice() throws {
