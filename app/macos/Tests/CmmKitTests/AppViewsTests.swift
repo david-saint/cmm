@@ -436,7 +436,7 @@ final class AppViewsTests: XCTestCase {
     }
 
     func testIncreaseContrastDrawsToo() async throws {
-        for scenario in [Scenario.restReview, .detailsExpanded] {
+        for scenario in [Scenario.restReview, .detailsExpanded, .mapDockerFocused] {
             let rig = try await rig(for: scenario)
             let view = RootView(model: rig.model, window: rig.window, env: Self.env)
             let light = try render(view, name: scenario.rawValue, appearance: .aqua, increasedContrast: true)

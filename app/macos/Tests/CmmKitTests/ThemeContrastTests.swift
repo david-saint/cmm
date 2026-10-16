@@ -24,11 +24,14 @@ final class ThemeContrastTests: XCTestCase {
         Look(label: "dark + Increase Contrast", dark: true, increased: true),
     ]
 
-    /// `layers` are drawn over the window background, first to last; `text` over all of them.
+    /// `layers` are drawn over the window background, first to last; `text` over all of them. `increasedAtLeast` is the
+    /// floor for the two Increase Contrast looks where it differs from the others.
     private func check(
-        _ text: Tone, on layers: [Tone], atLeast minimum: Double, _ what: String, onlyIncreased: Bool = false
+        _ text: Tone, on layers: [Tone], atLeast minimum: Double, increasedAtLeast: Double? = nil, _ what: String,
+        onlyIncreased: Bool = false
     ) {
         for look in Self.looks where !onlyIncreased || look.increased {
+            let minimum = look.increased ? (increasedAtLeast ?? minimum) : minimum
             var surface = Theme.background.rgba(dark: look.dark, increasedContrast: look.increased)
             for layer in layers { surface = layer.rgba(dark: look.dark, increasedContrast: look.increased).over(surface) }
             let ink = text.rgba(dark: look.dark, increasedContrast: look.increased).over(surface)
@@ -93,6 +96,38 @@ final class ThemeContrastTests: XCTestCase {
         check(Theme.ink, on: [Theme.soft], atLeast: 7, "ink on a soft button")
     }
 
+    // MARK: the map and the band's doorway
+
+    func testTextOnTheMapsTilesInEveryStateTheyCanBeIn() {
+        let grounds: [(String, [Tone])] = [
+            ("a safe tile", [Theme.paneTint, Theme.tileOffFill]),
+            ("a ticked safe tile", [Theme.paneTint, Theme.tileOnFill]),
+            ("a hovered ticked safe tile", [Theme.paneTint, Theme.tileHoverOnFill]),
+            ("a hovered safe tile", [Theme.paneTint, Theme.tileHoverOffFill]),
+            ("a review tile", [Theme.paneTint]),
+            ("a ticked review tile", [Theme.paneTint, Theme.reviewTickedFill]),
+            ("a hovered ticked review tile", [Theme.paneTint, Theme.reviewTickedHoverFill]),
+        ]
+        // The boards' own tile tints put the secondary ink (the path, the unit) at 3.6 to 4.4:1 in the states where the tile is
+        // ticked or hovered; the name, the size and the word Review hold up better. Increase Contrast, which the boards do not
+        // draw, takes all of them to AA.
+        for (name, layers) in grounds {
+            check(Theme.ink, on: layers, atLeast: 7, "a tile's name and size on \(name)")
+            check(Theme.ink2, on: layers, atLeast: 3.5, increasedAtLeast: 4.5, "a tile's path and the unit of its size on \(name)")
+        }
+        for (name, layers) in grounds where name.contains("review") {
+            check(Theme.reviewText, on: layers, atLeast: 4.3, increasedAtLeast: 4.5, "the word Review on \(name)")
+        }
+    }
+
+    func testTheMapsCaptionAndTheBubbleAreReadable() {
+        check(Theme.accentLabel, on: [Theme.paneTint], atLeast: 4.5, "the caption's Safe")
+        check(Theme.reviewText, on: [Theme.paneTint], atLeast: 4.5, "the caption's Review")
+        check(Theme.ink, on: [Theme.bubbleFill], atLeast: 7, "the bubble's name")
+        check(Theme.ink2, on: [Theme.bubbleFill], atLeast: 4.5, "the bubble's size")
+        check(Theme.ink2, on: [], atLeast: 4.5, "the bracket's caption")
+    }
+
     // MARK: Increase Contrast
 
     func testWithIncreaseContrastTheLinesAndMarksReach3To1() {
@@ -103,6 +138,19 @@ final class ThemeContrastTests: XCTestCase {
         check(Theme.review, on: [], atLeast: 3, "the dotted review segment", onlyIncreased: true)
         check(Theme.accent, on: [], atLeast: 3, "the selected segment and the ticked mark", onlyIncreased: true)
         check(Theme.progressTrack, on: [], atLeast: 1.4, "the progress line's track", onlyIncreased: true)
+    }
+
+    func testWithIncreaseContrastTheMapsEdgesRingsAndSlicesReach3To1() {
+        check(Theme.tileOffLine, on: [Theme.paneTint, Theme.tileOffFill], atLeast: 3, "a safe tile's edge", onlyIncreased: true)
+        check(Theme.tileOnLine, on: [Theme.paneTint, Theme.tileOnFill], atLeast: 3, "a ticked tile's edge", onlyIncreased: true)
+        check(Theme.tileHoverLine, on: [Theme.paneTint, Theme.tileHoverOffFill], atLeast: 3, "a hovered tile's edge", onlyIncreased: true)
+        check(Theme.focusRing, on: [Theme.paneSolid], atLeast: 3, "the keyboard focus ring", onlyIncreased: true)
+        check(Theme.review, on: [Theme.paneTint], atLeast: 3, "a review tile's dotted edge", onlyIncreased: true)
+        check(Theme.sliceOff, on: [], atLeast: 3, "an unticked slice of the band's end", onlyIncreased: true)
+        check(Theme.sliceLit, on: [], atLeast: 3, "a lit slice", onlyIncreased: true)
+        check(Theme.bracket, on: [], atLeast: 3, "the bracket under the end", onlyIncreased: true)
+        check(Theme.sliceGhost, on: [], atLeast: 3, "the outline of the end while its slices are away", onlyIncreased: true)
+        check(Theme.bubbleLine, on: [Theme.bubbleFill], atLeast: 3, "the bubble's edge", onlyIncreased: true)
     }
 
     func testTheTickedMarkAndItsCheckHoldTheirContrast() {
