@@ -7,12 +7,22 @@ import SwiftUI
 @main
 struct CmmApp: App {
     @NSApplicationDelegateAdaptor(AppDelegate.self) private var delegate
-    @State private var model = AppModel(client: ProcessCmmClient())
-    @State private var window = WindowState(face: FacePreference.load())
+    @State private var model: AppModel
+    @State private var window: WindowState
+    @State private var history: HistoryModel
+
+    /// One engine client for everything that talks to cmm: the window's scans and cleanups, and the History face's reads.
+    init() {
+        let client = ProcessCmmClient()
+        _model = State(initialValue: AppModel(client: client))
+        _window = State(initialValue: WindowState(face: FacePreference.load()))
+        _history = State(initialValue: HistoryModel(client: client))
+    }
 
     var body: some Scene {
         Window("cmm", id: "main") {
             RootView(model: model, window: window)
+                .environment(history)
                 .frame(minWidth: HeroLayout.minimumWidth, minHeight: HeroLayout.minimumHeight)
                 .background(WindowChrome())
                 .onAppear { delegate.model = model }

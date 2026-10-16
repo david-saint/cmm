@@ -20,6 +20,8 @@ struct DetailsPane: View {
                 DetailsList(model: model, selection: selection, details: details, window: window, listFocused: $listFocused)
             case .map:
                 MapFace(model: model, selection: selection, window: window)
+            case .history:
+                HistoryFace()
             }
         }
         .frame(width: HeroLayout.paneWidth)
@@ -30,7 +32,7 @@ struct DetailsPane: View {
     }
 }
 
-/// "Details" with Rescan and Hide details at the right, and the List | Map switch under the title. The content of
+/// "Details" with Rescan and Hide details at the right, and the List | Map | History switch under the title. The content of
 /// either face starts at 78 pt, as the map board's does.
 struct PaneHeader: View {
     let model: AppModel

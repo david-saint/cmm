@@ -13,7 +13,7 @@ public final class WindowState {
     public var focusedRow: String?
     /// A section the pane should scroll to the next time it can.
     public var scrollTarget: DetailsModel.SectionKind?
-    /// Which face of the pane is showing, List or Map. The first open is the map; after that, the one last chosen.
+    /// Which face of the pane is showing, List, Map or History. The first open is the map; after that, the one last chosen.
     public var face: DetailsFace
     /// The tile of the map the keyboard is on (`MapTile.id`).
     public var focusedTile: String?
@@ -111,12 +111,20 @@ public final class WindowState {
         if !wasMapOpen { beginFlight(.unfold, paneWasOpen: wasOpen) }
     }
 
-    /// The List | Map switch.
+    /// The List | Map | History switch. Leaving the map takes the keyboard back from it; switching faces never flies.
     public func setFace(_ newFace: DetailsFace) {
         guard newFace != face else { return }
         face = newFace
         hoveredTile = nil
-        if newFace == .list { mapKeyboard = false }
+        if newFace != .map { mapKeyboard = false }
+    }
+
+    /// Opens the pane on the History face: what the menu bar's "Last cleaned" row does. It only looks: nothing is asked of
+    /// the list, the map or the plan.
+    public func openHistory() {
+        setFace(.history)
+        detailsOpen = true
+        scrollTarget = nil
     }
 
     public func closeDetails() {

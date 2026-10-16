@@ -1,17 +1,18 @@
 import CmmKit
 import SwiftUI
 
-/// "List | Map" under the pane's title: the chosen word in ink, semibold, with a 1.5 pt underline; the other in the
-/// secondary ink. Two words and a hairline, not a segmented control, so the pane stays one calm sheet of glass.
+/// "List | Map | History" under the pane's title: the chosen word in ink, semibold, with a 1.5 pt underline; the others in the
+/// secondary ink. Words and hairlines, not a segmented control, so the pane stays one calm sheet of glass.
 struct FaceSwitch: View {
     let window: WindowState
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     var body: some View {
         HStack(spacing: 10) {
-            word(.list)
-            Rectangle().fill(Theme.switchDivider).frame(width: 1, height: 11)
-            word(.map)
+            ForEach(Array(DetailsFace.allCases.enumerated()), id: \.element) { index, face in
+                if index > 0 { Rectangle().fill(Theme.switchDivider).frame(width: 1, height: 11) }
+                word(face)
+            }
         }
         .accessibilityElement(children: .contain)
         .accessibilityLabel("Details view")
@@ -34,6 +35,6 @@ struct FaceSwitch: View {
         .buttonStyle(.plain)
         .accessibilityLabel(face.title)
         .accessibilityAddTraits(selected ? [.isSelected, .isButton] : .isButton)
-        .accessibilityHint(selected ? "" : "Shows the \(face.title.lowercased()) of what cmm found")
+        .accessibilityHint(selected ? "" : face.hint)
     }
 }

@@ -229,6 +229,7 @@ final class SettingsTests: XCTestCase {
         // the key and the words are the ones the app has always used
         XCTAssertEqual(settings([.detailsFace: "list"]).0.detailsFace, .list)
         XCTAssertEqual(settings([.detailsFace: "map"]).0.detailsFace, .map)
+        XCTAssertEqual(settings([.detailsFace: "history"]).0.detailsFace, .history)
     }
 
     // MARK: damaged preferences
