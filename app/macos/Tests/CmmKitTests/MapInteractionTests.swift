@@ -289,7 +289,7 @@ final class MapInteractionTests: XCTestCase {
 
     func testTheListLeavesItsKeysAloneBehindTheCardToo() async throws {
         let rig = try await rig(detailsOpen: true, face: .list)
-        await click(CGPoint(x: 800, y: 187), in: rig)  // the uv cache row: it takes the keyboard (and ticks)
+        await click(CGPoint(x: 800, y: 187), in: rig)  // the uv cache row: it takes the keyboard
         let focused = try XCTUnwrap(rig.state.focusedRow)
         let before = ticked(rig)
         rig.model.requestClean()
@@ -298,6 +298,20 @@ final class MapInteractionTests: XCTestCase {
         await press(.space, in: rig)
         XCTAssertEqual(rig.state.focusedRow, focused)
         XCTAssertEqual(ticked(rig), before)
+    }
+
+    func testTheListsOwnKeysStillWorkThroughTheRealWindow() async throws {
+        let rig = try await rig(detailsOpen: true, face: .list)
+        let before = ticked(rig)
+        await click(CGPoint(x: 800, y: 187), in: rig)  // the uv cache row: it takes the keyboard
+        let first = try XCTUnwrap(rig.state.focusedRow)
+        await press(.down, in: rig)
+        let second = try XCTUnwrap(rig.state.focusedRow)
+        XCTAssertNotEqual(second, first, "Down moves to the next row")
+        await press(.space, in: rig)
+        XCTAssertEqual(ticked(rig), before - 1, "Space ticks (here unticks) the focused row")
+        await press(.up, in: rig)
+        XCTAssertEqual(rig.state.focusedRow, first)
     }
 
     func testTheListFaceKeepsTheMapsKeysOutOfIt() async throws {
