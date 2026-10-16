@@ -27,6 +27,16 @@ final class MapInteractionTests: XCTestCase {
             }
         }
 
+        /// What the keyboard puts on the event: the arrows carry the numeric-pad and function flags, Home and End the function
+        /// flag (on a laptop they are Fn with the arrows), the rest nothing.
+        var flags: NSEvent.ModifierFlags {
+            switch self {
+            case .up, .down, .left, .right: [.numericPad, .function]
+            case .home, .end: [.function]
+            case .space, .return, .escape: []
+            }
+        }
+
         var characters: String {
             switch self {
             case .up: "\u{F700}"
@@ -86,9 +96,9 @@ final class MapInteractionTests: XCTestCase {
         XCTAssertTrue(condition(), what)
     }
 
-    private func press(_ key: Key, in rig: Rig) async {
+    private func press(_ key: Key, plus extra: NSEvent.ModifierFlags = [], in rig: Rig) async {
         let event = NSEvent.keyEvent(
-            with: .keyDown, location: .zero, modifierFlags: [], timestamp: ProcessInfo.processInfo.systemUptime,
+            with: .keyDown, location: .zero, modifierFlags: key.flags.union(extra), timestamp: ProcessInfo.processInfo.systemUptime,
             windowNumber: rig.window.windowNumber, context: nil, characters: key.characters, charactersIgnoringModifiers: key.characters,
             isARepeat: false, keyCode: key.code
         )!
@@ -181,6 +191,20 @@ final class MapInteractionTests: XCTestCase {
         XCTAssertEqual(rig.state.focusedTile, rig.map.tiles.last?.id)
         await press(.home, in: rig)
         XCTAssertEqual(rig.state.focusedTile, rig.map.tiles.first?.id)
+    }
+
+    func testAShortcutThatUsesAnArrowIsNotTheMapsArrow() async throws {
+        let rig = try await rig(detailsOpen: true)
+        await press(.home, in: rig)
+        let focused = rig.state.focusedTile
+        for modifier: NSEvent.ModifierFlags in [.command, .option, .control] {
+            await press(.down, plus: modifier, in: rig)
+            await press(.right, plus: modifier, in: rig)
+            await press(.end, plus: modifier, in: rig)
+            XCTAssertEqual(rig.state.focusedTile, focused, "\(modifier) with an arrow, Home or End is not a move")
+        }
+        await press(.down, plus: .shift, in: rig)
+        XCTAssertNotEqual(rig.state.focusedTile, focused, "Shift does not make an arrow something else")
     }
 
     func testAnArrowIsOneStepNotTwo() async throws {

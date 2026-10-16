@@ -140,7 +140,9 @@ struct MapFace: View {
     }
 
     private func handle(_ press: KeyPress, in map: MapModel) -> KeyPress.Result {
-        guard isEnabled, press.modifiers.isEmpty else { return .ignored }
+        // The arrows carry the numeric-pad and function flags and Home and End the function flag (on a laptop they are Fn with
+        // the arrows), so "no modifiers" would drop every real press: only what makes a shortcut is somebody else's.
+        guard isEnabled, press.modifiers.isDisjoint(with: [.command, .option, .control]) else { return .ignored }
         let key: MapNavigation.Key
         switch press.key {
         case .upArrow: key = .up
