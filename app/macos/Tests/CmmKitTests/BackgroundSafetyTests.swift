@@ -216,7 +216,7 @@ final class BackgroundSafetyTests: XCTestCase {
         // The memory is the three types of CmmKit that hold and word what the menu bar item knows. (The views that draw it, in
         // the app target, are held to the words above like every file of the new behaviours, and may use the settings.)
         let files = try sources(of: ["CmmKit"]).filter { $0.name.hasPrefix("MenuBar") }
-        XCTAssertEqual(files.map(\.name), ["MenuBarContext.swift", "MenuBarPresentation.swift", "MenuBarState.swift"])
+        XCTAssertEqual(files.map(\.name), ["MenuBarContext.swift", "MenuBarModel.swift", "MenuBarPresentation.swift", "MenuBarState.swift"])
         for file in files {
             for token in [
                 "UserDefaults", "SettingsStore", "SettingsModel", "SettingsKey", "FileManager", "write(", "Codable", "Encodable", "Decodable", "JSONEncoder",

@@ -18,6 +18,9 @@ final class AppServices {
     let history: HistoryModel
     let settings: SettingsModel
     let lifecycle: Lifecycle
+    let menuBar: MenuBarModel
+    /// Hears of the window's scans and cleanings, window or no window.
+    let watcher: AppModelWatcher
 
     /// SwiftUI's own way to open the main window, kept from a view that has it: a click on the notification and cmm opened again
     /// from Finder come from outside SwiftUI.
@@ -26,6 +29,7 @@ final class AppServices {
     /// cmm's own windows, as the system has them, and what they are. Held weakly: a window the system lets go is forgotten.
     private var tracked: [TrackedWindow] = []
     private var menuBarWatch: Watch<Bool>?
+    private var historyWatch: Watch<HistoryReport?>?
 
     private final class TrackedWindow {
         weak var window: NSWindow?
@@ -42,6 +46,7 @@ final class AppServices {
     static func start(model: AppModel, window: WindowState, history: HistoryModel) -> AppServices {
         let services = AppServices(model: model, window: window, history: history)
         shared = services
+        services.follow()
         return services
     }
 
@@ -55,15 +60,44 @@ final class AppServices {
             menuBarEnabled: { settings.menuBarEnabled },
             setPolicy: { policy in _ = NSApp.setActivationPolicy(policy == .regular ? .regular : .accessory) }
         )
+        let menuBar = MenuBarModel()
+        self.menuBar = menuBar
+        watcher = AppModelWatcher(
+            model: model,
+            scanFinished: { plan in menuBar.recordScan(plan) },
+            cleaningEnded: { summary in
+                if let summary { menuBar.recordCleaning(summary) }
+                // cmm wrote the run down: the History (and the menu bar's "Last cleaned") read it again
+                Task { await history.load() }
+            }
+        )
+    }
+
+    /// From now on the menu bar item hears of the window's scans and cleanings and of every history report, whoever asked for it.
+    private func follow() {
+        watcher.start()
+        historyWatch = Watch({ [history] in history.report }, changed: { [menuBar] report in
+            if let report { menuBar.recordHistory(report) }
+        })
     }
 
     // MARK: launching
 
     /// The app has finished launching: the launch's Apple event says whether the window stays (a login launch with the menu bar
-    /// item on shows none), and the Dock icon follows the menu bar switch from now on.
+    /// item on shows none), and the Dock icon follows the menu bar switch from now on. With the menu bar item on, the history is
+    /// read once, for its "Last cleaned" row.
     func didFinishLaunching(event: LaunchEvent?) {
-        menuBarWatch = Watch({ [settings] in settings.menuBarEnabled }, changed: { [weak self] _ in self?.lifecycle.menuBarChanged() })
+        menuBarWatch = Watch({ [settings] in settings.menuBarEnabled }, changed: { [weak self] on in
+            self?.lifecycle.menuBarChanged()
+            if on { self?.readHistoryForTheMenuBar() }
+        })
+        if settings.menuBarEnabled { readHistoryForTheMenuBar() }
         if lifecycle.launched(by: event) { NSApp.activate() }
+    }
+
+    private func readHistoryForTheMenuBar() {
+        guard history.report == nil, !history.isLoading else { return }
+        Task { await history.load() }
     }
 
     // MARK: cmm's windows
