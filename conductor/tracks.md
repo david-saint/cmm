@@ -16,3 +16,8 @@ This file tracks all major tracks for the project. Each track has its own detail
 
 ## [~] Track: History and free-space timeline (milestone 3, engine side)
 *Link: [./conductor/tracks/history_20261015/](./conductor/tracks/history_20261015/)*
+
+---
+
+## [~] Track: App M3: History, menu bar and weekly notification (milestone 3, app side)
+*Link: [./conductor/tracks/app_m3_20261016/](./conductor/tracks/app_m3_20261016/)*
