@@ -22,9 +22,9 @@ final class BackgroundSafetyTests: XCTestCase {
         let code: String  // without `//` comments
     }
 
-    private func sources() throws -> [SourceFile] {
+    private func sources(of targets: [String] = ["CmmKit", "Cmm"]) throws -> [SourceFile] {
         var all: [SourceFile] = []
-        for target in ["CmmKit", "Cmm"] {
+        for target in targets {
             let folder = Self.packageRoot.appendingPathComponent("Sources/\(target)")
             let urls = try FileManager.default.contentsOfDirectory(at: folder, includingPropertiesForKeys: nil)
                 .filter { $0.pathExtension == "swift" }
@@ -213,7 +213,9 @@ final class BackgroundSafetyTests: XCTestCase {
     // MARK: the menu bar keeps nothing
 
     func testTheMenuBarsMemoryIsNeverWrittenAnywhere() throws {
-        let files = try sources().filter { $0.name.hasPrefix("MenuBar") }
+        // The memory is the three types of CmmKit that hold and word what the menu bar item knows. (The views that draw it, in
+        // the app target, are held to the words above like every file of the new behaviours, and may use the settings.)
+        let files = try sources(of: ["CmmKit"]).filter { $0.name.hasPrefix("MenuBar") }
         XCTAssertEqual(files.map(\.name), ["MenuBarContext.swift", "MenuBarPresentation.swift", "MenuBarState.swift"])
         for file in files {
             for token in [
