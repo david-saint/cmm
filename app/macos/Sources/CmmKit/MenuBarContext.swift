@@ -14,6 +14,34 @@ public struct GroupLine: Equatable, Sendable {
     public let sizeText: String
 }
 
+/// The figures of a plan that the menu bar and the weekly reminder both speak in, worked out one way: the plan is read the way
+/// the window reads it (an item once, however many times its path is listed), and what can go is the safe items that give the
+/// disk its space back, never a review item (Docker's) and never an item whose space is freed inside another program's storage,
+/// whatever its tier.
+struct PlanFigures {
+    let free: Int64
+    let capacity: Int64?
+    let canGo: Int64
+    /// What cmm offers for a look (dotted on the band): never in `canGo`.
+    let reviewBytes: Int64
+    /// The groups that can go, largest first, the same size by name.
+    let groups: [GroupLine]
+
+    init(_ plan: Plan) {
+        let selection = SelectionModel(plan: plan)
+        groups = selection.groups(in: .safe).compactMap { group -> GroupLine? in
+            let bytes = group.items.filter { $0.freesInside == nil }.map { max($0.bytes, 0) }.saturatingTotal()
+            guard bytes > 0 else { return nil }
+            return GroupLine(title: RuleCatalog.title(rule: group.rule, label: group.name), bytes: bytes, sizeText: SizeText.string(bytes))
+        }
+        .sorted { ($1.bytes, $0.title) < ($0.bytes, $1.title) }
+        canGo = groups.map(\.bytes).saturatingTotal()
+        reviewBytes = max(selection.reviewBytes, 0)
+        free = max(plan.host.freeBytes, 0)
+        capacity = DiskBand.validCapacity(plan.host.capacityBytes, free: free)
+    }
+}
+
 /// What the app last scanned, as the popover shows it. It is kept in memory only: nothing about a scan is ever stored
 /// (spec R9).
 public struct LastScan: Equatable, Sendable {
@@ -33,21 +61,13 @@ public struct LastScan: Equatable, Sendable {
     public let groups: [GroupLine]
 
     public init(plan: Plan, scannedAt: Date) {
-        // the plan is read the way the window reads it: an item once, however many times its path is listed
-        let selection = SelectionModel(plan: plan)
-        let lines = selection.groups(in: .safe).compactMap { group -> GroupLine? in
-            let bytes = group.items.filter { $0.freesInside == nil }.map { max($0.bytes, 0) }.saturatingTotal()
-            guard bytes > 0 else { return nil }
-            return GroupLine(title: RuleCatalog.title(rule: group.rule, label: group.name), bytes: bytes, sizeText: SizeText.string(bytes))
-        }
-        .sorted { ($1.bytes, $0.title) < ($0.bytes, $1.title) }
-
+        let figures = PlanFigures(plan)
         at = min(plan.generatedAt ?? scannedAt, scannedAt)
-        free = max(plan.host.freeBytes, 0)
-        capacity = DiskBand.validCapacity(plan.host.capacityBytes, free: max(plan.host.freeBytes, 0))
-        canGo = lines.map(\.bytes).saturatingTotal()
-        reviewBytes = max(selection.reviewBytes, 0)
-        groups = Array(lines.prefix(Self.listed))
+        free = figures.free
+        capacity = figures.capacity
+        canGo = figures.canGo
+        reviewBytes = figures.reviewBytes
+        groups = Array(figures.groups.prefix(Self.listed))
     }
 }
 
