@@ -321,6 +321,42 @@ final class HistoryReportTests: XCTestCase {
         XCTAssertEqual(try json.report().runs.first?.itemsOmitted, 812)
     }
 
+    // MARK: planned (cmm does not always write it)
+
+    func testPlannedIsOptionalAndKeptWhenCmmSaysIt() throws {
+        var json = HistoryJSON()
+        json.runs = [
+            HistoryJSON.run(finished: "2026-10-14T12:00:42Z", stopped: true, planned: 9),
+            HistoryJSON.run(finished: "2026-10-13T12:00:42Z", stopped: true),
+        ]
+        let runs = try json.report().runs
+        XCTAssertEqual(runs[0].planned, 9)
+        XCTAssertNil(runs[1].planned, "the golden file has none, and an older cmm writes none")
+        XCTAssertNil(try HistoryReport.parse(Fixture.data("history-v1.json")).runs.first?.planned)
+    }
+
+    func testAPlannedThatIsNoCountIsNoCountAndTheRunStays() throws {
+        var json = HistoryJSON()
+        json.runs = ["0", "-4", "9000000000", #""nine""#, "3.5", "null"].map {
+            HistoryJSON.run(finished: "2026-10-14T12:00:42Z", extra: #""planned":\#($0)"#)
+        }
+        let report = try json.report()
+        XCTAssertEqual(report.runs.count, 6, "it is cosmetic: no run is refused for it")
+        XCTAssertTrue(report.runs.allSatisfy { $0.planned == nil })
+        XCTAssertEqual(report.ignoredEntries, 0)
+    }
+
+    // MARK: sums that cannot trap
+
+    func testSizesAddUpAndStopAtTheLargestNumberInsteadOfTrapping() {
+        XCTAssertEqual(HistoryLimits.sum([Int64]()), 0)
+        XCTAssertEqual(HistoryLimits.sum([1, 2, 3] as [Int64]), 6)
+        XCTAssertEqual(HistoryLimits.sum([Int64.max, 1]), Int64.max)
+        XCTAssertEqual(HistoryLimits.sum([Int64.max - 1, 1]), Int64.max, "exactly the largest is not an overflow")
+        let petabyte = HistoryLimits.maxBytes
+        XCTAssertEqual(HistoryLimits.sum(Array(repeating: petabyte, count: 10_000)), Int64.max, "ten thousand runs of a petabyte")
+    }
+
     // MARK: times
 
     func testTimesMayCarryFractionsAndOffsets() throws {

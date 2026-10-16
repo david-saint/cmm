@@ -15,6 +15,15 @@ enum HistoryLimits {
 
     static func isSize(_ value: Int64) -> Bool { value >= 0 && value <= maxBytes }
     static func isCount(_ value: Int) -> Bool { value >= 0 && value <= maxCount }
+
+    /// The sum of sizes, stopping at the largest number there is instead of trapping, so ten thousand runs that each claim
+    /// a petabyte cannot crash the app. (Real sums are nowhere near it.)
+    static func sum<Sizes: Sequence>(_ sizes: Sizes) -> Int64 where Sizes.Element == Int64 {
+        sizes.reduce(0) { total, size in
+            let (sum, overflowed) = total.addingReportingOverflow(size)
+            return overflowed ? Int64.max : sum
+        }
+    }
 }
 
 /// The times of the history: UTC to the second as cmm writes them, read with fractions and offsets too.
@@ -64,6 +73,9 @@ public struct HistoryRun: Equatable, Sendable, Identifiable {
     public let freeAfter: Int64
     public let capacityBytes: Int64?
     public let stopped: Bool
+    /// How many items the run meant to deal with, as cmm counts them, when cmm says (it does not always: the field is
+    /// optional). With it a run that was stopped can say "Stopped after 2 of 9"; without it, only "Stopped".
+    public let planned: Int?
     public let items: [HistoryItem]
     /// How many items did not fit in the line cmm wrote and are only counted in the totals.
     public let itemsOmitted: Int
@@ -256,7 +268,7 @@ extension HistoryRun: Decodable {
         case schemaVersion = "schema_version"
         case startedAt = "started_at"
         case finishedAt = "finished_at"
-        case deleted, skipped, failed, stopped, items
+        case deleted, skipped, failed, stopped, planned, items
         case freedBytes = "freed_bytes"
         case freedInsideBytes = "freed_inside_bytes"
         case freeBefore = "free_before"
@@ -300,6 +312,8 @@ extension HistoryRun: Decodable {
             freeBefore: try size(.freeBefore), freeAfter: try size(.freeAfter),
             capacityBytes: (try? c.decodeIfPresent(Int64.self, forKey: .capacityBytes)).flatMap { $0 }.flatMap(RawHost.capacity),
             stopped: (try? c.decodeIfPresent(Bool.self, forKey: .stopped)).flatMap { $0 } ?? false,
+            // Cosmetic, so what is not a count a run can have is no count, and the run stays.
+            planned: (try? c.decodeIfPresent(Int.self, forKey: .planned)).flatMap { $0 }.flatMap { $0 > 0 && HistoryLimits.isCount($0) ? $0 : nil },
             items: items.kept,
             itemsOmitted: try count(.itemsOmitted, optional: true)
         )

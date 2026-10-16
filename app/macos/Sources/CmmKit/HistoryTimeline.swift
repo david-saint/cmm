@@ -42,12 +42,7 @@ public struct HistoryTimeline: Equatable, Sendable {
         /// `Fri 3 Oct, 12:00 – 19:00` for one inside a day.
         public func rangeText(calendar: Calendar, locale: Locale) -> String {
             func formatter(_ template: String) -> DateFormatter {
-                let formatter = DateFormatter()
-                formatter.calendar = calendar
-                formatter.timeZone = calendar.timeZone
-                formatter.locale = locale
-                formatter.setLocalizedDateFormatFromTemplate(template)
-                return formatter
+                HistoryDates.formatter(template, calendar: calendar, locale: locale)
             }
             if calendar.isDate(start, inSameDayAs: end) {
                 let time = formatter("jm")

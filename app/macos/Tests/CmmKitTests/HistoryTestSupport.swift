@@ -24,10 +24,10 @@ func gigabytes(_ value: Double) -> Int64 {
 enum TestCalendars {
     static func make(_ zone: String, firstWeekday: Int = 2) -> Calendar {
         var calendar = Calendar(identifier: .gregorian)
+        calendar.locale = Locale(identifier: "en_GB")  // first: giving a calendar a locale resets what was set before it
         calendar.timeZone = TimeZone(identifier: zone)!
         calendar.firstWeekday = firstWeekday
         calendar.minimumDaysInFirstWeek = 4
-        calendar.locale = Locale(identifier: "en_GB")
         return calendar
     }
 
@@ -63,7 +63,7 @@ struct HistoryJSON {
     static func run(
         finished: String, started: String? = nil, freed: Int64 = 1_000_000_000, inside: Int64 = 0,
         before: Int64 = 20_000_000_000, after: Int64? = nil, deleted: Int = 1, skipped: Int = 0, failed: Int = 0,
-        stopped: Bool = false, items: [String] = [], schema: Int = 1, extra: String = ""
+        stopped: Bool = false, planned: Int? = nil, items: [String] = [], schema: Int = 1, extra: String = ""
     ) -> String {
         var fields = [
             #""schema_version":\#(schema)"#,
@@ -76,6 +76,7 @@ struct HistoryJSON {
             #""items":[\#(items.joined(separator: ","))]"#,
         ]
         if inside != 0 { fields.append(#""freed_inside_bytes":\#(inside)"#) }
+        if let planned { fields.append(#""planned":\#(planned)"#) }
         if !extra.isEmpty { fields.append(extra) }
         return "{\(fields.joined(separator: ","))}"
     }
