@@ -1,12 +1,15 @@
 import XCTest
 @testable import CmmKit
 
-/// The chart of the History face (spec R1): points, segments that break wherever the app was not running, a marker per
-/// cleanup, the "now" point, the whole-gigabyte axis, and the plain sentence in place of a chart that would pretend.
+/// The chart of the History face (the boards `C-History` and `C-History-States`, which refine spec R1): points, segments that
+/// break wherever the app was not running, the gaps they leave, a marker per cleanup, the "now" point, the axis from zero to
+/// the next 25 GB, and the caption under a line that is still short.
 final class HistoryTimelineTests: XCTestCase {
     private let now = TestTime.utc("2026-10-15T09:00:00Z")
     private let day: TimeInterval = 86_400
     private let hour: TimeInterval = 3_600
+    private let rome = TestCalendars.rome
+    private let british = Locale(identifier: "en_GB")
 
     /// A report whose samples are given as (seconds before `now`, free GB), in any order.
     private func report(
@@ -24,20 +27,16 @@ final class HistoryTimelineTests: XCTestCase {
         return try json.report()
     }
 
+    private func timeline(
+        _ samples: [(ago: TimeInterval, gb: Double)] = [], runs: [String] = [], host: Int64? = 24_000_000_000, generatedAt: Date? = nil
+    ) throws -> HistoryTimeline {
+        HistoryTimeline(report: try report(samples, runs: runs, host: host, generatedAt: generatedAt), now: now)
+    }
+
     private func chart(
         _ samples: [(ago: TimeInterval, gb: Double)], runs: [String] = [], host: Int64? = 24_000_000_000, generatedAt: Date? = nil
     ) throws -> HistoryTimeline.Chart {
-        let timeline = HistoryTimeline(report: try report(samples, runs: runs, host: host, generatedAt: generatedAt), now: now)
-        guard case .chart(let chart) = timeline.display else {
-            XCTFail("expected a chart, got \(timeline.display)")
-            throw XCTSkip("no chart")
-        }
-        return chart
-    }
-
-    /// Samples every hour for four days at the same level: enough for a chart, one segment, nothing in the way.
-    private var fourDaysSteady: [(ago: TimeInterval, gb: Double)] {
-        steady(endingAgo: 3_600)
+        try XCTUnwrap(try timeline(samples, runs: runs, host: host, generatedAt: generatedAt).chart, "expected a line")
     }
 
     /// Hourly samples at 20 GB over the four days that end `endingAgo` seconds before now.
@@ -45,38 +44,65 @@ final class HistoryTimelineTests: XCTestCase {
         (0...96).map { (ago: endingAgo + TimeInterval($0) * 3_600, gb: 20.0) }
     }
 
-    // MARK: not enough history
+    private var fourDaysSteady: [(ago: TimeInterval, gb: Double)] { steady(endingAgo: 3_600) }
 
-    func testTheGoldenReportIsStillFillingIn() throws {
+    // MARK: a history that is still short
+
+    func testTheGoldenReportDrawsItsShortLineAndSaysHowManyDaysThereAre() throws {
         let golden = try HistoryReport.parse(Fixture.data("history-v1.json"))
         let timeline = HistoryTimeline(report: golden, now: TestTime.utc("2026-10-15T09:00:00Z"))
-        XCTAssertEqual(timeline.display, .fillingIn("History fills in as cmm runs"))
+        XCTAssertNotNil(timeline.chart, "the board draws what there is (C-History-States, 2 · Few samples)")
+        XCTAssertEqual(timeline.caption, "History fills in as cmm runs: 2 days so far.", "a day and four hours of notes")
+    }
+
+    func testNothingToDrawWithoutTwoReadingsAndTheCaptionSaysWhy() throws {
+        for samples in [[], [(hour, 20.0)]] as [[(ago: TimeInterval, gb: Double)]] {
+            let timeline = try self.timeline(samples)
+            XCTAssertNil(timeline.chart, "\(samples.count) notes")
+            XCTAssertEqual(timeline.caption, "History fills in as cmm runs.")
+        }
         XCTAssertEqual(HistoryTimeline.fillingInMessage, "History fills in as cmm runs")
     }
 
-    func testNoSamplesAndOneSampleAreFillingIn() throws {
-        XCTAssertEqual(HistoryTimeline(report: try report(), now: now).display, .fillingIn(HistoryTimeline.fillingInMessage))
-        XCTAssertEqual(HistoryTimeline(report: try report([(hour, 20)]), now: now).display, .fillingIn(HistoryTimeline.fillingInMessage))
+    func testNotesAllFromOneMomentAreNotALine() throws {
+        let timeline = try self.timeline([(hour, 20), (hour, 21), (hour, 22)])
+        XCTAssertNil(timeline.chart)
+        XCTAssertEqual(timeline.caption, "History fills in as cmm runs.")
     }
 
-    func testThreeDaysOfSamplesIsEnoughAndOneSecondLessIsNot() throws {
-        let enough = HistoryTimeline(report: try report([(3 * day + hour, 20), (hour, 20)]), now: now)
-        guard case .chart = enough.display else { return XCTFail("exactly three days is a chart: \(enough.display)") }
+    func testTheCaptionCountsWholeDaysRoundedUpAndNeverSaysMoreThanThree() throws {
+        func caption(_ span: TimeInterval) throws -> String? {
+            try timeline([(span + hour, 20), (hour, 20)]).caption
+        }
+        XCTAssertEqual(try caption(1), "History fills in as cmm runs: 1 day so far.")
+        XCTAssertEqual(try caption(day), "History fills in as cmm runs: 1 day so far.", "exactly a day is one day")
+        XCTAssertEqual(try caption(day + 1), "History fills in as cmm runs: 2 days so far.")
+        XCTAssertEqual(try caption(2 * day), "History fills in as cmm runs: 2 days so far.")
+        XCTAssertEqual(try caption(2 * day + 1), "History fills in as cmm runs: 3 days so far.")
+        XCTAssertEqual(try caption(3 * day - 1), "History fills in as cmm runs: 3 days so far.", "the last second before three days")
+        XCTAssertNil(try caption(3 * day), "three days is enough: no caption")
+        XCTAssertNil(try caption(30 * day))
+        XCTAssertEqual(HistoryTimeline.minimumSpan, 3 * 86_400)
+    }
 
-        let notQuite = HistoryTimeline(report: try report([(3 * day + hour - 1, 20), (hour, 20)]), now: now)
-        XCTAssertEqual(notQuite.display, .fillingIn(HistoryTimeline.fillingInMessage), "one second short of three days")
+    func testThreeDaysOfSamplesAreALineWithoutACaption() throws {
+        let timeline = try self.timeline(fourDaysSteady)
+        XCTAssertNotNil(timeline.chart)
+        XCTAssertNil(timeline.caption)
     }
 
     func testTheDaysAreCountedBetweenTheSamplesNotUpToNow() throws {
-        // two samples a day apart, the second one four days ago: the history is old, not long
-        let timeline = HistoryTimeline(report: try report([(5 * day, 20), (4 * day, 20)]), now: now)
-        XCTAssertEqual(timeline.display, .fillingIn(HistoryTimeline.fillingInMessage))
+        // two notes a day apart, the second four days ago: the history is old, not long
+        let timeline = try self.timeline([(5 * day, 20), (4 * day, 20)], host: nil)
+        XCTAssertEqual(timeline.caption, "History fills in as cmm runs: 1 day so far.")
+        XCTAssertNotNil(timeline.chart)
     }
 
     func testTheDiskNowDoesNotCountAsADayOfSamples() throws {
-        // a sample two days ago and the disk now: that is no more than two days of history
-        let timeline = HistoryTimeline(report: try report([(2 * day, 20), (day, 20)], host: 24_000_000_000), now: now)
-        XCTAssertEqual(timeline.display, .fillingIn(HistoryTimeline.fillingInMessage))
+        // notes a day apart, and the disk now two days later: still a day of notes
+        let timeline = try self.timeline([(3 * day, 20), (2 * day, 20)], host: 24_000_000_000)
+        XCTAssertEqual(timeline.caption, "History fills in as cmm runs: 1 day so far.")
+        XCTAssertEqual(timeline.chart?.segments.flatMap(\.points).last?.isNow, true, "though it is on the line")
     }
 
     // MARK: the window
@@ -93,10 +119,11 @@ final class HistoryTimelineTests: XCTestCase {
         XCTAssertEqual(HistoryTimeline.windowDays, 90)
     }
 
-    func testTheSpanIsMeasuredOnTheSamplesInTheWindow() throws {
-        // two samples a week apart, but only the later one is inside the window
-        let timeline = HistoryTimeline(report: try report([(91 * day, 20), (89 * day + hour, 20)]), now: now)
-        XCTAssertEqual(timeline.display, .fillingIn(HistoryTimeline.fillingInMessage))
+    func testTheLineIsMeasuredOnTheSamplesInTheWindow() throws {
+        // two notes, but only the later one is inside the window
+        let timeline = try self.timeline([(91 * day, 20), (89 * day + hour, 20)])
+        XCTAssertNil(timeline.chart)
+        XCTAssertEqual(timeline.caption, "History fills in as cmm runs.")
     }
 
     func testNothingFromTheFutureIsDrawnOrForecast() throws {
@@ -104,24 +131,27 @@ final class HistoryTimelineTests: XCTestCase {
         let points = chart.segments.flatMap(\.points)
         XCTAssertEqual(points.count, 97, "the two samples dated after now are left out")
         XCTAssertTrue(points.allSatisfy { $0.t <= now })
-        XCTAssertEqual(points.map(\.freeBytes).min(), gigabytes(20), "and they do not move the axis either")
+        XCTAssertEqual(points.map(\.freeBytes).min(), gigabytes(20))
     }
 
-    // MARK: segments
+    // MARK: segments and gaps
 
-    func testReadingsCloseTogetherAreOneLine() throws {
+    func testReadingsCloseTogetherAreOneLineWithNoGap() throws {
         let chart = try chart(fourDaysSteady, host: nil)
         XCTAssertEqual(chart.segments.count, 1)
         XCTAssertEqual(chart.segments[0].points.count, 97)
         XCTAssertEqual(chart.segments[0].points.map(\.t), chart.segments[0].points.map(\.t).sorted(), "oldest first")
+        XCTAssertEqual(chart.gaps, [])
     }
 
     func testSixHoursExactlyIsStillOneLineAndOneSecondMoreIsABreak() throws {
         let exactly = try chart([(100 * hour, 20), (94 * hour, 20), (10 * hour, 20)], host: nil)
         XCTAssertEqual(exactly.segments.map { $0.points.count }, [2, 1], "100 h to 94 h is six hours: joined; then a long gap")
+        XCTAssertEqual(exactly.gaps.count, 1)
 
         let oneSecondMore = try chart([(100 * hour, 20), (94 * hour - 1, 20), (10 * hour, 20)], host: nil)
         XCTAssertEqual(oneSecondMore.segments.map { $0.points.count }, [1, 1, 1], "six hours and a second: broken")
+        XCTAssertEqual(oneSecondMore.gaps.count, 2)
         XCTAssertEqual(HistoryTimeline.gap, 6 * 3_600)
     }
 
@@ -134,9 +164,49 @@ final class HistoryTimelineTests: XCTestCase {
         ])
     }
 
+    func testEachGapIsFromTheLastReadingBeforeItToTheFirstOneAfter() throws {
+        let chart = try chart(
+            [(100 * hour, 20), (94 * hour, 21), (40 * hour, 22), (34 * hour, 23), (33 * hour, 24), (10 * hour, 25)], host: nil
+        )
+        XCTAssertEqual(chart.gaps, [
+            HistoryTimeline.Gap(start: now.addingTimeInterval(-94 * hour), end: now.addingTimeInterval(-40 * hour)),
+            HistoryTimeline.Gap(start: now.addingTimeInterval(-33 * hour), end: now.addingTimeInterval(-10 * hour)),
+        ])
+    }
+
     func testSamplesInAnyOrderAreDrawnOldestFirst() throws {
         let chart = try chart([(10 * hour, 25), (100 * hour, 20), (94 * hour, 21)], host: nil)
         XCTAssertEqual(chart.segments.map { $0.points.map(\.freeBytes) }, [[gigabytes(20), gigabytes(21)], [gigabytes(25)]])
+    }
+
+    func testTheGapBetweenTheLastNoteAndTheDiskNowIsAGapToo() throws {
+        let chart = try chart(steady(endingAgo: 7 * hour), host: 24_000_000_000)
+        XCTAssertEqual(chart.gaps, [HistoryTimeline.Gap(start: now.addingTimeInterval(-7 * hour), end: now)])
+    }
+
+    // MARK: how a gap is written
+
+    func testAGapAcrossDaysIsWrittenFromDayToDay() throws {
+        let gap = HistoryTimeline.Gap(start: rome.local(2026, 10, 3, 10, 0), end: rome.local(2026, 10, 5, 9, 30))
+        XCTAssertEqual(HistoryTimeline.Gap.title, "No samples")
+        XCTAssertEqual(gap.rangeText(calendar: rome, locale: british), "Sat 3 \u{2013} Mon 5 Oct", "the month once, when it is the same")
+    }
+
+    func testAGapAcrossAMonthSaysBothMonths() throws {
+        let gap = HistoryTimeline.Gap(start: rome.local(2026, 9, 30, 10, 0), end: rome.local(2026, 10, 5, 9, 30))
+        XCTAssertEqual(gap.rangeText(calendar: rome, locale: british), "Wed 30 Sep \u{2013} Mon 5 Oct")
+    }
+
+    func testAGapInsideADayIsWrittenWithTheTimes() throws {
+        let gap = HistoryTimeline.Gap(start: rome.local(2026, 10, 3, 12, 0), end: rome.local(2026, 10, 3, 19, 5))
+        XCTAssertEqual(gap.rangeText(calendar: rome, locale: british), "Sat 3 Oct, 12:00 \u{2013} 19:05")
+    }
+
+    func testAGapIsWrittenInTheCalendarsOwnTime() throws {
+        // 23:30 UTC on the 3rd is half past one on the 4th in Rome
+        let gap = HistoryTimeline.Gap(start: TestTime.utc("2026-10-03T23:30:00Z"), end: TestTime.utc("2026-10-06T10:00:00Z"))
+        XCTAssertEqual(gap.rangeText(calendar: rome, locale: british), "Sun 4 \u{2013} Tue 6 Oct")
+        XCTAssertEqual(gap.rangeText(calendar: TestCalendars.utc, locale: british), "Sat 3 \u{2013} Tue 6 Oct")
     }
 
     // MARK: the disk now
@@ -190,8 +260,7 @@ final class HistoryTimelineTests: XCTestCase {
         json.samples = [HistoryJSON.sample(TestTime.iso(now.addingTimeInterval(-4 * day)), free: gigabytes(20)),
                         HistoryJSON.sample(TestTime.iso(now.addingTimeInterval(-hour)), free: gigabytes(21))]
         json.generatedAt = "unreadable"
-        let timeline = HistoryTimeline(report: try json.report(), now: now)
-        guard case .chart(let chart) = timeline.display else { return XCTFail("\(timeline.display)") }
+        let chart = try XCTUnwrap(HistoryTimeline(report: try json.report(), now: now).chart)
         XCTAssertEqual(chart.segments.flatMap(\.points).last?.t, now)
     }
 
@@ -208,7 +277,8 @@ final class HistoryTimelineTests: XCTestCase {
 
         XCTAssertEqual(chart.markers.count, 2)
         XCTAssertEqual(chart.markers.map(\.t), [now.addingTimeInterval(-10 * day), now.addingTimeInterval(-2 * day)], "oldest first, like the points")
-        XCTAssertEqual(chart.markers.map(\.freeBytes), [gigabytes(18), gigabytes(25)], "free_after")
+        XCTAssertEqual(chart.markers.map(\.freeBytes), [gigabytes(18), gigabytes(25)], "free_after: where the marker sits")
+        XCTAssertEqual(chart.markers.map(\.freeBeforeBytes), [gigabytes(18), gigabytes(20)], "free_before: where the jump line starts")
         XCTAssertEqual(chart.markers.map(\.freedBytes), [0, gigabytes(5)])
         XCTAssertEqual(Set(chart.markers.map(\.id)), Set(report.runs.map(\.id)), "the id of the run, shared with its row")
     }
@@ -225,75 +295,57 @@ final class HistoryTimelineTests: XCTestCase {
 
     // MARK: the axis
 
-    private func range(_ gbs: [Double], host: Int64? = nil, runs: [String] = []) throws -> HistoryTimeline.YRange {
-        // spread over four days so the history is long enough for a chart
+    private func axis(_ gbs: [Double], host: Int64? = nil, runs: [String] = []) throws -> HistoryTimeline.YRange {
+        // spread over four days so the line is a long one
         let step = 4 * day / TimeInterval(max(gbs.count - 1, 1))
         let samples = gbs.enumerated().map { (ago: 4 * day - TimeInterval($0.offset) * step + hour, gb: $0.element) }
         return try chart(samples, runs: runs, host: host).yRange
     }
 
-    func testTheAxisIsWholeGigabytesFromTheFloorOfTheLowestToTheCeilingOfTheHighest() throws {
-        let range = try self.range([20.2, 29.1])
-        XCTAssertEqual(range.lowGB, 20)
-        XCTAssertEqual(range.highGB, 30)
-        XCTAssertEqual(range.lowBytes, 20_000_000_000)
-        XCTAssertEqual(range.highBytes, 30_000_000_000)
-        XCTAssertEqual(range.lowLabel, "20 GB")
-        XCTAssertEqual(range.highLabel, "30 GB")
+    func testTheAxisRunsFromZeroToTheNextTwentyFiveGigabytesAboveTheHighestReading() throws {
+        let fifty = try axis([30, 46])
+        XCTAssertEqual(fifty.highGB, 50, "46 GB: 50")
+        XCTAssertEqual(fifty.highBytes, 50_000_000_000)
+        XCTAssertEqual(fifty.lowBytes, 0)
+        XCTAssertEqual(fifty.lowLabel, "0")
+        XCTAssertEqual(fifty.highLabel, "50 GB")
+
+        let twentyFive = try axis([20, 24.4])
+        XCTAssertEqual(twentyFive.highGB, 25, "24.4 GB: 25")
+        XCTAssertEqual(twentyFive.highLabel, "25 GB")
+        XCTAssertEqual(HistoryTimeline.axisStepGB, 25)
     }
 
-    func testWholeGigabytesAreNotRoundedAwayFromThemselves() throws {
-        let range = try self.range([20.0, 30.0])
-        XCTAssertEqual([range.lowGB, range.highGB], [20, 30])
+    func testTheEdgesOfTheSteps() throws {
+        XCTAssertEqual(try axis([10, 25]).highGB, 25, "exactly 25 GB fits in 25")
+        XCTAssertEqual(try axis([10, 25.000000001]).highGB, 50, "a byte more does not")
+        XCTAssertEqual(try axis([10, 49.9]).highGB, 50)
+        XCTAssertEqual(try axis([10, 50]).highGB, 50)
+        XCTAssertEqual(try axis([10, 50.1]).highGB, 75)
+        XCTAssertEqual(try axis([10, 100]).highGB, 100)
     }
 
-    func testASmallMovementIsGivenAtLeastFiveGigabytesOfHeightAroundIt() throws {
-        let r1 = try self.range([20.2, 20.9])
-        XCTAssertEqual([r1.lowGB, r1.highGB], [18, 23], "one GB of movement in five GB of axis, not the whole chart")
-
-        let r2 = try self.range([20.0, 24.0])
-        XCTAssertEqual([r2.lowGB, r2.highGB], [20, 25])
-
-        let r3 = try self.range([20.0, 23.0])
-        XCTAssertEqual([r3.lowGB, r3.highGB], [19, 24])
-
-        let r4 = try self.range([20.0, 22.0])
-        XCTAssertEqual([r4.lowGB, r4.highGB], [19, 24])
-
-        let flat = try self.range([20.0, 20.0, 20.0])
-        XCTAssertEqual([flat.lowGB, flat.highGB], [18, 23], "a flat line is five GB tall too")
-
-        let exactlyFive = try self.range([20.0, 25.0])
-        XCTAssertEqual([exactlyFive.lowGB, exactlyFive.highGB], [20, 25], "five is already enough")
-        XCTAssertEqual(HistoryTimeline.minimumHeightGB, 5)
+    func testTheAxisIsNeverShorterThan25GBEvenForADiskWithNothingFree() throws {
+        XCTAssertEqual(try axis([0, 0, 0], host: 0).highGB, 25)
+        XCTAssertEqual(try axis([0.3, 0.8]).highGB, 25)
+        XCTAssertEqual(try axis([0, 0, 0], host: 0).lowLabel, "0")
     }
 
-    func testTheAxisNeverGoesBelowZeroAndTheHeightIsKept() throws {
-        let r1 = try self.range([0.3, 0.8])
-        XCTAssertEqual([r1.lowGB, r1.highGB], [0, 5])
-        XCTAssertEqual(r1.lowLabel, "0 GB")
-
-        let r2 = try self.range([1.5, 2.2])
-        XCTAssertEqual([r2.lowGB, r2.highGB], [0, 5])
-
-        let r3 = try self.range([2.0, 4.0])
-        XCTAssertEqual([r3.lowGB, r3.highGB], [1, 6], "room below is used before it runs out")
+    func testTheLabelSaysTerabytesWhenItIsOneAndIsASizeText() throws {
+        let tb = try axis([1_400, 1_480])
+        XCTAssertEqual(tb.highGB, 1_500)
+        XCTAssertEqual(tb.highLabel, SizeText.capacity(tb.highBytes))
+        XCTAssertEqual(tb.highLabel, "1.5 TB")
     }
 
-    func testTheLabelsAreSizeTextsAndSayTerabytesWhenTheyAre() throws {
-        let range = try self.range([1_500.0, 1_500.4])
-        XCTAssertEqual(range.lowLabel, SizeText.capacity(range.lowBytes))
-        XCTAssertEqual(range.highLabel, SizeText.capacity(range.highBytes))
-        XCTAssertEqual(range.highLabel, "1.5 TB")
-    }
+    func testTheAxisTakesInTheDiskNowAndBothEndsOfEveryCleanup() throws {
+        XCTAssertEqual(try axis([20, 21], host: 40_000_000_000).highGB, 50, "the disk now is a point of the line")
 
-    func testTheAxisTakesInTheDiskNowAndTheMarkersToo() throws {
-        let withNow = try self.range([20.0, 21.0], host: 40_000_000_000)
-        XCTAssertEqual(withNow.highGB, 40, "the disk now is a point of the chart")
+        let high = HistoryJSON.run(finished: TestTime.iso(now.addingTimeInterval(-2 * day)), freed: 0, before: gigabytes(30), after: gigabytes(30))
+        XCTAssertEqual(try axis([20, 21], runs: [high]).highGB, 50, "so is where a cleanup left the disk")
 
-        let run = HistoryJSON.run(finished: TestTime.iso(now.addingTimeInterval(-2 * day)), freed: 0, before: gigabytes(9), after: gigabytes(9))
-        let withMarker = try self.range([20.0, 21.0], runs: [run])
-        XCTAssertEqual(withMarker.lowGB, 9, "so is where a cleanup left the disk")
+        let before = HistoryJSON.run(finished: TestTime.iso(now.addingTimeInterval(-2 * day)), freed: 0, before: gigabytes(60), after: gigabytes(10))
+        XCTAssertEqual(try axis([20, 21], runs: [before]).highGB, 75, "and where it was before")
     }
 
     func testEveryPointAndMarkerIsInsideTheAxisWhateverTheHistory() throws {
@@ -317,8 +369,10 @@ final class HistoryTimelineTests: XCTestCase {
                 XCTAssertGreaterThanOrEqual(point.freeBytes, range.lowBytes, "round \(round)")
                 XCTAssertLessThanOrEqual(point.freeBytes, range.highBytes, "round \(round)")
             }
-            XCTAssertGreaterThanOrEqual(range.lowGB, 0)
-            XCTAssertGreaterThanOrEqual(range.highGB - range.lowGB, 5, "round \(round)")
+            XCTAssertEqual(range.highGB % 25, 0, "round \(round)")
+            XCTAssertGreaterThanOrEqual(range.highGB, 25)
+            let highest = try XCTUnwrap(chart.segments.flatMap(\.points).map(\.freeBytes).max())
+            XCTAssertTrue(range.highGB == 25 || range.highBytes - 25_000_000_000 < highest, "no more than one step above the highest: round \(round)")
         }
     }
 }
