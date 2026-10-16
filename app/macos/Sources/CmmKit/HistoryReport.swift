@@ -19,7 +19,14 @@ enum HistoryLimits {
     /// The sum of sizes, stopping at the largest number there is instead of trapping, so ten thousand runs that each claim
     /// a petabyte cannot crash the app. (Real sums are nowhere near it.)
     static func sum<Sizes: Sequence>(_ sizes: Sizes) -> Int64 where Sizes.Element == Int64 {
-        sizes.reduce(0) { total, size in
+        sizes.saturatingTotal()
+    }
+}
+
+extension Sequence where Element == Int64 {
+    /// The sum, stopping at the largest number instead of trapping. For sizes, which are never negative.
+    func saturatingTotal() -> Int64 {
+        reduce(0) { total, size in
             let (sum, overflowed) = total.addingReportingOverflow(size)
             return overflowed ? Int64.max : sum
         }
