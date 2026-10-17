@@ -72,7 +72,10 @@ struct HistoryFaceContent: View {
                 .modifier(PaneKeys { key in
                     let action = HistoryNavigation.handle(key, focused: state.focusedRun, rows: rows, expanded: state.expanded)
                     state.follow(action)
-                    if case .focus(let run) = action { proxy.scrollTo("run:\(run)") }
+                    // By the row's identity in its ForEach, as the List scrolls: the lazy stack finds a row out of sight by
+                    // that, and not by an `.id` set on the row. A row scrolls only as far as it needs to be seen, but the
+                    // first one sits as low as it can, so Home (or Up to it) brings back the paragraph and the chart above it.
+                    if case .focus(let run) = action { proxy.scrollTo(run, anchor: run == rows.first?.id ? .bottom : nil) }
                 })
             }
             if presentation != nil, status != .quiet {
@@ -164,19 +167,19 @@ struct HistoryFaceContent: View {
 
     @ViewBuilder
     private func weeks(_ rows: RunRows) -> some View {
-        ForEach(Array(rows.weeks.enumerated()), id: \.element.id) { index, week in
+        // a week is known by its first day, not by its id: that is a number of seconds as a cleaning's is, and the keyboard
+        // scrolls to a cleaning by its id
+        ForEach(Array(rows.weeks.enumerated()), id: \.element.start) { index, week in
             let previous = index > 0 ? rows.weeks[index - 1].rows.last : nil
             HistoryWeekHeader(
                 week: week, isFirst: index == 0, followsOpenRow: previous.map { state.expanded.contains($0.id) } ?? false
             )
-            .id("week:\(week.id)")
             ForEach(week.rows) { row in
                 HistoryRunRow(
                     row: row, isExpanded: state.expanded.contains(row.id),
                     isFocused: (listFocused || env.showsFocusWithoutKeyboard) && state.focusedRun == row.id,
                     toggle: { click(row) }
                 )
-                .id("run:\(row.id)")
             }
         }
     }

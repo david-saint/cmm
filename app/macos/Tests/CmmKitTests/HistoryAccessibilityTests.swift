@@ -52,7 +52,10 @@ final class HistoryAccessibilityTests: XCTestCase {
 
     private let size = CGSize(width: 1100, height: 720)
 
-    private func rig(histories: [Result<HistoryReport, CmmError>]? = nil, face: HistoryFaceState? = nil) async throws -> Rig {
+    /// - Parameter hold: the History's reads are held until the test ends, so a read that is taking a while can be heard.
+    private func rig(
+        histories: [Result<HistoryReport, CmmError>]? = nil, face: HistoryFaceState? = nil, hold: Bool = false
+    ) async throws -> Rig {
         _ = NSApplication.shared
         // an assistive app asking for the tree is what makes SwiftUI build it
         func ask(_ on: Bool) {
@@ -66,6 +69,10 @@ final class HistoryAccessibilityTests: XCTestCase {
 
         let board = try HistoryBoard.report()
         let client = FakeCmmClient(plans: [.success(try TestPlans.fixture("plan-c.json"))], histories: histories ?? [.success(board)])
+        if hold {
+            let gate = client.holdHistories()
+            addTeardownBlock { gate.open() }
+        }
         let model = AppModel(client: client, now: { HistoryBoard.now })
         await model.scan()
         let history = HistoryModel(client: client)
@@ -171,7 +178,9 @@ final class HistoryAccessibilityTests: XCTestCase {
         let rig = try await rig(histories: [.failure(failure), .failure(failure), .success(try HistoryBoard.report())])
         // the face read once when it appeared, and failed
         XCTAssertEqual(rig.client.historyCalls, 1)
-        XCTAssertNotNil(rig.root.all { $0.label == "cmm could not read the history." || $0.value == "cmm could not read the history." }.first)
+        let sentence = "cmm could not read the history."
+        XCTAssertEqual(rig.root.all { $0.label == sentence || $0.value == sentence }.count, 1, "the failure is said once")
+        XCTAssertEqual(rig.root.all { $0.role == "AXButton" && $0.label == "Retry" }.count, 1, "with one Retry")
         let retry = try XCTUnwrap(rig.root.find(label: "Retry"))
         XCTAssertEqual(retry.role, "AXButton")
         XCTAssertEqual(retry.help, "Reads the history again")
@@ -187,5 +196,14 @@ final class HistoryAccessibilityTests: XCTestCase {
         try? await Task.sleep(for: .seconds(0.4))
         XCTAssertNotNil(rig.root.find(label: summary), "the face shows it")
         XCTAssertNil(rig.root.find(label: "Retry"), "and Retry is gone with the failure")
+    }
+
+    func testAReadThatIsTakingAWhileIsSaidOnce() async throws {
+        // no report yet, and the moment is over at once: the face says only that it is reading
+        let rig = try await rig(face: HistoryFaceState(wait: { _ in }), hold: true)
+        XCTAssertEqual(rig.client.historyCalls, 1, "the read is out")
+        let reading = HistoryReadStatus.readingText
+        XCTAssertEqual(rig.root.all { $0.label == reading || $0.value == reading }.count, 1, "and it is said once")
+        XCTAssertTrue(rig.root.all { $0.role == "AXButton" && $0.label == "Retry" }.isEmpty, "with nothing to retry")
     }
 }

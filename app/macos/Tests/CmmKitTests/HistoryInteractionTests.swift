@@ -65,13 +65,16 @@ final class HistoryInteractionTests: XCTestCase {
 
     private let size = CGSize(width: 1100, height: 720)
 
-    /// The window at rest on the board's plan, the History model and the window sharing one fake cmm.
+    /// The window at rest on the board's plan, the History model and the window sharing one fake cmm. `report` is what the
+    /// History reads (the board's four cleanings unless given); `env` draws the ring only where the keyboard is when its
+    /// `showsFocusWithoutKeyboard` is off, as in the app.
     private func rig(
-        detailsOpen: Bool = true, face: DetailsFace = .history, histories: [Result<HistoryReport, CmmError>]? = nil,
-        laterScans: [Result<Plan, CmmError>] = []
+        detailsOpen: Bool = true, face: DetailsFace = .history, report given: HistoryReport? = nil,
+        histories: [Result<HistoryReport, CmmError>]? = nil, laterScans: [Result<Plan, CmmError>] = [],
+        env: ViewEnvironment = HistoryViewsTests.env
     ) async throws -> Rig {
         _ = NSApplication.shared
-        let report = try HistoryBoard.report()
+        let report = try given ?? HistoryBoard.report()
         let client = FakeCmmClient(
             plans: [.success(try TestPlans.fixture("plan-c.json"))] + laterScans, histories: histories ?? [.success(report)]
         )
@@ -81,7 +84,7 @@ final class HistoryInteractionTests: XCTestCase {
         let state = WindowState(detailsOpen: detailsOpen, face: face)
         let faceState = HistoryFaceState()
         let hosting = NSHostingView(
-            rootView: RootView(model: model, window: state, env: HistoryViewsTests.env)
+            rootView: RootView(model: model, window: state, env: env)
                 .environment(history)
                 .environment(faceState)
                 .frame(width: size.width, height: size.height)
@@ -95,7 +98,7 @@ final class HistoryInteractionTests: XCTestCase {
         }
         await settle(0.4)
         let rows = RunRows(report: report, now: HistoryBoard.now, calendar: HistoryBoard.calendar, locale: HistoryBoard.locale, home: "/Users/test").listed
-        guard rows.count == 4 else { throw SamplerStuck("the board has four cleanings") }
+        guard given != nil || rows.count == 4 else { throw SamplerStuck("the board has four cleanings") }
         return Rig(model: model, state: state, face: faceState, history: history, client: client, window: window, rows: rows)
     }
 
@@ -245,6 +248,105 @@ final class HistoryInteractionTests: XCTestCase {
         XCTAssertEqual(rig.face.focusedRun, rig.rows[0].id)
         await press(.space, in: rig)
         XCTAssertEqual(rig.face.expanded, [rig.rows[0].id])
+    }
+
+    func testAClickGivesTheListTheKeyboardWhenItDidNotHaveIt() async throws {
+        // the pane opened after the window took the keyboard, so the list does not have it (as in the Tab test)
+        let rig = try await rig(detailsOpen: false)
+        rig.state.openHistory()
+        await eventually("the face is there and has read the history") { rig.history.report != nil }
+        await settle()
+        await press(.down, in: rig)
+        XCTAssertNil(rig.face.focusedRun, "before the click, the list does not have the keyboard")
+        await click(firstRow, in: rig)
+        XCTAssertEqual(rig.face.focusedRun, rig.rows[0].id)
+        await press(.down, in: rig)
+        XCTAssertEqual(rig.face.focusedRun, rig.rows[1].id, "after it, Down goes on from the clicked cleaning")
+    }
+
+    // MARK: where the keyboard is
+
+    /// How many pixels of the first cleaning's band (y 336 to 372 of this window, across the pane) are the accent's green. The
+    /// first cleaning is Docker's and closed: its figure's outline is amber and it has no ticks, so green there is the ring.
+    private func ringPixels(in rig: Rig) throws -> Int {
+        let view = try XCTUnwrap(rig.window.contentView)
+        let bitmap = try XCTUnwrap(view.bitmapImageRepForCachingDisplay(in: view.bounds))
+        view.cacheDisplay(in: view.bounds, to: bitmap)
+        let scale = Double(bitmap.pixelsWide) / size.width
+        var count = 0
+        for y in Int(336 * scale)..<Int(372 * scale) {
+            for x in Int(636 * scale)..<Int(1096 * scale) {
+                guard let c = bitmap.colorAt(x: x, y: y)?.usingColorSpace(.deviceRGB) else { continue }
+                if c.greenComponent - max(c.redComponent, c.blueComponent) > 0.12 { count += 1 }
+            }
+        }
+        return count
+    }
+
+    func testTheRingIsOnlyWhereTheKeyboardIs() async throws {
+        var env = HistoryViewsTests.env
+        env.showsFocusWithoutKeyboard = false  // as in the app
+        let rig = try await rig(detailsOpen: false, env: env)
+        rig.state.openHistory()
+        await eventually("the face is there and has read the history") { rig.history.report != nil }
+        await settle()
+        rig.face.focusedRun = rig.rows[0].id
+        await settle()
+        XCTAssertEqual(try ringPixels(in: rig), 0, "the list does not have the keyboard: its cleaning has no ring")
+
+        rig.window.selectNextKeyView(nil)  // Tab
+        await settle()
+        XCTAssertGreaterThan(try ringPixels(in: rig), 20, "the list has the keyboard: the ring is on its cleaning")
+        XCTAssertEqual(rig.face.focusedRun, rig.rows[0].id)
+
+        rig.window.makeFirstResponder(nil)  // the keyboard goes elsewhere
+        await settle()
+        XCTAssertEqual(try ringPixels(in: rig), 0, "and the ring goes with it")
+    }
+
+    /// Thirty cleanings two hours apart, each with an item to open: a list longer than the window.
+    private func longReport() throws -> HistoryReport {
+        let runs = (0..<30).map { index in
+            HistoryJSON.run(
+                finished: HistoryBoard.iso(HistoryBoard.now.addingTimeInterval(-Double(index) * 7_200 - 600)), freed: gigabytes(0.5),
+                items: [HistoryJSON.item(rule: "uv-cache", group: "uv cache", path: "/Users/test/.cache/uv", bytes: gigabytes(0.5))]
+            )
+        }
+        return try HistoryBoard.report(runs: runs, samples: [])
+    }
+
+    /// The face's scroll view: the pane's, right of the rest screen.
+    private func faceScrollView(in rig: Rig) throws -> NSScrollView {
+        func scrollViews(in view: NSView) -> [NSScrollView] {
+            ((view as? NSScrollView).map { [$0] } ?? []) + view.subviews.flatMap { scrollViews(in: $0) }
+        }
+        let inPane = scrollViews(in: try XCTUnwrap(rig.window.contentView)).filter { $0.convert($0.bounds, to: nil).minX > 600 }
+        return try XCTUnwrap(inPane.max { ($0.documentView?.frame.height ?? 0) < ($1.documentView?.frame.height ?? 0) })
+    }
+
+    func testTheListFollowsTheKeyboardToACleaningOutOfSight() async throws {
+        let rig = try await rig(report: try longReport())
+        guard rig.rows.count == 30 else { return XCTFail("thirty cleanings, not \(rig.rows.count)") }
+        let scroll = try faceScrollView(in: rig)
+        let top = scroll.contentView.bounds.origin.y
+        func offset() -> Double { abs(scroll.contentView.bounds.origin.y - top) }
+        func reach() -> Double { (scroll.documentView?.frame.height ?? 0) - scroll.contentView.bounds.height }
+        XCTAssertGreaterThan(reach(), 300, "thirty cleanings are longer than the pane")
+
+        await press(.end, in: rig)
+        XCTAssertEqual(rig.face.focusedRun, rig.rows.last?.id)
+        await eventually("End scrolls the list down to the last cleaning") { offset() > 300 }
+        await settle()
+        XCTAssertLessThan(reach() - offset(), 40, "as far as the last cleaning: it is in sight at the foot of the pane")
+
+        await press(.home, in: rig)
+        XCTAssertEqual(rig.face.focusedRun, rig.rows.first?.id)
+        await eventually("and Home back up to the first") { offset() < 1 }
+
+        // one at a time: the fifteenth cleaning is past the pane's foot, and Down brings it up
+        for _ in 0..<14 { await press(.down, in: rig) }
+        XCTAssertEqual(rig.face.focusedRun, rig.rows[14].id)
+        await eventually("Down past the foot of the pane scrolls the list") { offset() > 0 }
     }
 
     // MARK: reading
