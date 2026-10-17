@@ -22,7 +22,13 @@ struct CmmApp: App {
         _model = State(initialValue: model)
         _window = State(initialValue: window)
         _history = State(initialValue: history)
-        _services = State(initialValue: AppServices.start(model: model, window: window, history: history))
+        _services = State(initialValue: AppServices.start(model: model, window: window, history: history) { onSample in
+            // the free-space sampler asks the same client for its notes, and for nothing else
+            SamplerSchedule(
+                client: client, scheduler: SystemActivityScheduler(identifier: "com.davidsaint.cmm.sampler"), now: { Date() },
+                onSample: onSample, log: { line in AppServices.log.notice("\(line, privacy: .public)") }
+            )
+        })
     }
 
     var body: some Scene {

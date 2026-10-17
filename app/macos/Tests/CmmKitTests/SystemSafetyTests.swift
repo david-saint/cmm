@@ -84,6 +84,9 @@ final class SystemSafetyTests: XCTestCase {
             "SMAppService": "SystemAdaptors.swift",
             "NSAppleEventManager": "SystemAdaptors.swift",
             "UNUserNotificationCenter": "SystemNotifications.swift",
+            "UNMutableNotificationContent": "SystemNotifications.swift",
+            "NSBackgroundActivityScheduler": "SystemSchedulers.swift",
+            "DispatchWallTime": "SystemSchedulers.swift",
         ]
         for (token, home) in homes {
             XCTAssertEqual(files.filter { $0.code.contains(token) }.map(\.name), [home], "`\(token)` is used outside \(home)")
@@ -100,11 +103,32 @@ final class SystemSafetyTests: XCTestCase {
         XCTAssertGreaterThan(tests.count, 20, "the tests were found")
         for token in [
             "AppServices", "SystemLoginItem", "SystemNotificationPermission", "AppleEventLaunchSource", "SystemBundle",
+            "SystemNotificationPoster", "SystemActivityScheduler", "SystemWallClock",
             "SMAppService", "UNUserNotificationCenter", "NSBackgroundActivityScheduler", "NSAppleEventManager",
             "UserDefaults", "Settings.standard", "UserDefaultsSettingsStore", "FacePreference",
         ] {
             XCTAssertEqual(tests.filter { $0.code.contains(token) }.map(\.name), [], "a test uses `\(token)`")
         }
+    }
+
+    // MARK: the background
+
+    /// The reminder's scan is the window's own and nothing else: it reads the window's phase, card and plan, and asks it to scan.
+    /// The background services hold no model and no client: they start and stop the sampler and the reminder, nothing more.
+    func testTheReminderOnlyScansAndTheBackgroundHoldsNoWayToClean() throws {
+        let scan = try Self.source("WeeklyScan.swift").code
+        let asked = Set(try Self.matches(#"model\.(\w+)"#, in: scan))
+        XCTAssertEqual(asked, ["phase", "confirmation", "plan", "scan"], "the reminder's scan asks the window for \(asked.sorted())")
+        let background = try Self.source("BackgroundServices.swift").code
+        for token in ["AppModel", "model.", "CmmClient", "client", "Clean", "confirm", "toggle"] {
+            XCTAssertFalse(background.contains(token), "BackgroundServices uses `\(token)`")
+        }
+        XCTAssertEqual(Set(try Self.matches(#"sampler\.(\w+)"#, in: background)), ["start", "stop", "trigger"])
+        XCTAssertEqual(Set(try Self.matches(#"reminder\.(\w+)"#, in: background)), ["check", "nextCheck"])
+        // the identifiers the system schedules them under, one each
+        let app = try Self.source("CmmApp.swift").code + (try Self.source("AppServices.swift").code)
+        XCTAssertTrue(app.contains("SystemActivityScheduler(identifier: \"com.davidsaint.cmm.sampler\")"))
+        XCTAssertTrue(app.contains("SystemActivityScheduler(identifier: \"com.davidsaint.cmm.weekly\")"))
     }
 
     // MARK: the lifecycle

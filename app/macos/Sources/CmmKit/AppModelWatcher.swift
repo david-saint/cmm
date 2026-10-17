@@ -15,7 +15,8 @@ public final class AppModelWatcher {
     private let model: AppModel
     private let now: @Sendable () -> Date
     private let scanFinished: @MainActor (Plan) -> Void
-    private let cleaningEnded: @MainActor (CleanSummary?) -> Void
+    /// Who hears that a cleaning ended (it may be set after the watcher is made, before it starts).
+    public var cleaningEnded: @MainActor (CleanSummary?) -> Void
     private var watch: Watch<Snapshot>?
     private var reportedPlan: Plan?
     private var reportedSummary: CleanSummary?

@@ -1,13 +1,16 @@
 import AppKit
 import CmmKit
 import SwiftUI
+import os
 
-/// The one owner of the app's objects: the window's model and state, the History's model, the settings and the lifecycle, so that
-/// the scenes, the application delegate and the background services share exactly one of each. It is made once, when the app
-/// starts (`CmmApp.init`), around the models that the one engine client serves; it holds no client of its own.
+/// The one owner of the app's objects: the window's model and state, the History's model, the settings, the lifecycle, the menu
+/// bar item's memory and the background services, so that the scenes, the application delegate and the background services share
+/// exactly one of each. It is made once, when the app starts (`CmmApp.init`), around the models that the one engine client serves
+/// (and the sampler, which asks that client for its notes); it holds no client of its own.
 ///
 /// What it decides, it asks CmmKit: the Dock icon and quitting (`Lifecycle`), what closing the window asks of a cleaning and the
-/// card (`LifecyclePolicy`), what "at rest" means (`WindowState.comeToRest`). What is left here is telling the system.
+/// card (`LifecyclePolicy`), what "at rest" means (`WindowState.comeToRest`), when the sampler and the reminder run
+/// (`BackgroundServices`) and what the reminder scans (`WeeklyScan`). What is left here is telling the system.
 @MainActor
 final class AppServices {
     /// The services of the running app. The application delegate is made by SwiftUI, and reaches them here.
@@ -21,6 +24,11 @@ final class AppServices {
     let menuBar: MenuBarModel
     /// Hears of the window's scans and cleanings, window or no window.
     let watcher: AppModelWatcher
+    /// The free-space sampler and the Monday reminder, each while its switch is on.
+    let background: BackgroundServices
+
+    /// One quiet line for what went wrong in the background (never a path: the lines are made in CmmKit without one).
+    nonisolated static let log = Logger(subsystem: "com.davidsaint.cmm", category: "background")
 
     /// SwiftUI's own way to open the main window, kept from a view that has it: a click on the notification and cmm opened again
     /// from Finder come from outside SwiftUI.
@@ -42,43 +50,80 @@ final class AppServices {
         }
     }
 
-    /// Makes the services of the running app, once.
-    static func start(model: AppModel, window: WindowState, history: HistoryModel) -> AppServices {
-        let services = AppServices(model: model, window: window, history: history)
+    /// Makes the services of the running app, once. `sampler` makes the free-space sampler, handing its notes to the given
+    /// function (the sampler is made where the engine client is, which it asks for them).
+    static func start(
+        model: AppModel, window: WindowState, history: HistoryModel,
+        sampler: (_ onSample: @escaping @MainActor (SampleResult, Date) -> Void) -> SamplerSchedule
+    ) -> AppServices {
+        let services = AppServices(model: model, window: window, history: history, sampler: sampler)
         shared = services
         services.follow()
         return services
     }
 
-    private init(model: AppModel, window: WindowState, history: HistoryModel) {
+    private init(
+        model: AppModel, window: WindowState, history: HistoryModel,
+        sampler makeSampler: (_ onSample: @escaping @MainActor (SampleResult, Date) -> Void) -> SamplerSchedule
+    ) {
         self.model = model
         self.window = window
         self.history = history
-        let settings = SettingsModel(settings: .standard, loginItem: SystemLoginItem(), notifications: SystemNotificationPermission())
+        let permission = SystemNotificationPermission()
+        let settings = SettingsModel(settings: .standard, loginItem: SystemLoginItem(), notifications: permission)
         self.settings = settings
-        lifecycle = Lifecycle(
+        let lifecycle = Lifecycle(
             menuBarEnabled: { settings.menuBarEnabled },
             setPolicy: { policy in _ = NSApp.setActivationPolicy(policy == .regular ? .regular : .accessory) }
         )
+        self.lifecycle = lifecycle
         let menuBar = MenuBarModel()
         self.menuBar = menuBar
-        watcher = AppModelWatcher(
+        let watcher = AppModelWatcher(
             model: model,
             scanFinished: { plan in menuBar.recordScan(plan) },
-            cleaningEnded: { summary in
-                if let summary { menuBar.recordCleaning(summary) }
-                // cmm wrote the run down: the History (and the menu bar's "Last cleaned") read it again
-                Task { await history.load() }
-            }
+            cleaningEnded: { _ in }
+        )
+        self.watcher = watcher
+
+        let log: @Sendable (String) -> Void = { line in AppServices.log.notice("\(line, privacy: .public)") }
+        let delivery = NotificationDelivery(permission: permission, poster: SystemNotificationPoster())
+        let weekly = WeeklyScan(
+            model: model, mainWindowOpen: { lifecycle.openWindows.contains(.main) }, lastScanAt: { watcher.lastScanAt },
+            now: { Date() }
+        )
+        let reminder = WeeklyReminder(
+            settings: settings, calendar: .autoupdatingCurrent, now: { Date() },
+            scan: { try await weekly.scan() },
+            deliver: { note in await delivery.deliver(note) },
+            log: log
+        )
+        background = BackgroundServices(
+            settings: settings,
+            sampler: makeSampler { result, at in menuBar.recordSample(result, receivedAt: at) },
+            reminder: reminder,
+            timer: SystemWallClock(),
+            heartbeat: SystemActivityScheduler(identifier: "com.davidsaint.cmm.weekly"),
+            now: { Date() }
         )
     }
 
-    /// From now on the menu bar item hears of the window's scans and cleanings and of every history report, whoever asked for it.
+    /// From now on the menu bar item, the sampler and the History hear of the window's scans and cleanings, and the menu bar item
+    /// of every history report, whoever asked for it.
     private func follow() {
+        watcher.cleaningEnded = { [weak self] summary in self?.cleaningEnded(summary) }
         watcher.start()
         historyWatch = Watch({ [history] in history.report }, changed: { [menuBar] report in
             if let report { menuBar.recordHistory(report) }
         })
+    }
+
+    /// A cleaning of the window's ended: the menu bar item says so for an hour, the sampler takes a note of the new free space,
+    /// and the History reads cmm's record of the run.
+    private func cleaningEnded(_ summary: CleanSummary?) {
+        if let summary { menuBar.recordCleaning(summary) }
+        Task { await background.cleaningEnded() }
+        Task { await history.load() }
     }
 
     // MARK: launching
@@ -93,6 +138,7 @@ final class AppServices {
         })
         if settings.menuBarEnabled { readHistoryForTheMenuBar() }
         if lifecycle.launched(by: event) { NSApp.activate() }
+        Task { await background.start() }
     }
 
     private func readHistoryForTheMenuBar() {
