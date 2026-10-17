@@ -13,6 +13,8 @@ public final class HistoryFaceState {
 
     /// The cleanings that are open to their items (`RunRows.Row.id`).
     public var expanded: Set<String>
+    /// The cleaning the keyboard is on.
+    public var focusedRun: String?
     /// The moment under the pointer on the chart, or nil while the pointer is elsewhere.
     public var pointerTime: Date?
     /// A read has been out for `readingDelay`: the face says so, quietly, until it is done.
@@ -55,5 +57,19 @@ public final class HistoryFaceState {
 
     public func setExpanded(_ run: String, _ open: Bool) {
         if open { expanded.insert(run) } else { expanded.remove(run) }
+    }
+
+    /// Does what a key of the list says (`HistoryNavigation`).
+    public func follow(_ action: HistoryNavigation.Action) {
+        switch action {
+        case .none:
+            break
+        case .focus(let run):
+            focusedRun = run
+        case .expand(let run):
+            setExpanded(run, true)
+        case .collapse(let run):
+            setExpanded(run, false)
+        }
     }
 }

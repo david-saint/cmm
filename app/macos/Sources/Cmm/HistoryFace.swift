@@ -44,28 +44,48 @@ struct HistoryFaceContent: View {
     let state: HistoryFaceState
     let retry: () -> Void
     @Environment(\.cmm) private var env
+    /// The list has the keyboard: it is one stop for the Tab key (or a click on a row), and inside it the List's keys work.
+    @FocusState private var listFocused: Bool
 
     /// The board's column: the pane less 18 pt on each side.
     static let width = HeroLayout.paneWidth - 36
 
     var body: some View {
         let status = HistoryReadStatus(phase: phase, showsReading: state.showsReading)
+        let rows = presentation?.rows.listed ?? []
         VStack(spacing: 0) {
-            ScrollView {
-                LazyVStack(alignment: .leading, spacing: 0) {
-                    if let presentation {
-                        face(presentation)
-                    } else {
-                        alone(status)
+            ScrollViewReader { proxy in
+                ScrollView {
+                    LazyVStack(alignment: .leading, spacing: 0) {
+                        if let presentation {
+                            face(presentation)
+                        } else {
+                            alone(status)
+                        }
                     }
+                    .padding(.bottom, 16)
                 }
-                .padding(.bottom, 16)
+                .scrollIndicators(.hidden)
+                .focusable()
+                .focused($listFocused)
+                .focusEffectDisabled()
+                .modifier(PaneKeys { key in
+                    let action = HistoryNavigation.handle(key, focused: state.focusedRun, rows: rows, expanded: state.expanded)
+                    state.follow(action)
+                    if case .focus(let run) = action { proxy.scrollTo("run:\(run)") }
+                })
             }
-            .scrollIndicators(.hidden)
             if presentation != nil, status != .quiet {
                 HistoryReadFooter(status: status, retry: retry)
             }
         }
+    }
+
+    /// A click on a cleaning gives the list the keyboard on that row, and opens or closes it.
+    private func click(_ row: RunRows.Row) {
+        state.focusedRun = row.id
+        listFocused = true
+        if row.hasDetails { state.toggle(row.id) }
     }
 
     /// With no report yet: nothing for the first moment, then that it is reading, or the one sentence of a failure and Retry.
@@ -151,8 +171,9 @@ struct HistoryFaceContent: View {
             .id("week:\(week.id)")
             ForEach(week.rows) { row in
                 HistoryRunRow(
-                    row: row, isExpanded: state.expanded.contains(row.id), isFocused: false,
-                    toggle: { if row.hasDetails { state.toggle(row.id) } }
+                    row: row, isExpanded: state.expanded.contains(row.id),
+                    isFocused: (listFocused || env.showsFocusWithoutKeyboard) && state.focusedRun == row.id,
+                    toggle: { click(row) }
                 )
                 .id("run:\(row.id)")
             }
