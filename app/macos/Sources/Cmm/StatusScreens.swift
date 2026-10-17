@@ -302,14 +302,21 @@ struct Note: View {
 
 // MARK: nothing to clean
 
+/// Nothing to clean. With the pane open (the History, over the screen: `PaneOverlay`) the headline moves left and the band
+/// stops before the pane, as the board `C-History` draws it; with it closed, Rescan and Show details are at the top right, as
+/// on the rest screen.
 struct EmptyScreen: View {
     let model: AppModel
+    let window: WindowState
     @Environment(\.cmm) private var env
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     var body: some View {
         if let plan = model.plan {
             GeometryReader { geometry in
-                let layout = HeroLayout(screen: .empty, width: geometry.size.width, height: geometry.size.height)
+                let open = window.detailsOpen
+                let motion = MotionStyle.resolve(reduceMotion: reduceMotion)
+                let layout = HeroLayout(screen: .empty, detailsOpen: open, width: geometry.size.width, height: geometry.size.height)
                 let s = layout.scale
                 let p = EmptyPresentation(plan: plan, volumeName: env.volumeName(plan), now: env.now(), calendar: env.calendar)
 
@@ -322,26 +329,38 @@ struct EmptyScreen: View {
                                 Paragraph(text: held, size: 15 * s, lineHeight: 22 * s)
                             }
                             .foregroundStyle(Theme.ink2)
-                            .frame(maxWidth: 520 * s, alignment: .leading)
+                            // in the text column, which ends before the pane when it is open
+                            .frame(maxWidth: open ? layout.bandWidth : 520 * s, alignment: .leading)
                             .padding(.top, 14 * s)
                             .accessibilityElement(children: .combine)
                         }
                         Button { Task { await model.scan() } } label: {
                             HStack(spacing: 8) {
-                                Image(systemName: "arrow.clockwise").font(.system(size: 14 * s, weight: .medium))
+                                Image(systemName: "arrow.clockwise").font(.system(size: layout.pillFontSize - s, weight: .medium))
                                 Text("Rescan")
                             }
                         }
-                        .buttonStyle(PillStyle(look: .soft(text: Theme.ink), height: 44 * s, horizontal: 22 * s, fontSize: 15 * s, shadowed: false))
+                        .buttonStyle(PillStyle(
+                            look: .soft(text: Theme.ink), height: layout.pillHeight, horizontal: (open ? 20 : 22) * s,
+                            fontSize: layout.pillFontSize, shadowed: false
+                        ))
                         .accessibilityHint("Scans again")
-                        .padding(.top, 30 * s)
+                        .padding(.top, layout.actionsTopGap)
                     }
                     .padding(.leading, layout.leading)
                     .padding(.top, layout.top)
 
                     BandBlock(band: p.band, caption: p.caption, sentence: p.bandSentence, layout: layout)
                         .offset(x: layout.bandLeading, y: layout.bandTop)
+
+                    if !open {
+                        HeaderButtons(model: model, window: window, detailsOpen: false)
+                            .padding(.top, 14)
+                            .padding(.trailing, 20)
+                            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topTrailing)
+                    }
                 }
+                .animation(motion.animation, value: open)
             }
         }
     }

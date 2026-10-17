@@ -67,13 +67,16 @@ public struct HeroLayout: Equatable, Sendable {
     /// Where the band itself starts, from the top of the window.
     public var bandLineTop: Double { bandTop + bandLabelsHeight + bandLineGap }
 
+    /// - Parameter detailsOpen: the pane is open. The rest screen and the nothing-to-clean screen (the board `C-History` draws
+    ///   the History over it) then set their headline smaller and to the left, and the band stops before the pane; the other
+    ///   screens keep their places under the pane.
     /// - Parameter mapOpen: the pane is open on the map (only on the rest screen with the pane open): the band is raised
     ///   16 pt to make room for its bracket.
     public init(screen: Screen, detailsOpen: Bool = false, mapOpen: Bool = false, width: Double, height: Double) {
         let s = min(max(min(width / Self.boardWidth, height / Self.boardHeight), 0.66), 1.25)
         scale = s
 
-        let open = screen == .rest && detailsOpen
+        let open = (screen == .rest || screen == .empty) && detailsOpen
         leading = (open ? 72 : 112) * s
         top = (screen == .cleaning || screen == .done ? 120 : (open ? 150 : 172)) * s
         numberSize = (open ? 136 : 184) * s
@@ -101,7 +104,8 @@ public struct HeroLayout: Equatable, Sendable {
         } else {
             bandWidth = max(width - 2 * leading, 0)
         }
-        let raised = open && mapOpen
+        // only the rest screen's pane has the map: the nothing-to-clean screen's shows the History alone
+        let raised = screen == .rest && open && mapOpen
         let fromBottom = ((screen == .cleaning || screen == .done ? 80.0 : 108.0) + (raised ? Self.bandRise : 0)) * s
         bandTop = height - fromBottom
         bandLabelsHeight = 15 * s

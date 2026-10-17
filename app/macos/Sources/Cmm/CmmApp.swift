@@ -82,7 +82,7 @@ struct CmmCommands: Commands {
         CommandGroup(replacing: .sidebar) {
             Button(window.detailsOpen ? "Hide Details" : "Show Details") { window.toggleDetails() }
                 .keyboardShortcut("i", modifiers: .command)
-                .disabled(model.phase != .ready || model.confirmation != nil)
+                .disabled(!HistoryPaneRule.detailsCommandWorks(phase: model.phase, confirmationOpen: model.confirmation != nil))
         }
     }
 }

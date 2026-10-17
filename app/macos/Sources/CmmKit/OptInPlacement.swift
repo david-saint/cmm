@@ -52,7 +52,7 @@ public struct OptInPlacement: Equatable, Sendable {
         guard !optInAnswered, !confirmationOpen else { return false }
         switch phase {
         case .ready: return !detailsOpen
-        case .empty: return true
+        case .empty: return !detailsOpen
         case .idle, .scanning, .cleaning, .done, .failed: return false
         }
     }

@@ -48,7 +48,7 @@ final class OptInTests: XCTestCase {
                 for card in [false, true] {
                     for details in [false, true] {
                         let shown = OptInPlacement.isShown(optInAnswered: answered, phase: phase, confirmationOpen: card, detailsOpen: details)
-                        let expected = !answered && !card && (phase == .empty || (phase == .ready && !details))
+                        let expected = !answered && !card && (phase == .empty || phase == .ready) && !details
                         XCTAssertEqual(shown, expected, "answered \(answered), \(phase), card \(card), details \(details)")
                     }
                 }

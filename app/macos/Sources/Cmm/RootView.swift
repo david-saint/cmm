@@ -22,6 +22,7 @@ struct RootView: View {
                 Rectangle().fill(Theme.background).ignoresSafeArea()
 
                 screen
+                    .overlay { PaneOverlay(model: model, window: window) }
                     .overlay(alignment: .topLeading) { OptInSlot(model: model, window: window, pill: pillFrame) }
                     .opacity(model.confirmation == nil ? 1 : 0.28)
                     .disabled(model.confirmation != nil)
@@ -75,7 +76,7 @@ struct RootView: View {
         switch model.phase {
         case .idle, .scanning: ScanningScreen()
         case .ready: RestScreen(model: model, window: window)
-        case .empty: EmptyScreen(model: model)
+        case .empty: EmptyScreen(model: model, window: window)
         case .cleaning: CleaningScreen(model: model)
         case .done: DoneScreen(model: model)
         case .failed: ErrorScreen(model: model)
