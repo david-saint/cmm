@@ -168,7 +168,10 @@ struct TileSkin: View {
         }
     }
 
-    private var fill: Tone {
+    private var fill: Tone { Self.fill(for: tile, hovered: hovered) }
+
+    /// The fill of a tile in its state. (The flights between the band and the map draw tiles too, and use the same.)
+    static func fill(for tile: MapTile, hovered: Bool) -> Tone {
         if tile.isReview {
             switch (tile.state == .off, hovered) {
             case (true, false): return Theme.nothing
@@ -185,6 +188,11 @@ struct TileSkin: View {
         }
     }
 
+    /// The 1 pt edge of a safe tile (a review tile's is dotted amber and does not vary).
+    static func edge(for tile: MapTile, hovered: Bool) -> Tone {
+        hovered ? Theme.tileHoverLine : (tile.state == .off ? Theme.tileOffLine : Theme.tileOnLine)
+    }
+
     @ViewBuilder private var outline: some View {
         if tile.isReview {
             // a dotted 1.5 pt amber edge at full strength, whatever the state
@@ -193,7 +201,7 @@ struct TileSkin: View {
                 .stroke(Theme.review, style: StrokeStyle(lineWidth: 1.5, lineCap: .round, dash: [0, 3]))
         } else {
             RoundedRectangle(cornerRadius: radius, style: .continuous)
-                .strokeBorder(hovered ? Theme.tileHoverLine : (tile.state == .off ? Theme.tileOffLine : Theme.tileOnLine), lineWidth: 1)
+                .strokeBorder(Self.edge(for: tile, hovered: hovered), lineWidth: 1)
         }
     }
 }

@@ -11,6 +11,15 @@ public enum FlightClock {
     public static let unfoldBounce = 0.15
     /// Between one tile leaving the band and the next, largest first.
     public static let stagger = 0.02
+    /// The most the stagger may add to the unfold in all: with dozens of tiles the 20 ms steps would keep the map half built
+    /// for a second, so a crowd leaves closer together (the boards' ten tiles are well inside it).
+    public static let maxStaggerSpread = 0.25
+
+    /// The gap between one tile leaving and the next, when `count` tiles fly: the boards' `stagger` until the last would
+    /// leave later than `maxStaggerSpread`, and then the spread shared out.
+    public static func staggerStep(count: Int) -> Double {
+        min(stagger, maxStaggerSpread / Double(max(count - 1, 1)))
+    }
     public static let foldDuration = 0.35
     /// The band's end enlarging when the pointer comes to it.
     public static let hoverDuration = 0.22
@@ -115,6 +124,7 @@ public struct FlightSchedule: Equatable, Sendable {
             $0.element.bytes != $1.element.bytes ? $0.element.bytes > $1.element.bytes : $0.offset < $1.offset
         }
 
+        let step = FlightClock.staggerStep(count: ranked.count)
         var flights: [Flight] = []
         for (rank, entry) in ranked.enumerated() {
             let tile = entry.element
@@ -123,7 +133,7 @@ public struct FlightSchedule: Equatable, Sendable {
                 tile: tile, look: slice.look,
                 tileRect: tile.rect.offsetBy(dx: origin.x, dy: origin.y),
                 bandRect: CGRect(x: band.bandLeading + slice.x, y: band.bandLineTop, width: slice.width, height: thickness),
-                delay: direction == .unfold ? Double(rank) * FlightClock.stagger : 0
+                delay: direction == .unfold ? Double(rank) * step : 0
             ))
         }
         guard !flights.isEmpty else { return nil }
