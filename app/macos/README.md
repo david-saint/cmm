@@ -215,6 +215,13 @@ test makes, so no test can touch your login items, notifications or preferences.
   launch's Apple event saying so.
 - **Without the bundle** (`swift run Cmm`) there is no login item and no notification: macOS knows neither for a bare
   executable, so those switches do nothing there.
+- **Notifications need the app in an ordinary folder.** Found in the live run: macOS refuses to show its permission question
+  to an app that runs from `/tmp` (a throwaway folder), even when it is signed ad hoc, and the reminder then has no way
+  to speak. From `build/Cmm.app`, or from Applications, the question appears and the note is delivered. The note is a
+  banner, so it leaves the screen after a few seconds; it stays in Notification Center, and System Settings >
+  Notifications > cmm can make it an alert that stays.
+- **"Open at login" and the one-click "Turn on"** register the app as a login item. They were tested with fakes only; a
+  real login launch and macOS's own approval step are the first thing the owner's first real "Turn on" shows.
 - **The Settings window's pickers** are the grouped form's own pop-ups (borderless, as in System Settings) rather than
   the board's bordered ones.
 - **The map's tiles follow the plan's bytes alone**, so ticking never moves one. A tiny item is given a larger share
