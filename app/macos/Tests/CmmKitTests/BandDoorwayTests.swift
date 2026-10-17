@@ -430,6 +430,7 @@ final class FlightClockTests: XCTestCase {
         XCTAssertEqual(FlightClock.unfoldDuration, 0.5)
         XCTAssertEqual(FlightClock.unfoldBounce, 0.15)
         XCTAssertEqual(FlightClock.stagger, 0.02)
+        XCTAssertEqual(FlightClock.staggerStep(count: 10), 0.02, "the boards' ten tiles keep the boards' stagger")
         XCTAssertEqual(FlightClock.hoverDuration, 0.22)
     }
 
@@ -485,6 +486,34 @@ final class FlightScheduleTests: XCTestCase {
         XCTAssertEqual(plan.flights.map(\.delay).first, 0)
         for (index, flight) in plan.flights.enumerated() {
             XCTAssertEqual(flight.delay, Double(index) * 0.02, accuracy: 1e-12)
+        }
+    }
+
+    func testACrowdLeavesCloserTogetherSoTheMapIsNotHalfBuiltForLong() throws {
+        var items = try TestPlans.fixture("plan-c.json").items.filter { $0.tier == .safe }
+        for i in 0..<36 {
+            items.append(TestPlans.item("/Users/test/tiny/item-\(i)", group: "Tiny \(i)", rule: "tiny-\(i)", bytes: 200_000 + Int64(i) * 1_000))
+        }
+        let selection = SelectionModel(plan: TestPlans.plan(items, freeBytes: 19_800_000_000, capacityBytes: 228_000_000_000))
+        let map = MapModel(selection: selection, size: CGSize(width: 416, height: 520), home: "/Users/test")
+        let band = HeroLayout(screen: .rest, detailsOpen: true, mapOpen: false, width: 1100, height: 720)
+        let plan = try XCTUnwrap(FlightSchedule(
+            direction: .unfold, map: map, capacity: 228_000_000_000, free: 19_800_000_000, band: band, enlarged: true, windowWidth: 1100
+        ))
+        XCTAssertGreaterThan(plan.flights.count, 30)
+        let last = try XCTUnwrap(plan.flights.last).delay
+        XCTAssertEqual(last, FlightClock.maxStaggerSpread, accuracy: 1e-9, "the whole crowd has left within a quarter second")
+        XCTAssertEqual(plan.duration, last + FlightClock.settle + FlightClock.landingMargin, accuracy: 1e-9)
+        XCTAssertLessThan(plan.duration, 1.0)
+        let delays = plan.flights.map(\.delay)
+        XCTAssertEqual(delays, delays.sorted(), "still largest first")
+        // and every shape is exactly on its tile when the plan's time is up
+        for flight in plan.flights {
+            let pose = plan.pose(of: flight, at: plan.duration)
+            XCTAssertEqual(pose.rect.minX, flight.tileRect.minX, accuracy: 1e-6)
+            XCTAssertEqual(pose.rect.minY, flight.tileRect.minY, accuracy: 1e-6)
+            XCTAssertEqual(pose.rect.width, flight.tileRect.width, accuracy: 1e-6)
+            XCTAssertEqual(pose.rect.height, flight.tileRect.height, accuracy: 1e-6)
         }
     }
 
