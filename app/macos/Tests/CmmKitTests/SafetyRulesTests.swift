@@ -493,10 +493,17 @@ final class SafetyRulesTests: XCTestCase {
             let source = try code(name)
             XCTAssertTrue(source.contains("@Environment(\\.isEnabled)") && source.contains("guard isEnabled"), "\(name) ignores keys while disabled")
         }
+        // Updated on purpose with the menu bar item: its popover's `...` menu shows the board's ⌘, and ⌘Q (the app has no menu of
+        // its own while only the item is left), and nothing else in that file may take a key.
         XCTAssertEqual(
-            occurrences(of: ".keyboardShortcut(", in: files), ["CmmApp.swift", "ConfirmCard.swift", "MapFace.swift", "RootView.swift"],
-            "the only key equivalents: the menu's ⌘R and ⌘I, the card's default, Esc, and the map's arrows"
+            occurrences(of: ".keyboardShortcut(", in: files),
+            ["CmmApp.swift", "ConfirmCard.swift", "MapFace.swift", "MenuBarPopoverView.swift", "RootView.swift"],
+            "the only key equivalents: the menu's ⌘R and ⌘I, the card's default, Esc, the map's arrows, and the popover's ⌘, and ⌘Q"
         )
+        let popover = try code("MenuBarPopoverView.swift")
+        XCTAssertEqual(popover.components(separatedBy: ".keyboardShortcut(").count - 1, 2, "the popover takes two keys")
+        XCTAssertEqual(popover.components(separatedBy: #".keyboardShortcut(",", modifiers: .command)"#).count - 1, 1, "⌘, for Settings")
+        XCTAssertEqual(popover.components(separatedBy: #".keyboardShortcut("q", modifiers: .command)"#).count - 1, 1, "⌘Q for Quit")
         let face = try code("MapFace.swift")
         XCTAssertEqual(face.components(separatedBy: ".keyboardShortcut(").count - 1, 6, "up, down, left, right, home, end")
         XCTAssertEqual(face.components(separatedBy: "modifiers: [])").count - 1, 6, "plain keys: a modifier is somebody else's shortcut")

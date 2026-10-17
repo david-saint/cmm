@@ -229,8 +229,10 @@ struct MenuBarPopoverView: View {
                 panel.close()
                 perform(.openSettings)
             }
+            .keyboardShortcut(",", modifiers: .command)
             Divider()
             Button("Quit cmm") { perform(.quit) }
+                .keyboardShortcut("q", modifiers: .command)
         } label: {
             Image(systemName: "ellipsis")
                 .font(.system(size: 12, weight: .semibold))
