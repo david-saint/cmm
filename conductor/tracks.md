@@ -21,3 +21,9 @@ This file tracks all major tracks for the project. Each track has its own detail
 
 ## [~] Track: App M3: History, menu bar and weekly notification (milestone 3, app side)
 *Link: [./conductor/tracks/app_m3_20261016/](./conductor/tracks/app_m3_20261016/)*
+
+---
+
+## [x] Track: Docker Cleanup Module (legacy, archived)
+*Link: [./conductor/archive/docker_cleanup_20260114/](./conductor/archive/docker_cleanup_20260114/)*
+*Superseded: the legacy module (an unguarded `docker system prune -f`) was dropped when `origin/main` was merged; Docker's prunes are now the engine's guarded review-tier rules.*
