@@ -100,10 +100,10 @@ final class MenuBarViewsTests: XCTestCase {
         for appearance in [NSAppearance.Name.aqua, .darkAqua] {
             var pictures: [NSBitmapImageRep] = []
             for (name, item) in items {
-                // as the board draws it: at 1.4 times, on a menu bar's strip
+                // as the board draws it: at 1.4 times, on a menu bar's strip, in the menu bar's regular 13-point type
                 let strip = appearance == .darkAqua ? Color(.sRGB, red: 0.11, green: 0.11, blue: 0.125) : Color(.sRGB, red: 0.925, green: 0.93, blue: 0.94)
                 let view = MenuBarLabel(item: item)
-                    .font(.system(size: 13, weight: .medium))
+                    .font(.system(size: 13))
                     .scaleEffect(1.4)
                     .frame(width: 240, height: 44)
                     .background(RoundedRectangle(cornerRadius: 9).fill(strip))
