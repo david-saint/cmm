@@ -247,9 +247,13 @@ final class WeeklyScanTests: XCTestCase {
 
 /// The weekly note is handed to macOS only when macOS lets cmm show it; the question is never put from here.
 final class NotificationDeliveryTests: XCTestCase {
-    private let note = WeeklyNotification(free: 19_800_000_000, canGo: 8_400_000_000)!
+    /// (Made in each test, so that a rule that stopped it being a note fails the test instead of stopping the whole run.)
+    private func boardNote() throws -> WeeklyNotification {
+        try XCTUnwrap(WeeklyNotification(free: 19_800_000_000, canGo: 8_400_000_000), "8.4 GB can go: worth a note")
+    }
 
-    func testOnlyAllowedNotesAreHandedOverAndNothingIsAsked() async {
+    func testOnlyAllowedNotesAreHandedOverAndNothingIsAsked() async throws {
+        let note = try boardNote()
         for (authorization, posted) in [(NotificationAuthorization.allowed, true), (.denied, false), (.notAsked, false)] {
             let permission = FakeNotificationPermission(authorization)
             let poster = RecordingPoster()
@@ -260,7 +264,8 @@ final class NotificationDeliveryTests: XCTestCase {
         }
     }
 
-    func testTheNoteIsHandedOverAsItWasWritten() async {
+    func testTheNoteIsHandedOverAsItWasWritten() async throws {
+        let note = try boardNote()
         let poster = RecordingPoster()
         await NotificationDelivery(permission: FakeNotificationPermission(.allowed), poster: poster).deliver(note)
         let posted = poster.notes.first

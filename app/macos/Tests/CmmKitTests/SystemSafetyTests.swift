@@ -247,6 +247,31 @@ final class SystemSafetyTests: XCTestCase {
         XCTAssertFalse(adaptor.contains(".sound") || adaptor.contains(".badge") || adaptor.contains("timeSensitive"), "banners only, never time sensitive")
     }
 
+    /// Nothing is switched on, and macOS is not asked about notifications, except by the person: through the one-time card's two
+    /// answers and Settings' own switches (and the menu bar item's binding, which the system sets when the person takes the item
+    /// out of the menu bar). The app's services, the menu bar and the background read the switches and never set them, so a
+    /// launch can turn nothing on and cannot put macOS's question. (The review's mutants that turned everything on at launch,
+    /// or asked through the reminder's switch at launch, were caught by nothing before this check.)
+    func testOnlyThePersonSwitchesThingsOnOrHasMacOSAsked() throws {
+        let files = try Self.sources().filter { $0.name != "Settings.swift" }
+        func callers(_ call: String) -> [String] { files.filter { $0.code.contains(call) }.map(\.name) }
+        XCTAssertEqual(callers("turnOnEverything("), ["OptInCard.swift"])
+        XCTAssertEqual(callers("declineOptIn("), ["OptInCard.swift"])
+        XCTAssertEqual(callers("setWeeklyReminder("), ["SettingsView.swift"])
+        XCTAssertEqual(callers("setOpenAtLogin("), ["SettingsView.swift"])
+        var setters: [String] = []
+        for file in files {
+            let assigned = try Self.matches(#"settings\.(menuBarEnabled|historyEnabled|optInAnswered|weeklyReminderEnabled)\s*=[^=]"#, in: file.code)
+            let bound = try Self.matches(#"\$settings\.(\w+)"#, in: file.code)
+            setters += assigned.map { "\(file.name): \($0)" } + bound.map { "\(file.name): $\($0)" }
+        }
+        XCTAssertEqual(
+            setters.sorted(),
+            ["CmmApp.swift: menuBarEnabled", "SettingsView.swift: $historyEnabled", "SettingsView.swift: $menuBarEnabled"],
+            "only the menu bar item's own binding and Settings' switches set a switch"
+        )
+    }
+
     /// The Settings window opens two places and nothing else: Login Items through the system's own call, and the Notifications
     /// pane through its address, by way of SwiftUI's `openURL` (no workspace).
     func testSettingsOpensOnlyTheTwoPlacesOfSystemSettings() throws {
