@@ -28,7 +28,7 @@ extension Theme {
         light: RGBA(0x000000, 0.035), dark: RGBA(0xFFFFFF, 0.06), lightStrong: RGBA(0x000000, 0.06), darkStrong: RGBA(0xFFFFFF, 0.10)
     )
     static let cardButton = Tone(
-        light: RGBA(0x000000, 0.07), dark: RGBA(0xFFFFFF, 0.12), lightStrong: RGBA(0x000000, 0.14), darkStrong: RGBA(0xFFFFFF, 0.22)
+        light: RGBA(0x000000, 0.07), dark: RGBA(0xFFFFFF, 0.12), lightStrong: RGBA(0x000000, 0.14), darkStrong: RGBA(0xFFFFFF, 0.18)
     )
     /// The card's edge, drawn only with Increase Contrast, where its soft ground alone would not stand out.
     static let cardEdge = Tone(
