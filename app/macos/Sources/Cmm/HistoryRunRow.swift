@@ -54,6 +54,8 @@ struct HistoryRunRow: View {
             .accessibilityLabel(row.spoken)
             .accessibilityValue(row.hasDetails ? (isExpanded ? "expanded" : "collapsed") : "")
             .accessibilityAddTraits(.isButton)
+            // the element that replaces the button's own needs the button's action back (VO-Space opens and closes the row)
+            .accessibilityAction(.default, toggle)
 
             if isExpanded, row.hasDetails {
                 HistoryRunItems(row: row)
