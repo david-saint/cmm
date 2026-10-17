@@ -182,3 +182,32 @@ struct DetailsList: View {
         }
     }
 }
+
+/// The keys of the History face's list of cleanings: the List's keys (as `DetailsNavigation.Key`), handed to the face, which
+/// does what `HistoryNavigation` says. They live here, beside the List's own, so every key of the pane's lists is in this file.
+/// Like the List's and the map's, they are left alone while the confirmation card has disabled the screen (a disabled view
+/// that already has the keyboard still gets its presses), and, like the map's, when a modifier makes the key a shortcut.
+struct PaneKeys: ViewModifier {
+    let perform: (DetailsNavigation.Key) -> Void
+    @Environment(\.isEnabled) private var isEnabled
+
+    func body(content: Content) -> some View {
+        content.onKeyPress(keys: [.upArrow, .downArrow, .leftArrow, .rightArrow, .space, .return, .home, .end]) { press in
+            guard isEnabled, press.modifiers.isDisjoint(with: [.command, .option, .control]) else { return .ignored }
+            let key: DetailsNavigation.Key
+            switch press.key {
+            case .upArrow: key = .up
+            case .downArrow: key = .down
+            case .leftArrow: key = .left
+            case .rightArrow: key = .right
+            case .space: key = .space
+            case .return: key = .return
+            case .home: key = .home
+            case .end: key = .end
+            default: return .ignored
+            }
+            perform(key)
+            return .handled
+        }
+    }
+}
