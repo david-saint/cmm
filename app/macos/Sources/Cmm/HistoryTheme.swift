@@ -23,9 +23,10 @@ extension Theme {
         RGBA(0x000000, 0.12), RGBA(0xFFFFFF, 0.12), lightStrong: RGBA(0x000000, 0.55), darkStrong: RGBA(0xFFFFFF, 0.65)
     )
     static let historyTipShadow = historyTone(RGBA(0x000000, 0.12), RGBA(0x000000, 0.50))
-    /// "No samples" over a gap: the quiet ink at 75 %, as the board sets it, and the strong quiet ink with Increase Contrast.
+    /// "No samples" over a gap: the quiet ink, a little fainter still. The board sets it at 75 %, which is about 3:1 on the
+    /// pane; at 85 % it keeps the floor of the map's quiet words (3.5:1), and with Increase Contrast it is the strong quiet ink.
     static let historyQuiet = historyTone(
-        RGBA(0x6C6C70, 0.75), RGBA(0x98989D, 0.75), lightStrong: RGBA(0x48484C), darkStrong: RGBA(0xB9B9BE)
+        RGBA(0x6C6C70, 0.85), RGBA(0x98989D, 0.85), lightStrong: RGBA(0x48484C), darkStrong: RGBA(0xB9B9BE)
     )
 }
 
