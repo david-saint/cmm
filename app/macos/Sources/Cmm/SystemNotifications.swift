@@ -51,3 +51,34 @@ struct SystemNotificationPoster: NotificationPoster {
         }
     }
 }
+
+/// The notification centre's delegate: the weekly note is shown even when cmm is the app in front (it is still the week's word),
+/// and a click on it opens the window at rest (`AppServices.openMainWindow`). It is installed while cmm finishes launching, so
+/// that a click that launches cmm is not lost.
+final class NotificationClickHandler: NSObject, UNUserNotificationCenterDelegate, @unchecked Sendable {
+    private let onClick: @MainActor @Sendable () -> Void
+
+    private init(onClick: @escaping @MainActor @Sendable () -> Void) {
+        self.onClick = onClick
+    }
+
+    /// Makes the handler the notification centre's delegate (when cmm runs from its bundle). The centre holds its delegate
+    /// weakly: whoever installs it keeps it.
+    static func install(onClick: @escaping @MainActor @Sendable () -> Void) -> NotificationClickHandler? {
+        guard SystemBundle.isApp else { return nil }
+        let handler = NotificationClickHandler(onClick: onClick)
+        UNUserNotificationCenter.current().delegate = handler
+        return handler
+    }
+
+    func userNotificationCenter(_ center: UNUserNotificationCenter, willPresent notification: UNNotification) async -> UNNotificationPresentationOptions {
+        [.banner, .list]
+    }
+
+    func userNotificationCenter(_ center: UNUserNotificationCenter, didReceive response: UNNotificationResponse) async {
+        guard NotificationClick.opensWindow(identifier: response.notification.request.identifier, action: response.actionIdentifier) else {
+            return
+        }
+        await onClick()
+    }
+}

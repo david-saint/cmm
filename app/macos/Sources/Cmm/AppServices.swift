@@ -38,6 +38,8 @@ final class AppServices {
     private var tracked: [TrackedWindow] = []
     private var menuBarWatch: Watch<Bool>?
     private var historyWatch: Watch<HistoryReport?>?
+    /// The notification centre's delegate, kept here (the centre holds it weakly).
+    private var notificationClicks: NotificationClickHandler?
 
     private final class TrackedWindow {
         weak var window: NSWindow?
@@ -127,6 +129,11 @@ final class AppServices {
     }
 
     // MARK: launching
+
+    /// cmm is about to finish launching: a click on the weekly note, which may be what launched it, opens the window at rest.
+    func willFinishLaunching() {
+        notificationClicks = NotificationClickHandler.install { [weak self] in self?.openMainWindow() }
+    }
 
     /// The app has finished launching: the launch's Apple event says whether the window stays (a login launch with the menu bar
     /// item on shows none), and the Dock icon follows the menu bar switch from now on. With the menu bar item on, the history is

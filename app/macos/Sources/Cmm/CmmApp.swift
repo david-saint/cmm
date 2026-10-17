@@ -118,6 +118,10 @@ struct WindowChrome: NSViewRepresentable {
 final class AppDelegate: NSObject, NSApplicationDelegate {
     private var services: AppServices? { AppServices.shared }
 
+    func applicationWillFinishLaunching(_ notification: Notification) {
+        services?.willFinishLaunching()
+    }
+
     func applicationDidFinishLaunching(_ notification: Notification) {
         services?.didFinishLaunching(event: AppleEventLaunchSource().launchEvent())
     }

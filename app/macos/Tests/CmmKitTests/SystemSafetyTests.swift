@@ -188,6 +188,47 @@ final class SystemSafetyTests: XCTestCase {
         XCTAssertTrue(body.contains("Task { await model.scan() }"))
     }
 
+    // MARK: the weekly note
+
+    /// What macOS is handed is the note as `WeeklyNotification` wrote it, and nothing else: its title and body (made of two numbers,
+    /// never a path, a group or Docker), its one identifier, interruption level active, no sound, no buttons, no category, no
+    /// extra data, delivered now.
+    func testTheNoteIsPostedAsWrittenWithNoButtonsAndNoCategory() throws {
+        let adaptor = try Self.source("SystemNotifications.swift").code
+        let post = try XCTUnwrap(adaptor.range(of: "func post(_ note: WeeklyNotification) async {"))
+        let end = try XCTUnwrap(adaptor[post.upperBound...].range(of: "\n    }\n"))
+        let body = String(adaptor[post.upperBound..<end.lowerBound])
+        XCTAssertEqual(Set(try Self.matches(#"content\.(\w+) ="#, in: body)), ["title", "body", "interruptionLevel"])
+        XCTAssertTrue(body.contains("content.title = note.title"))
+        XCTAssertTrue(body.contains("content.body = note.body"))
+        XCTAssertTrue(body.contains("UNNotificationRequest(identifier: note.identifier, content: content, trigger: nil)"), "now, under its one identifier")
+        XCTAssertTrue(adaptor.contains("case .active: .active"))
+        let files = try Self.sources()
+        for token in [
+            "UNNotificationCategory", "UNNotificationAction", "UNTextInputNotificationAction", "setNotificationCategories",
+            "categoryIdentifier", "timeSensitive", ".critical", "UNNotificationSound", "UNTimeIntervalNotificationTrigger",
+            "UNCalendarNotificationTrigger",
+        ] {
+            XCTAssertEqual(files.filter { $0.code.contains(token) }.map(\.name), [], "`\(token)` is used")
+        }
+        for token in ["userInfo", "subtitle", "attachments", "threadIdentifier", "sound", "badge"] {
+            XCTAssertFalse(adaptor.contains(token), "the notification adaptor uses `\(token)`")
+        }
+    }
+
+    /// The note is shown even when cmm is in front, and a click on it (and nothing else that comes back) opens the window at rest.
+    func testAClickOnTheNoteOpensTheWindowAtRestAndNothingElseDoes() throws {
+        let adaptor = try Self.source("SystemNotifications.swift").code
+        XCTAssertTrue(adaptor.contains("[.banner, .list]"))
+        XCTAssertTrue(adaptor.contains("guard NotificationClick.opensWindow(identifier: response.notification.request.identifier, action: response.actionIdentifier) else {"))
+        XCTAssertTrue(adaptor.contains("UNUserNotificationCenter.current().delegate = handler"))
+        let services = try Self.source("AppServices.swift").code
+        XCTAssertTrue(services.contains("notificationClicks = NotificationClickHandler.install { [weak self] in self?.openMainWindow() }"))
+        let app = try Self.source("CmmApp.swift").code
+        XCTAssertTrue(app.contains("func applicationWillFinishLaunching(_ notification: Notification) {\n        services?.willFinishLaunching()"),
+                      "installed before the launch's own events, so a click that launched cmm is not lost")
+    }
+
     // MARK: Settings and the permission
 
     /// macOS is asked about notifications in one place: the settings model's reminder switch (which the card's Turn on goes

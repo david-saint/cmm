@@ -1,5 +1,16 @@
 import Foundation
 
+/// A click on the weekly note (the board `C-Notification`): the note has no buttons, so the one thing a person can do with it is
+/// click it, and that opens the window at rest. Anything else that comes back from the notification centre does nothing.
+public enum NotificationClick {
+    /// What the system calls a click on the note itself (`UNNotificationDefaultActionIdentifier`; a test checks the two agree).
+    public static let defaultAction = "com.apple.UNNotificationDefaultActionIdentifier"
+
+    public static func opensWindow(identifier: String, action: String) -> Bool {
+        identifier == WeeklyNotification.identifier && action == defaultAction
+    }
+}
+
 /// What posts a note now: in the app, macOS's notification centre; in a test, a list.
 public protocol NotificationPoster: Sendable {
     func post(_ note: WeeklyNotification) async
