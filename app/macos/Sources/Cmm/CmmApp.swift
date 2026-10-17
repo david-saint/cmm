@@ -39,6 +39,12 @@ struct CmmApp: App {
         .windowResizability(.contentMinSize)
         .commands { CmmCommands(model: model, window: window) }
 
+        // Settings: the four switches (cmm Settings..., ⌘, in the app's menu, or the menu bar item's ... menu).
+        Settings {
+            SettingsView(settings: services.settings, openLoginItems: { SystemLoginItem.openSystemSettings() })
+                .background(WindowTracker(kind: .settings, services: services))
+        }
+
         // The menu bar item, while the person has it switched on (they can also take it out of the menu bar themselves).
         MenuBarExtra(isInserted: menuBarShown) {
             MenuBarPopoverHost(services: services)

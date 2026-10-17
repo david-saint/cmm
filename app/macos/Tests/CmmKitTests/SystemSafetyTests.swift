@@ -164,6 +164,44 @@ final class SystemSafetyTests: XCTestCase {
         XCTAssertTrue(body.contains("Task { await model.scan() }"))
     }
 
+    // MARK: Settings and the permission
+
+    /// macOS is asked about notifications in one place: the settings model's reminder switch (which the card's Turn on goes
+    /// through). The system's question is put by one adaptor, from that one method; nothing else asks, and nothing asks at launch.
+    func testMacOSIsAskedAboutNotificationsOnlyFromTheSettingsModel() throws {
+        let files = try Self.sources()
+        XCTAssertEqual(files.filter { $0.code.contains("requestAuthorization") }.map(\.name), ["SystemNotifications.swift"])
+        let adaptor = try Self.source("SystemNotifications.swift").code
+        XCTAssertEqual(adaptor.components(separatedBy: "requestAuthorization").count - 1, 1)
+        let request = try XCTUnwrap(adaptor.range(of: "func request() async -> NotificationAuthorization {"))
+        let asking = try XCTUnwrap(adaptor.range(of: "requestAuthorization"))
+        XCTAssertTrue(request.upperBound <= asking.lowerBound, "the question is put inside `request()`")
+        // `request()` of the permission is called by the settings model alone
+        let callers = files.filter { $0.code.range(of: #"(permission|notifications)\.request\(\)"#, options: .regularExpression) != nil }
+        XCTAssertEqual(callers.map(\.name), ["Settings.swift"])
+        XCTAssertFalse(adaptor.contains(".sound") || adaptor.contains(".badge") || adaptor.contains("timeSensitive"), "banners only, never time sensitive")
+    }
+
+    /// The Settings window opens two places and nothing else: Login Items through the system's own call, and the Notifications
+    /// pane through its address, by way of SwiftUI's `openURL` (no workspace).
+    func testSettingsOpensOnlyTheTwoPlacesOfSystemSettings() throws {
+        let view = try Self.source("SettingsView.swift").code
+        XCTAssertTrue(view.contains("case .loginItems:\n                openLoginItems()\n                return .handled"))
+        XCTAssertTrue(view.contains("case .notifications:\n                return .systemAction"))
+        XCTAssertTrue(view.contains("case nil:\n                return .discarded"), "any other link does nothing")
+        XCTAssertFalse(view.contains("NSWorkspace"))
+        let app = try Self.source("CmmApp.swift").code
+        XCTAssertTrue(app.contains("openLoginItems: { SystemLoginItem.openSystemSettings() }"))
+        let asked = Set(try Self.matches(#"settings\.(\w+)"#, in: view))
+        XCTAssertTrue(
+            asked.isSubset(of: [
+                "menuBarEnabled", "historyEnabled", "weeklyReminderEnabled", "openAtLogin", "openAtLoginFailed", "reminderIsSilenced",
+                "weeklySchedule", "setOpenAtLogin", "setWeeklyReminder", "refresh",
+            ]),
+            "Settings uses \(asked.sorted())"
+        )
+    }
+
     // MARK: the one-time card
 
     /// The card is placed by one line of the window's root view, and its two answers are the settings model's two answers.
