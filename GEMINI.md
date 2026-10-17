@@ -7,16 +7,14 @@
 - **Language:** Go (Golang)
 - **CLI Framework:** Cobra
 - **Terminal UI:** Bubble Tea, Lip Gloss, Bubbles
-- **System Tools:** `tmutil`, `du`, `rm`, `brew`
+- **System Tools:** `lsof`, `pgrep`, `xcrun simctl`, `plutil`, `brew`, `getconf` (all through `pkg/sys.Runner`) and, for the manual Time Machine module, `tmutil`
 
 ### Architecture
-The project follows a modular architecture where specific cleanup tasks (e.g., Xcode, Time Machine) are encapsulated into "Modules" implementing a common interface. The "Scanner Engine" orchestrates these modules, and the results are presented through an interactive "Bubble Tea" TUI.
+Cleanups are **rules** (`pkg/rules`) run by an engine (`pkg/engine`) that plans, re-checks and applies them: a path is deletable only if a rule claims it and the policy accepts it, every item is checked again right before deletion, and nothing is deleted without a person at a terminal. `cmm plan` (and `--json`), `cmm apply` and `cmm run` (a preview unless `--apply`) are thin commands on top. The interactive screen (`pkg/ui`, `pkg/cmm`) shows the engine's groups through an adapter in `cmd`; the manual Time Machine module is the only legacy module left. Tests run in a sandbox and must never touch real files. See `README.md` and `conductor/tracks/engine_v2_20261014/spec.md`.
 
 ## Building and Running
-*Note: The project is in the initial development phase.*
-
-- **Build:** `go build -o cmm main.go` (TODO: Initialize main.go)
-- **Run:** `./cmm run` (TODO: Implement run command)
+- **Build:** `go build -o /tmp/cmm-dev .` (never `go install`: it would overwrite the installed `cmm`)
+- **Look:** `/tmp/cmm-dev plan` (read-only); **interactive preview:** `/tmp/cmm-dev run`
 - **Test:** `go test ./...`
 
 ## Development Conventions

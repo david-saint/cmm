@@ -1,0 +1,62 @@
+# Handover proposal: retire dev-cleanup, move the weekly reminder to cmm
+
+**Status: done on 2026-10-15** (the owner approved the steps below, and they were carried out and checked: `cmm` 0.4.0 installed at `~/go/bin/cmm` with the old 0.3.1 build kept as `~/go/bin/cmm.old`; `~/.local/state/cmm/` holds copies of the old log and last-run; the script is now `~/.local/bin/dev-cleanup.retired`; the Monday reminder runs `cmm plan`). Merging and pushing are still the owner's. The text below is the proposal as approved, kept for the undo steps.
+
+## Why now
+- Parity on the real disk (see Phase 4 in `plan.md`): the same items and sizes for go-build, bun-cache, uv-cache and lane-deps; the other 13 rules are proven in sandbox tests, and the 96 allow-list cases of `dev-cleanup --self-test` run as Go tests.
+- cmm has everything dev-cleanup has (plan, Return gate, no terminal means no deletion, a log, a last-run stamp) and adds re-checks right before deleting, symlink refusal, JSON output and a test suite.
+
+## What would change (every step is reversible)
+1. **Install the new cmm**, keeping the old binary: `cd ~/go/src/github.com/david-saint/cmm && cp ~/go/bin/cmm ~/go/bin/cmm.old && go install .` (the installed `cmm` today is the old unguarded build from Jan 14).
+2. **Carry the history over** (copies, never overwrites): `mkdir -p ~/.local/state/cmm && cp -n ~/.local/state/dev-cleanup/cleanup.log ~/.local/state/dev-cleanup/last-run ~/.local/state/cmm/`. The log lines have the same format, so the history stays one record and `Last cleanup:` keeps working.
+3. **Retire the script** by renaming it: `mv ~/.local/bin/dev-cleanup ~/.local/bin/dev-cleanup.retired`. Its state folder `~/.local/state/dev-cleanup/` is left as it is.
+4. **Point the weekly reminder at `cmm plan`** (read-only). The new prompt is below. It uses the text plan rather than `--json` because the reminder reports the "Last cleanup" line, the biggest items and the skipped guards, which the text plan prints; the JSON schema deliberately carries none of that.
+5. **Left to you:** merging `feat/engine-v2` into `main` and pushing it. Neither is part of this handover.
+
+## Before the merge: upstream has moved (found 2026-10-15)
+`origin/main` has 25 commits this branch was never based on (the local `main` here is stale at 2026-01-04): a **Docker cleanup module** (2026-01-14), releases 0.3.0 and 0.3.1, and `Module.Available()`. The installed `~/go/bin/cmm` is that 0.3.1 build.
+- A trial merge (`git merge-tree`) conflicts in 13 files: the four modules this branch deleted (`caches`, `logs`, `xcode`, `homebrew`), `cmd/root.go` (version), `cmd/run.go`, `conductor/product.md`, `conductor/tracks.md`, and the test mocks that gained `Available()`. All are mechanical (keep the deletions; add `Available()` to Time Machine and the adapter).
+- **Update 2026-10-15: the owner chose A and it is built** (the `docker` rule, review tier; see the spec's rule table). The legacy module from `origin/main` is superseded and should be dropped when that branch is merged.
+- **The Docker module is unguarded and no longer compiles against the new `Delete` result.** It runs `docker system prune -f` and `docker volume prune -f`; the second removes every unused volume, which can hold real data. Options: **A)** port it into the engine as a `review`-tier rule (command actions, volumes left out unless asked, shown unticked in the app), recommended, after the handover; **B)** keep it as a second manual legacy module next to Time Machine (works, but stays unguarded); **C)** drop it.
+- Until A or B lands, a cmm installed from this branch has no Docker option. The old binary stays available as `~/go/bin/cmm.old` (its `run` is the unguarded one).
+- Releases are cut by pushing a `v*` tag (`.github/workflows/release.yml`), so merging or pushing `main` publishes nothing by itself. This branch says version 0.4.0; upstream is at 0.3.1.
+
+## Undo
+- `mv ~/.local/bin/dev-cleanup.retired ~/.local/bin/dev-cleanup`
+- `mv ~/go/bin/cmm.old ~/go/bin/cmm`
+- put the old reminder prompt (last section) back with the task update tool.
+- `~/.local/state/cmm/` can be deleted; nothing else depends on it.
+
+## The new reminder prompt (`weekly-dev-cleanup-reminder`)
+
+```
+You are a weekly disk-hygiene reminder for Saint's Mac mini (the internal 245 GB disk is chronically near full). This run is unattended and strictly READ-ONLY: never delete, move or modify anything, and never ask questions.
+
+Background: Saint uses cmm (/Users/saint/go/bin/cmm), a guarded cleanup tool that removes regenerable developer clutter (build and package caches, idle ~/lane-builds dependencies and build output, stale Xcode build folders, old CLI versions, Homebrew old versions, orphaned simulators). `cmm apply` always shows a plan and waits for Saint to press Return, so Saint must run it personally in a terminal.
+
+Do exactly this:
+1. Run: df -h /System/Volumes/Data   and note the free space (the "Avail" column).
+2. Run: /Users/saint/go/bin/cmm plan 2>&1   (ONLY `plan`; it deletes and writes nothing). From its output take: the "Last cleanup" line, the TOTAL it would free, the 3 biggest plan items, and any lines under SKIPPED.
+3. Write a short report (at most 8 lines): free space now, how long since the last cleanup, what cmm would free and the top items, any SKIPPED guard that matters. If free space is below 20 GB, say so in the first line. End with one line: "Run cmm apply in Terminal, read the plan, press Return." Add one more line only if relevant: the Trash is invisible to cmm, so empty it if it is large.
+4. If the PushNotification tool is available, send ONE notification (under 200 characters, one line, no markdown) that leads with the free space, for example: "Disk: 24 GB free. cmm would free ~7 GB. Run cmm apply in Terminal." If the tool is unavailable or reports "not sent", just continue.
+5. Finish by giving the same short report as your final message.
+
+Hard rules: only ever run cmm plan (never cmm apply, cmm run, or anything with --yes); never run rm, mv, brew cleanup, simctl delete, or any command that changes files or state; never edit anything. If a command is blocked or fails, do not retry it in another way; still deliver the reminder text from step 3 (say which check could not run).
+```
+
+## The old reminder prompt (to restore)
+
+```
+You are a weekly disk-hygiene reminder for Saint's Mac mini (the internal 245 GB disk is chronically near full). This run is unattended and strictly READ-ONLY: never delete, move or modify anything, and never ask questions.
+
+Background: Saint has a script at /Users/saint/.local/bin/dev-cleanup that removes regenerable developer clutter (build caches, idle ~/lane-builds dependencies and build output, stale Xcode build folders, old CLI versions, Homebrew old versions, orphaned simulators). It always shows a plan and waits for Saint to press Return, so Saint must run it personally in a terminal.
+
+Do exactly this:
+1. Run: df -h /System/Volumes/Data   and note the free space (the "Avail" column).
+2. Run: /Users/saint/.local/bin/dev-cleanup --dry-run   (ONLY with --dry-run; it deletes nothing). From its output take: the "Last cleanup" line, the TOTAL it would free, the 3 biggest plan items, and any lines under SKIPPED.
+3. Write a short report (at most 8 lines): free space now, how long since the last cleanup, what dev-cleanup would free and the top items, any SKIPPED guard that matters. If free space is below 20 GB, say so in the first line. End with one line: "Run ~/.local/bin/dev-cleanup in Terminal, read the plan, press Return." Add one more line only if relevant: the Trash is invisible to this script, so empty it if it is large.
+4. If the PushNotification tool is available, send ONE notification (under 200 characters, one line, no markdown) that leads with the free space, for example: "Disk: 24 GB free. dev-cleanup would free ~4 GB. Run ~/.local/bin/dev-cleanup in Terminal." If the tool is unavailable or reports "not sent", just continue.
+5. Finish by giving the same short report as your final message.
+
+Hard rules: never run dev-cleanup without --dry-run; never pass --yes; never run rm, mv, brew cleanup, simctl delete, or any command that changes files or state; never edit the script. If a command is blocked or fails, do not retry it in another way; still deliver the reminder text from step 3 (say which check could not run).
+```

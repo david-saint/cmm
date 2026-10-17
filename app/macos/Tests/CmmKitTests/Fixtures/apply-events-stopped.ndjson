@@ -1,0 +1,3 @@
+{"event":"start","schema_version":1,"selected":3,"matched":3,"bytes":2300000000,"free_bytes":20000000000}
+{"event":"item","rule":"go-build","group":"Go build cache","path":"/Users/test/Library/Caches/go-build","status":"deleted","reason":"","bytes":900000000,"freed_bytes":900000000}
+{"event":"done","deleted":1,"skipped":0,"failed":0,"freed_bytes":900000000,"free_before":20000000000,"free_after":20900000000,"stopped":true,"warnings":[],"log":"/Users/test/.local/state/cmm/cleanup.log"}

@@ -14,9 +14,7 @@ import (
 type state int
 
 type Config struct {
-	DryRun   bool
-	Force    bool
-	TestMode bool
+	DryRun bool // preview only: nothing is ever deleted
 }
 
 const (
@@ -38,6 +36,7 @@ type Model struct {
 	results  []cmm.ModuleResult
 	err      error
 	config   Config
+	outcomes []cmm.Outcome
 	freed    int64
 	spinner  spinner.Model
 }
@@ -63,7 +62,7 @@ func (m Model) Init() tea.Cmd {
 }
 
 type scanMsg []cmm.ModuleResult
-type executeMsg int64
+type executeMsg []cmm.Outcome
 type errMsg error
 
 func (m Model) runScan() tea.Msg {
@@ -82,11 +81,9 @@ func (m Model) runScan() tea.Msg {
 
 func (m Model) runExecute() tea.Msg {
 	engine := cmm.NewExecutionEngine(m.config.DryRun)
-	freed, err := engine.Execute(m.results)
-	if err != nil {
-		return errMsg(err)
-	}
-	return executeMsg(freed)
+	// Every module is tried and each outcome carries its own error, so the screen shows what happened to each.
+	outcomes, _ := engine.Execute(m.results)
+	return executeMsg(outcomes)
 }
 
 func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
@@ -132,10 +129,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				m.state = stateConfirming
 				return m, nil
 			}
-			if m.state == stateConfirming {
-				m.state = stateExecuting
-				return m, m.runExecute
-			}
+			// Return does not answer the question: holding it down must never delete. Only "y" does.
 			if m.state == stateFinished || m.err != nil {
 				return m, tea.Quit
 			}
@@ -174,7 +168,8 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m, nil
 
 	case executeMsg:
-		m.freed = int64(msg)
+		m.outcomes = []cmm.Outcome(msg)
+		m.freed = cmm.TotalFreed(m.outcomes)
 		m.state = stateFinished
 		return m, nil
 
@@ -195,12 +190,8 @@ func (m Model) View() string {
 
 	b.WriteString(titleStyle.Render(" cmm - Clean My Mac CLI "))
 	b.WriteString("\n")
-	if m.config.TestMode {
-		b.WriteString(lipgloss.NewStyle().Foreground(lipgloss.Color("#7D56F4")).Bold(true).Render(" (TEST MODE - Using local directory) "))
-		b.WriteString("\n")
-	}
 	if m.config.DryRun {
-		b.WriteString(lipgloss.NewStyle().Foreground(warningColor).Render(" (DRY RUN MODE - No files will be deleted) "))
+		b.WriteString(lipgloss.NewStyle().Foreground(warningColor).Render(" (PREVIEW ONLY - nothing will be deleted; run `cmm run --apply` to clean) "))
 	}
 	b.WriteString("\n\n")
 
@@ -361,22 +352,64 @@ func (m Model) View() string {
 		b.WriteString(fmt.Sprintf("%s Please wait while we delete the files.", m.spinner.View()))
 
 	case stateFinished:
-		b.WriteString(headerStyle.Render("Cleanup Complete!"))
-		b.WriteString("\n\n")
-
-		for _, res := range m.results {
-			var moduleBytes int64
-			for _, item := range res.Items {
-				moduleBytes += item.Size
-			}
-			b.WriteString(fmt.Sprintf("%s: Reclaimed %s\n", res.Module.Name(), formatSize(moduleBytes)))
-		}
-
-		b.WriteString("\n")
-		b.WriteString(titleStyle.Render(fmt.Sprintf(" Successfully reclaimed %s of disk space. ", formatSize(m.freed))))
-		b.WriteString(helpStyle.Render("\n\nenter/q: quit"))
+		b.WriteString(m.finishedView())
 	}
 
+	return b.String()
+}
+
+// maxNotes is how many skipped or failed items a module lists on the finished screen before "and N more".
+const maxNotes = 5
+
+// finishedView says what really happened: per module, the bytes actually freed out of what was planned, how
+// many items were skipped or failed and why, and the total that was really freed. It never presents the
+// planned size as the result.
+func (m Model) finishedView() string {
+	var b strings.Builder
+	problems := false
+	for _, o := range m.outcomes {
+		if o.Err != nil || o.Result.Failed > 0 || o.Result.Skipped > 0 {
+			problems = true
+		}
+	}
+	if problems {
+		b.WriteString(headerStyle.Render("Cleanup finished, with problems"))
+	} else {
+		b.WriteString(headerStyle.Render("Cleanup Complete!"))
+	}
+	b.WriteString("\n\n")
+
+	for i, o := range m.outcomes {
+		if o.Err != nil {
+			fmt.Fprintf(&b, "%s: FAILED: %v\n", o.Module.Name(), o.Err)
+		} else {
+			var planned int64
+			if i < len(m.results) { // Execute reports one outcome per result, in order
+				for _, item := range m.results[i].Items {
+					planned += item.Size
+				}
+			}
+			line := fmt.Sprintf("%s: freed %s of %s", o.Module.Name(), formatSize(o.Result.Freed), formatSize(planned))
+			if o.Result.Skipped > 0 {
+				line += fmt.Sprintf(", %d skipped", o.Result.Skipped)
+			}
+			if o.Result.Failed > 0 {
+				line += fmt.Sprintf(", %d failed", o.Result.Failed)
+			}
+			fmt.Fprintln(&b, line)
+		}
+		for j, note := range o.Result.Notes {
+			if j == maxNotes {
+				fmt.Fprintf(&b, "    ... and %d more\n", len(o.Result.Notes)-maxNotes)
+				break
+			}
+			fmt.Fprintf(&b, "    %s\n", note)
+		}
+	}
+
+	b.WriteString("\n")
+	b.WriteString(titleStyle.Render(fmt.Sprintf(" Reclaimed %s in total. ", formatSize(m.freed))))
+	b.WriteString(helpStyle.Render("\n\nenter/q: quit"))
 	return b.String()
 }
 

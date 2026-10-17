@@ -13,7 +13,10 @@
 coverage.html
 
 # Project specific binaries
-cmm
+/cmm
 
 # OS specific files
 .DS_Store
+
+# Local worktrees of background agents
+.claude/worktrees/

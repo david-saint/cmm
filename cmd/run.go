@@ -1,92 +1,71 @@
-/*
-Copyright © 2026 NAME HERE <EMAIL ADDRESS>
-
-*/
 package cmd
 
 import (
+	"errors"
 	"fmt"
-	"os"
-	"path/filepath"
 
 	tea "github.com/charmbracelet/bubbletea"
-	"github.com/david-saint/cmm/pkg/cmm"
-	"github.com/david-saint/cmm/pkg/modules"
-	"github.com/david-saint/cmm/pkg/ui"
 	"github.com/spf13/cobra"
+
+	"github.com/david-saint/cmm/pkg/cmm"
+	"github.com/david-saint/cmm/pkg/ui"
 )
 
-// NewRunCmd represents the run command
-func NewRunCmd() *cobra.Command {
+// errRunNeedsTerminal is returned when run --apply would need a human but none is attached.
+var errRunNeedsTerminal = errors.New("cmm run --apply needs a terminal: nothing deleted (use cmm plan to look, or cmm apply --yes deliberately for unattended runs)")
+
+// NewRunCmd builds `cmm run`: the interactive screen over the engine's plan.
+func NewRunCmd(d *deps) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "run",
-		Short: "Start the interactive cleanup flow",
-		Long:  `Starts the interactive terminal UI to selectively clean up disk space.`,
-		Run: func(cmd *cobra.Command, args []string) {
-			dryRun, _ := cmd.Flags().GetBool("dry-run")
-			force, _ := cmd.Flags().GetBool("force")
-			testMode, _ := cmd.Flags().GetBool("test-mode")
+		Short: "Interactive cleanup (a preview unless --apply)",
+		Long: `Opens the interactive screen on the same plan as "cmm plan": pick what to look at, see
+the items and their sizes and, with --apply, confirm to clean.
 
-			var xcodePath, cachesPath string
-			if testMode {
-				cwd, _ := os.Getwd()
-				testDir := filepath.Join(cwd, "cmm_test_data")
-				fmt.Printf("⚠️  RUNNING IN TEST MODE ⚠️\nUsing test directory: %s\n", testDir)
-				
-				// Create dummy files
-				xcodePath = filepath.Join(testDir, "DerivedData")
-				cachesPath = filepath.Join(testDir, "Caches")
-				_ = os.MkdirAll(xcodePath, 0755)
-				_ = os.MkdirAll(cachesPath, 0755)
-				
-				_ = os.WriteFile(filepath.Join(xcodePath, "dummy_project"), []byte("dummy data"), 0644)
-				_ = os.WriteFile(filepath.Join(cachesPath, "dummy_cache"), []byte("dummy cache data"), 0644)
+  - Without --apply it is a preview: nothing is ever deleted.
+  - With --apply a terminal is required, and nothing is deleted until you type y.
+  - Every item is checked again right before it is removed, exactly as in "cmm apply".
+  - Time Machine local snapshots (harsh, manual) are offered as well; they are not part of the plan.
+
+--dry-run is accepted for old scripts: it means preview, and wins over --apply.`,
+		Args:         cobra.NoArgs,
+		SilenceUsage: true,
+		RunE: func(cmd *cobra.Command, _ []string) error {
+			apply, _ := cmd.Flags().GetBool("apply")
+			if dry, _ := cmd.Flags().GetBool("dry-run"); dry {
+				apply = false // --dry-run never deletes, even together with --apply
+			}
+			if apply && !d.isTerminal() {
+				return errRunNeedsTerminal
 			}
 
-			scanner := cmm.NewScanner()
-			
-			// Register modules
-			rawModules := []cmm.Module{
-				modules.NewXcodeModule(xcodePath),
-				modules.NewCachesModule(cachesPath),
-				modules.NewLogsModule(),
-				modules.NewTimeMachineModule(),
-				modules.NewDockerModule(),
+			eng, err := d.newEngine()
+			if err != nil {
+				return err
+			}
+			ctx := contextOf(cmd)
+			printLastCleanup(cmd.ErrOrStderr(), eng)
+			fmt.Fprintln(cmd.ErrOrStderr(), "Checking what can safely go (this can take a minute)...")
+			plan, err := eng.Plan(ctx)
+			if err != nil {
+				return err
 			}
 
-			if hb := modules.NewHomebrewModule(); hb != nil {
-				rawModules = append(rawModules, hb)
+			mods := engineModules(ctx, eng, plan)
+			if len(mods) == 0 {
+				fmt.Fprintln(cmd.ErrOrStderr(), "Nothing to clean right now.")
 			}
-			
-			// Filter out modules that are not available on this system
-			var availableModules []cmm.Module
-			for _, m := range rawModules {
-				if m.Available() {
-					availableModules = append(availableModules, m)
-				}
-			}
-
-			config := ui.Config{
-				DryRun:   dryRun,
-				Force:    force,
-				TestMode: testMode,
-			}
-
-			model := ui.NewModel(scanner, availableModules, config)
-			
-			p := tea.NewProgram(model)
-			if _, err := p.Run(); err != nil {
-				fmt.Printf("Error running program: %v\n", err)
-			}
+			mods = append(mods, d.timeMachine())
+			return d.runUI(cmd, ui.NewModel(cmm.NewScanner(), mods, ui.Config{DryRun: !apply}))
 		},
 	}
-
-	cmd.Flags().Bool("dry-run", false, "Preview changes without deleting")
-	cmd.Flags().Bool("force", false, "Bypass confirmations")
-	cmd.Flags().Bool("test-mode", false, "Use a local temporary directory for safe testing")
-
+	cmd.Flags().Bool("apply", false, "allow cleaning after a confirmation (default: preview only)")
+	cmd.Flags().Bool("dry-run", false, "preview only (the default; wins over --apply)")
 	return cmd
 }
 
-func init() {
+// runBubbleTea shows the interactive screen on the real terminal.
+func runBubbleTea(_ *cobra.Command, m ui.Model) error {
+	_, err := tea.NewProgram(m).Run()
+	return err
 }

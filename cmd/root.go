@@ -31,9 +31,13 @@ import (
 
 // NewRootCmd represents the base command when called without any subcommands
 func NewRootCmd() *cobra.Command {
+	return newRootCmd(defaultDeps())
+}
+
+func newRootCmd(d *deps) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:     "cmm",
-		Version: "0.3.1",
+		Version: "0.4.0",
 		Short:   "cmm is a macOS cleanup tool for developers",
 		Long: `cmm (Clean My Mac CLI) is a tool designed to help developers 
 reclaim disk space by selectively cleaning up bloat like 
@@ -42,7 +46,11 @@ Xcode Derived Data, User Caches, and Time Machine snapshots.`,
 
 	cmd.Flags().BoolP("toggle", "t", false, "Help message for toggle")
 
-	cmd.AddCommand(NewRunCmd())
+	cmd.AddCommand(NewPlanCmd(d))
+	cmd.AddCommand(NewApplyCmd(d))
+	cmd.AddCommand(NewRunCmd(d))
+	cmd.AddCommand(NewSampleCmd(d))
+	cmd.AddCommand(NewHistoryCmd(d))
 
 	return cmd
 }

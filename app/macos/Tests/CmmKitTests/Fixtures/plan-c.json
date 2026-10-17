@@ -1,0 +1,126 @@
+{
+  "schema_version": 1,
+  "generated_at": "2026-10-15T14:00:00+02:00",
+  "host": {
+    "volume": "/System/Volumes/Data",
+    "free_bytes": 19800000000,
+    "capacity_bytes": 228000000000
+  },
+  "items": [
+    {
+      "rule": "go-build",
+      "group": "Go build cache",
+      "path": "/Users/test/Library/Caches/go-build",
+      "bytes": 1200000000,
+      "tier": "safe",
+      "action": "delete"
+    },
+    {
+      "rule": "npm-cache",
+      "group": "npm download cache",
+      "path": "/Users/test/.npm/_cacache",
+      "bytes": 300000000,
+      "tier": "safe",
+      "action": "delete"
+    },
+    {
+      "rule": "bun-cache",
+      "group": "bun cache",
+      "path": "/Users/test/.bun/install/cache",
+      "bytes": 100000000,
+      "tier": "safe",
+      "action": "delete"
+    },
+    {
+      "rule": "uv-cache",
+      "group": "uv cache (Python packages; downloads again on demand)",
+      "path": "/Users/test/.cache/uv",
+      "bytes": 2500000000,
+      "tier": "safe",
+      "action": "delete"
+    },
+    {
+      "rule": "homebrew",
+      "group": "Homebrew: old versions of installed formulae (brew cleanup)",
+      "path": "homebrew: cleanup",
+      "bytes": 700000000,
+      "tier": "safe",
+      "action": "command",
+      "note": "boost 1.85.0, 0.5 GB; python@3.14 3.14.7, 81 MB"
+    },
+    {
+      "rule": "docker",
+      "group": "Docker: unused images, stopped containers and build cache (review first)",
+      "path": "docker: unused images",
+      "bytes": 6200000000,
+      "tier": "review",
+      "action": "command",
+      "note": "docker image prune -a: images you built must be rebuilt, the rest are pulled again; frees space inside Docker's disk image",
+      "frees_inside": "Docker's disk image"
+    },
+    {
+      "rule": "docker",
+      "group": "Docker: unused images, stopped containers and build cache (review first)",
+      "path": "docker: stopped containers",
+      "bytes": 800000000,
+      "tier": "review",
+      "action": "command",
+      "note": "docker container prune: anything kept only inside a stopped container is lost, volumes are never touched; frees space inside Docker's disk image",
+      "frees_inside": "Docker's disk image"
+    },
+    {
+      "rule": "docker",
+      "group": "Docker: unused images, stopped containers and build cache (review first)",
+      "path": "docker: build cache",
+      "bytes": 2000000000,
+      "tier": "review",
+      "action": "command",
+      "note": "docker builder prune: the next builds are slower once; frees space inside Docker's disk image",
+      "frees_inside": "Docker's disk image"
+    },
+    {
+      "rule": "lane-deps",
+      "group": "Idle lane dependencies (untouched 5+ days; rebuild with npm ci / pod install)",
+      "path": "/Users/test/lane-builds/lane-a/node_modules",
+      "bytes": 1400000000,
+      "tier": "safe",
+      "action": "delete",
+      "note": "lane lane-a: untouched for 12 days"
+    },
+    {
+      "rule": "lane-deps",
+      "group": "Idle lane dependencies (untouched 5+ days; rebuild with npm ci / pod install)",
+      "path": "/Users/test/lane-builds/lane-a/ios/Pods",
+      "bytes": 900000000,
+      "tier": "safe",
+      "action": "delete",
+      "note": "lane lane-a: untouched for 12 days"
+    },
+    {
+      "rule": "lane-deps",
+      "group": "Idle lane dependencies (untouched 5+ days; rebuild with npm ci / pod install)",
+      "path": "/Users/test/lane-builds/lane-b/node_modules",
+      "bytes": 800000000,
+      "tier": "safe",
+      "action": "delete",
+      "note": "lane lane-b: untouched for 9 days"
+    },
+    {
+      "rule": "lane-deps",
+      "group": "Idle lane dependencies (untouched 5+ days; rebuild with npm ci / pod install)",
+      "path": "/Users/test/lane-builds/lane-c/node_modules",
+      "bytes": 500000000,
+      "tier": "safe",
+      "action": "delete",
+      "note": "lane lane-c: untouched for 6 days"
+    }
+  ],
+  "groups": [],
+  "skipped": [
+    {
+      "rule": "simulators",
+      "reason": "Simulators whose runtime was removed: Simulator is running"
+    }
+  ],
+  "total_bytes": 17400000000
+}
