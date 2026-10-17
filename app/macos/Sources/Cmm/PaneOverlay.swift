@@ -19,7 +19,7 @@ struct PaneOverlay: View {
         ZStack(alignment: .topTrailing) {
             if HistoryPaneRule.hasRoom(in: model.phase) {
                 ZStack(alignment: .topTrailing) {
-                    if window.detailsOpen {
+                    if HistoryPaneRule.shows(phase: model.phase, detailsOpen: window.detailsOpen, face: window.face) {
                         HistoryPane { withAnimation(motion.animation) { window.closeDetails() } }
                             .padding(HeroLayout.paneInset)
                             .transition(motion.slidesPane ? .move(edge: .trailing).combined(with: .opacity) : .opacity)

@@ -12,9 +12,27 @@ final class HistoryPaneRuleTests: XCTestCase {
         for phase in phases {
             let room = phase != .ready && phase != .cleaning
             XCTAssertEqual(HistoryPaneRule.hasRoom(in: phase), room, "\(phase)")
-            XCTAssertEqual(HistoryPaneRule.shows(phase: phase, detailsOpen: true), room, "\(phase), open")
-            XCTAssertFalse(HistoryPaneRule.shows(phase: phase, detailsOpen: false), "\(phase), closed")
+            XCTAssertEqual(HistoryPaneRule.shows(phase: phase, detailsOpen: true, face: .history), room, "\(phase), open on History")
+            XCTAssertFalse(HistoryPaneRule.shows(phase: phase, detailsOpen: false, face: .history), "\(phase), closed")
         }
+    }
+
+    /// Decided at the merge: a pane left open on the List or the map is not the History, so only the nothing-to-clean screen
+    /// (whose own button opens it) shows the History pane for those faces.
+    func testAPaneLeftOpenOnTheListOrTheMapIsNotTheHistoryExceptOnTheNothingToCleanScreen() {
+        for face in [DetailsFace.list, .map] {
+            for phase in phases {
+                let expected = phase == .empty
+                XCTAssertEqual(HistoryPaneRule.shows(phase: phase, detailsOpen: true, face: face), expected, "\(phase) on \(face)")
+            }
+        }
+    }
+
+    func testOnlyACleaningThatStartsTakesThePaneAway() throws {
+        for phase in phases { XCTAssertEqual(HistoryPaneRule.closesPane(whenPhaseBecomes: phase), phase == .cleaning, "\(phase)") }
+        let root = try String(contentsOf: URL(fileURLWithPath: #filePath).deletingLastPathComponent().deletingLastPathComponent()
+            .deletingLastPathComponent().appendingPathComponent("Sources/Cmm/RootView.swift"), encoding: .utf8)
+        XCTAssertTrue(root.contains("HistoryPaneRule.closesPane(whenPhaseBecomes: phase)"), "the window asks the rule")
     }
 
     func testShowDetailsWorksOnTheRestAndNothingToCleanScreensAndNeverBehindTheCard() {
@@ -50,7 +68,7 @@ final class HistoryPaneRuleTests: XCTestCase {
         XCTAssertTrue(root.contains("case .empty: EmptyScreen(model: model, window: window)"))
         let overlay = try source("PaneOverlay.swift")
         XCTAssertTrue(overlay.contains("HistoryPaneRule.hasRoom(in: model.phase)"))
-        XCTAssertTrue(overlay.contains("if window.detailsOpen {"))
+        XCTAssertTrue(overlay.contains("if HistoryPaneRule.shows(phase: model.phase, detailsOpen: window.detailsOpen, face: window.face) {"))
     }
 }
 
@@ -426,7 +444,7 @@ final class HistoryPaneWindowTests: XCTestCase {
         let ninthOctober = HistoryBoard.runID(HistoryBoard.at(10, 9, 9, 41))
         for screen in [Screen.empty, .done] {
             let rig = try await rig(
-                screen, window: WindowState(detailsOpen: true, face: .list),
+                screen, window: WindowState(detailsOpen: true, face: screen == .empty ? .list : .history),  // done: only the History asked for shows
                 faceState: HistoryFaceState(expanded: [ninthOctober], pointerTime: HistoryBoard.at(10, 7, 15, 0)), accessibility: false
             )
             let pane = CGRect(x: size.width - HeroLayout.paneWidth, y: 100, width: HeroLayout.paneWidth - 16, height: 560)
