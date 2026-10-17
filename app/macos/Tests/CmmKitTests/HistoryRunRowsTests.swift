@@ -55,7 +55,7 @@ final class HistoryRunRowsTests: XCTestCase {
         XCTAssertEqual(row.timeText, "14:00", "12:00:42 UTC is 14:00 in Rome")
         XCTAssertEqual(row.freedBytes, 4_642_000_000)
         XCTAssertEqual(row.freedText, "4.6 GB freed", "Docker's 6.2 GB is not in it")
-        XCTAssertEqual(row.groupsText, "Docker, Go build cache", "the deleted items' groups, largest first")
+        XCTAssertEqual(row.groupsText, "Go build cache", "the deleted items' groups; Docker's went inside its disk image, which the chip says")
         XCTAssertEqual(row.failedText, "1 failed")
         XCTAssertNil(row.stoppedText)
         XCTAssertEqual(row.insideText, "6.2 GB inside Docker's disk image, not counted")
@@ -116,7 +116,7 @@ final class HistoryRunRowsTests: XCTestCase {
         XCTAssertEqual(dockerOnly.timeText, "14:20")
         XCTAssertEqual(dockerOnly.freedText, "0 GB freed")
         XCTAssertEqual(dockerOnly.insideText, "9.0 GB inside Docker's disk image, not counted")
-        XCTAssertEqual(dockerOnly.groupsText, "Docker")
+        XCTAssertNil(dockerOnly.groupsText, "the board draws no groups line: the chip says Docker")
         XCTAssertNil(dockerOnly.footnote, "nothing came back, so there is nothing to explain")
         XCTAssertEqual(dockerOnly.items.first?.detail, "deleted inside Docker's disk image")
         XCTAssertEqual(dockerOnly.items.first?.sizeText, "9.0 GB")
@@ -201,6 +201,19 @@ final class HistoryRunRowsTests: XCTestCase {
         XCTAssertEqual(
             try groups([item("go-build", "Go build cache", freed: 5), HistoryJSON.item(rule: "", group: "", path: "/x", status: "deleted", bytes: 9, freed: 9)]),
             "Go build cache"
+        )
+    }
+
+    func testAnItemThatFreedSpaceInsideAnotherProgramIsLeftToTheChip() throws {
+        let docker = HistoryJSON.item(rule: "docker", group: "Docker", path: "docker: unused images", bytes: gigabytes(9), inside: "Docker's disk image")
+        let colima = HistoryJSON.item(rule: "x", group: "Colima", path: "x: prune", bytes: gigabytes(8), inside: "Colima's disk")
+        let uv = item("uv-cache", "uv cache", freed: gigabytes(1))
+        XCTAssertNil(try groups([docker]), "a run that only pruned Docker names no group")
+        XCTAssertNil(try groups([docker, colima]))
+        XCTAssertEqual(try groups([docker, uv, colima]), "uv cache", "however much more went inside them")
+        XCTAssertEqual(
+            try groups([item("go-build", "Go build cache", freed: 0), docker]), "Go build cache",
+            "an item deleted on the disk itself is named even when it gave back nothing"
         )
     }
 

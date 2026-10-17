@@ -35,8 +35,9 @@ public struct RunRows: Equatable, Sendable {
         public let freedBytes: Int64
         /// `5.4 GB freed`, or `0 GB freed` for a run that gave the disk nothing back.
         public let freedText: String
-        /// `Idle lane dependencies, uv cache, Go build cache`: the groups of the items that were deleted, largest first, three
-        /// at most and then `and 4 more`.
+        /// `Idle lane dependencies, uv cache, Go build cache`: the groups of the items that were deleted and gave the disk
+        /// itself their space, largest first, three at most and then `and 4 more`. (What went inside another program's storage
+        /// is said by `insideText` alone, so a run that only pruned Docker has no groups line.)
         public let groupsText: String?
         /// `1 failed`, shown in the failed colour.
         public let failedText: String?
@@ -180,10 +181,11 @@ public struct RunRows: Equatable, Sendable {
 
     /// The groups of the items that were deleted, largest first (what each gave, the sizes of its items added up; the same
     /// size by name), named by the catalog. Only the first name keeps its capital: `Unavailable simulators, idle lane
-    /// dependencies, Go build cache`.
+    /// dependencies, Go build cache`. An item that freed space inside another program's storage (Docker's prunes) is left to
+    /// the dotted figure under the line, which names where that space went: the line names what gave the disk its space.
     private static func groupsText(for run: HistoryRun) -> String? {
         var totals: [String: Int64] = [:]
-        for item in run.items where item.status == .deleted {
+        for item in run.items where item.status == .deleted && item.freesInside == nil {
             let name = RuleCatalog.title(rule: item.rule, label: item.group)
             guard !name.isEmpty else { continue }
             totals[name] = HistoryLimits.sum([totals[name] ?? 0, item.freedBytes])

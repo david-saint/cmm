@@ -134,7 +134,7 @@ final class HistoryAccessibilityTests: XCTestCase {
         XCTAssertEqual(
             buttons.map(\.label),
             [
-                "Tue 14 Oct 14:20, 0 GB freed, Docker, 9.0 GB inside Docker's disk image, not counted",
+                "Tue 14 Oct 14:20, 0 GB freed, 9.0 GB inside Docker's disk image, not counted",
                 "Tue 14 Oct 14:06, 5.4 GB freed, Idle lane dependencies, uv cache, Go build cache",
                 "Thu 9 Oct 09:41, 2.2 GB freed, Homebrew old versions, npm cache, 1 failed",
                 "Mon 29 Sep 10:02, 36.4 GB freed, Unavailable simulators, idle lane dependencies, old CLI versions and 4 more",

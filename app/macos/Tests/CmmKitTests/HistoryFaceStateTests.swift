@@ -197,7 +197,7 @@ final class HistorySpokenTests: XCTestCase {
         )]).weeks.first?.rows.first)
         XCTAssertEqual(
             row.spoken,
-            "Wed 14 Oct 14:06, 1.0 GB freed, Stopped after 3 of 9, Docker, uv cache, 1 failed, 9.0 GB inside Docker's disk image, not counted"
+            "Wed 14 Oct 14:06, 1.0 GB freed, Stopped after 3 of 9, uv cache, 1 failed, 9.0 GB inside Docker's disk image, not counted"
         )
         // and nothing is said by colour alone: the failure is a word, and so is the place Docker's space went
         XCTAssertTrue(row.spoken.contains("failed"))
