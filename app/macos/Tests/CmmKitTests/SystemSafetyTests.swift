@@ -72,7 +72,9 @@ final class SystemSafetyTests: XCTestCase {
     }
 
     /// The files that pin tokens as strings: they name what they forbid.
-    static let tripwireFiles: Set<String> = ["SafetyRulesTests.swift", "BackgroundSafetyTests.swift", "SystemSafetyTests.swift"]
+    static let tripwireFiles: Set<String> = [
+        "SafetyRulesTests.swift", "BackgroundSafetyTests.swift", "SystemSafetyTests.swift", "HistorySafetyTests.swift",
+    ]
 
     // MARK: the system's services, through one adaptor each
 
