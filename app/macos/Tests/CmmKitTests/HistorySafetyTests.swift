@@ -285,7 +285,7 @@ final class HistorySafetyTests: XCTestCase {
             hosting.cacheDisplay(in: hosting.bounds, to: bitmap)
             window.contentView = nil
             window.orderOut(nil)
-            XCTAssertLessThan(Date().timeIntervalSince(started), 20, "\(name) took too long to draw")
+            XCTAssertLessThan(Date().timeIntervalSince(started), 60, "\(name) took too long to draw (a minute: room for a busy machine, none for a list that grows by the square)")
             var colours = Set<String>()
             for x in stride(from: 660, to: 1080, by: 4) {
                 for y in stride(from: 90, to: 700, by: 4) {

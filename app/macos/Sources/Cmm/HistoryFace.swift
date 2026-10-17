@@ -135,7 +135,8 @@ struct HistoryFaceContent: View {
                     .lineSpacing(16 - 13.54)
                     .fixedSize(horizontal: false, vertical: true)
                     .padding(.horizontal, 18)
-                    .padding(.top, chart != nil ? 2 : 0)
+                    // the board leaves about 13 pt between the days under the line and these words
+                    .padding(.top, chart != nil ? 8 : 0)
             }
             Color.clear.frame(height: 12)
         }
