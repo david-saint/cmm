@@ -359,6 +359,23 @@ struct PopoverKeys: NSViewRepresentable {
             panel?.window = window
         }
 
+        override func layout() {
+            super.layout()
+            // The popover changes height as a scan starts and ends. The system's panel grows with it but does not shrink,
+            // and keeps the shadow and outline of the old height: so the panel is made as tall as the content, from its top.
+            guard let window, bounds.height > 0 else { return }
+            let height = window.frameRect(forContentRect: NSRect(origin: .zero, size: bounds.size)).height
+            guard abs(window.frame.height - height) > 0.5 else { return }
+            DispatchQueue.main.async { [weak window] in
+                guard let window else { return }
+                var frame = window.frame
+                frame.origin.y += frame.height - height
+                frame.size.height = height
+                window.setFrame(frame, display: true)
+                window.invalidateShadow()
+            }
+        }
+
         override func performKeyEquivalent(with event: NSEvent) -> Bool {
             let modifiers = event.modifierFlags.intersection([.command, .option, .control, .shift])
             guard event.type == .keyDown, event.keyCode == 53, modifiers.isEmpty, event.window === window else {
