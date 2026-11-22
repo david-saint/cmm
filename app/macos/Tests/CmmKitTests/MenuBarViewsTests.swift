@@ -1,4 +1,5 @@
 import AppKit
+import Observation
 import SwiftUI
 import XCTest
 @testable import Cmm
@@ -87,6 +88,96 @@ final class MenuBarViewsTests: XCTestCase {
             boardPanel(ready, scanEnabled: readyEnabled, appearance: .aqua), size: Self.canvas, appearance: .aqua
         )
         XCTAssertFalse(SystemRendering.contains(plain, color: Theme.low.light, in: header), "and is only there when space is low")
+    }
+
+    func testResizedFrameKeepsThePanelsTopEdgeFixed() {
+        let tall = NSRect(x: 57, y: 600, width: 320, height: 343)
+        let short = PopoverPanel.resizedFrame(current: tall, targetHeight: 221)
+        XCTAssertEqual(short, NSRect(x: 57, y: 722, width: 320, height: 221))
+        XCTAssertEqual(short.maxY, tall.maxY, accuracy: 0.001, "shrinking holds the top edge under the menu bar")
+
+        let grown = PopoverPanel.resizedFrame(current: short, targetHeight: 343)
+        XCTAssertEqual(grown, tall)
+        XCTAssertEqual(grown.maxY, short.maxY, accuracy: 0.001, "growing holds the top edge under the menu bar")
+    }
+
+    @MainActor
+    @Observable
+    final class PopoverHolder {
+        var presentation: MenuBarPresentation
+        var scanEnabled: Bool
+
+        init(presentation: MenuBarPresentation, scanEnabled: Bool) {
+            self.presentation = presentation
+            self.scanEnabled = scanEnabled
+        }
+    }
+
+    struct HostedPopover: View {
+        let holder: PopoverHolder
+
+        var body: some View {
+            MenuBarPopoverView(
+                presentation: holder.presentation, scanEnabled: holder.scanEnabled, perform: { _ in }, fitsPanel: true
+            )
+        }
+    }
+
+    func testThePopoverPanelShrinksAndGrowsFromItsTopWhenAScanStartsAndEnds() async throws {
+        _ = NSApplication.shared
+        let (ready, readyEnabled) = try scene(.ready)
+        let (scanning, scanningEnabled) = try scene(.scanning)
+        let readyHeight = ceil(
+            NSHostingView(rootView: MenuBarPopoverView(presentation: ready, scanEnabled: readyEnabled, perform: { _ in })).fittingSize.height
+        )
+        let scanningHeight = ceil(
+            NSHostingView(rootView: MenuBarPopoverView(presentation: scanning, scanEnabled: scanningEnabled, perform: { _ in })).fittingSize.height
+        )
+        XCTAssertGreaterThan(readyHeight, scanningHeight + 40, "ready is taller than scanning")
+
+        let holder = PopoverHolder(presentation: ready, scanEnabled: readyEnabled)
+        let hosting = NSHostingView(rootView: HostedPopover(holder: holder))
+        // Mirror MenuBarExtra's panel: grows with minSize, does not shrink on its own.
+        hosting.sizingOptions = [.minSize]
+        let window = OffscreenWindow(size: CGSize(width: MenuBarPopoverView.width, height: readyHeight))
+        window.isReleasedWhenClosed = false
+        window.contentView = hosting
+        window.makeKeyAndOrderFront(nil)
+        addTeardownBlock { @MainActor in
+            window.contentView = nil
+            window.orderOut(nil)
+        }
+
+        let settled = await eventuallyOnMain(timeout: 3) {
+            window.isVisible && abs(window.frame.height - readyHeight) <= 2.0
+        }
+        XCTAssertTrue(settled, "panel opened at ready height \(readyHeight), got \(window.frame.height)")
+        let topY = window.frame.maxY
+
+        // Hold minSize at the previous tall height, as the system panel can before constraints settle.
+        window.contentMinSize = NSSize(width: MenuBarPopoverView.width, height: readyHeight)
+        window.minSize = NSSize(width: MenuBarPopoverView.width, height: readyHeight)
+        holder.presentation = scanning
+        holder.scanEnabled = scanningEnabled
+
+        let shrank = await eventuallyOnMain(timeout: 3) {
+            abs(window.frame.height - scanningHeight) <= 2.0
+        }
+        XCTAssertTrue(shrank, "panel shrank from \(readyHeight) to \(scanningHeight), got \(window.frame.height)")
+        XCTAssertEqual(window.frame.maxY, topY, accuracy: 1.0, "shrinking keeps the panel's top edge pinned")
+
+        // Hold maxSize at the previous short height without conflicting Auto Layout minSize constraints.
+        hosting.sizingOptions = []
+        window.contentMaxSize = NSSize(width: MenuBarPopoverView.width, height: scanningHeight)
+        window.maxSize = NSSize(width: MenuBarPopoverView.width, height: scanningHeight)
+        holder.presentation = ready
+        holder.scanEnabled = readyEnabled
+
+        let grew = await eventuallyOnMain(timeout: 3) {
+            abs(window.frame.height - readyHeight) <= 2.0
+        }
+        XCTAssertTrue(grew, "panel grew back to \(readyHeight), got \(window.frame.height)")
+        XCTAssertEqual(window.frame.maxY, topY, accuracy: 1.0, "growing keeps the panel's top edge pinned")
     }
 
     // MARK: the item in the menu bar

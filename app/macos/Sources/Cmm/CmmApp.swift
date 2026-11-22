@@ -58,6 +58,7 @@ struct CmmApp: App {
             MenuBarItemLabel(services: services)
         }
         .menuBarExtraStyle(.window)
+        .windowResizability(.contentSize)
     }
 
     /// The menu bar switch, read here so that the scene follows it.
