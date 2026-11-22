@@ -24,8 +24,10 @@ struct MenuBarPopoverHost: View {
 
     var body: some View {
         let presentation = services.menuBarPresentation()
-        MenuBarPopoverView(presentation: presentation, scanEnabled: services.menuBarScanEnabled(presentation), perform: perform)
-            .onAppear { services.openWindow = openWindow }
+        MenuBarPopoverView(
+            presentation: presentation, scanEnabled: services.menuBarScanEnabled(presentation), perform: perform, fitsPanel: true
+        )
+        .onAppear { services.openWindow = openWindow }
     }
 
     private func perform(_ action: MenuBarAction) {

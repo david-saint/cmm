@@ -13,6 +13,9 @@ struct MenuBarPopoverView: View {
     /// The window's own rule for ⌘R, and never while a screen of the window is in use (`MenuBarModel.scanEnabled`).
     let scanEnabled: Bool
     let perform: (MenuBarAction) -> Void
+    /// Whether the popover sizes the panel it sits in to its content height (on in the menu bar's real panel, off when a test
+    /// renders the view on a fixed board canvas).
+    var fitsPanel = false
 
     static let width = 320.0
     private static let inset = 18.0
@@ -61,7 +64,12 @@ struct MenuBarPopoverView: View {
         .padding(.horizontal, Self.inset)
         .padding(.bottom, 16)
         .frame(width: Self.width, alignment: .leading)
-        .background(PopoverKeys(panel: panel))
+        .fixedSize(horizontal: false, vertical: true)
+        .background {
+            GeometryReader { proxy in
+                PopoverKeys(panel: panel, contentSize: proxy.size, fitsPanel: fitsPanel)
+            }
+        }
         .accessibilityElement(children: .contain)
         .accessibilityLabel("cmm")
     }
@@ -333,46 +341,257 @@ final class PopoverPanel {
     func close() {
         window?.close()
     }
+
+    /// The panel's frame resized to `targetHeight` with its top edge (under the menu bar) held fixed.
+    nonisolated static func resizedFrame(current: NSRect, targetHeight: CGFloat) -> NSRect {
+        var frame = current
+        frame.origin.y += frame.height - targetHeight
+        frame.size.height = targetHeight
+        return frame
+    }
 }
 
-/// Esc closes the popover. It is the panel's own key (the popover sits in a panel of the system's, which does not close on
-/// Esc by itself): a view in the panel answers it as a key equivalent, so it works wherever the focus is, and it does
-/// nothing but close the panel it is in.
+/// Esc closes the popover, and the system panel is kept at the popover's content height from its top edge.
+///
+/// The popover sits in a panel of the system's, which does not close on Esc by itself, and which grows with its content
+/// but does not reliably shrink (leaving the outer panel and its shadow at the old height while the inner content shrinks
+/// inside it). A representable view in the panel answers Esc as a key equivalent, reads the SwiftUI content's measured size,
+/// refreshes the hosting view's constraints and panel bounds, and keeps the panel and shadow matched to the content.
 struct PopoverKeys: NSViewRepresentable {
     let panel: PopoverPanel
+    let contentSize: CGSize
+    let fitsPanel: Bool
 
     func makeNSView(context: Context) -> KeyView {
         let view = KeyView()
-        view.panel = panel
+        view.configure(panel: panel, contentSize: contentSize, fitsPanel: fitsPanel)
         return view
     }
 
     func updateNSView(_ view: KeyView, context: Context) {
-        view.panel = panel
+        view.configure(panel: panel, contentSize: contentSize, fitsPanel: fitsPanel)
+    }
+
+    static func dismantleNSView(_ view: KeyView, coordinator: ()) {
+        view.tearDown()
+    }
+
+    private final class ObserverTokens {
+        private var tokens: [NSObjectProtocol] = []
+
+        func replace(with newTokens: [NSObjectProtocol]) {
+            clear()
+            tokens = newTokens
+        }
+
+        func clear() {
+            for token in tokens {
+                NotificationCenter.default.removeObserver(token)
+            }
+            tokens.removeAll()
+        }
+
+        deinit {
+            for token in tokens {
+                NotificationCenter.default.removeObserver(token)
+            }
+        }
     }
 
     final class KeyView: NSView {
+        private static let maxFitAttempts = 6
+        private static let heightTolerance: CGFloat = 1.0
+
         var panel: PopoverPanel?
+        private var targetContentSize: CGSize = .zero
+        private var fitsPanel = false
+        private var observedWindowID: ObjectIdentifier?
+        private let windowObservers = ObserverTokens()
+        private var fitScheduled = false
+        private var isResizing = false
+        private var lastTargetHeight: CGFloat = 0
+        private var attemptsForTarget = 0
+        private var retryTask: Task<Void, Never>?
+
+        func configure(panel: PopoverPanel, contentSize: CGSize, fitsPanel: Bool) {
+            self.panel = panel
+            self.fitsPanel = fitsPanel
+            if contentSize.width > 0, contentSize.height > 0 {
+                targetContentSize = contentSize
+            }
+            panel.window = window
+            observeWindow(window)
+            scheduleFit()
+        }
+
+        func tearDown() {
+            retryTask?.cancel()
+            retryTask = nil
+            observeWindow(nil)
+        }
+
+        override func viewWillMove(toWindow newWindow: NSWindow?) {
+            super.viewWillMove(toWindow: newWindow)
+            if newWindow !== window {
+                retryTask?.cancel()
+                retryTask = nil
+                observeWindow(nil)
+            }
+        }
 
         override func viewDidMoveToWindow() {
             super.viewDidMoveToWindow()
             panel?.window = window
+            observeWindow(window)
+            attemptsForTarget = 0
+            scheduleFit()
+        }
+
+        override func setFrameSize(_ newSize: NSSize) {
+            super.setFrameSize(newSize)
+            if newSize.width > 0, newSize.height > 0, targetContentSize == .zero {
+                targetContentSize = newSize
+            }
+            scheduleFit()
         }
 
         override func layout() {
             super.layout()
-            // The popover changes height as a scan starts and ends. The system's panel grows with it but does not shrink,
-            // and keeps the shadow and outline of the old height: so the panel is made as tall as the content, from its top.
-            guard let window, bounds.height > 0 else { return }
-            let height = window.frameRect(forContentRect: NSRect(origin: .zero, size: bounds.size)).height
-            guard abs(window.frame.height - height) > 0.5 else { return }
-            DispatchQueue.main.async { [weak window] in
-                guard let window else { return }
-                var frame = window.frame
-                frame.origin.y += frame.height - height
-                frame.size.height = height
-                window.setFrame(frame, display: true)
+            scheduleFit()
+        }
+
+        private func observeWindow(_ newWindow: NSWindow?) {
+            let target = fitsPanel ? newWindow : nil
+            let newID = target.map(ObjectIdentifier.init)
+            guard newID != observedWindowID else { return }
+            windowObservers.clear()
+            observedWindowID = newID
+            guard let target else { return }
+            let center = NotificationCenter.default
+            var tokens: [NSObjectProtocol] = []
+            tokens.append(
+                center.addObserver(forName: NSWindow.didResizeNotification, object: target, queue: .main) { [weak self] _ in
+                    MainActor.assumeIsolated { self?.windowDidResize() }
+                }
+            )
+            for name in [NSWindow.didBecomeKeyNotification, NSWindow.didChangeOcclusionStateNotification] {
+                tokens.append(
+                    center.addObserver(forName: name, object: target, queue: .main) { [weak self] _ in
+                        MainActor.assumeIsolated { self?.windowDidShow() }
+                    }
+                )
+            }
+            windowObservers.replace(with: tokens)
+        }
+
+        private func windowDidResize() {
+            guard !isResizing else { return }
+            scheduleFit()
+        }
+
+        private func windowDidShow() {
+            guard !isResizing else { return }
+            attemptsForTarget = 0
+            scheduleFit()
+        }
+
+        private func desiredContentSize() -> CGSize? {
+            let raw = targetContentSize.height > 0 ? targetContentSize : bounds.size
+            guard raw.width > 0, raw.height > 0 else { return nil }
+            return CGSize(width: ceil(raw.width), height: ceil(raw.height))
+        }
+
+        private func scheduleFit(after delayMilliseconds: Int = 0) {
+            guard fitsPanel, let window, window.isVisible, !isResizing else { return }
+            guard let content = desiredContentSize() else { return }
+            let height = ceil(window.frameRect(forContentRect: NSRect(origin: .zero, size: content)).height)
+            let heightChanged = abs(height - lastTargetHeight) > 0.5
+            if heightChanged {
+                lastTargetHeight = height
+                attemptsForTarget = 0
+                retryTask?.cancel()
+                retryTask = nil
+            }
+            guard abs(window.frame.height - height) > Self.heightTolerance else {
+                if heightChanged {
+                    DispatchQueue.main.async { [weak window] in window?.invalidateShadow() }
+                }
+                return
+            }
+            guard attemptsForTarget < Self.maxFitAttempts else { return }
+
+            if delayMilliseconds > 0 {
+                guard retryTask == nil else { return }
+                retryTask = Task { @MainActor [weak self] in
+                    try? await Task.sleep(for: .milliseconds(delayMilliseconds))
+                    guard !Task.isCancelled, let self else { return }
+                    self.retryTask = nil
+                    self.performFit()
+                }
+                return
+            }
+
+            guard !fitScheduled else { return }
+            fitScheduled = true
+            DispatchQueue.main.async { [weak self] in
+                self?.performFit()
+            }
+        }
+
+        private func performFit() {
+            fitScheduled = false
+            guard fitsPanel, let window, window.isVisible, !isResizing else { return }
+            guard let content = desiredContentSize() else { return }
+            let height = ceil(window.frameRect(forContentRect: NSRect(origin: .zero, size: content)).height)
+            if abs(height - lastTargetHeight) > 0.5 {
+                lastTargetHeight = height
+                attemptsForTarget = 0
+            }
+            guard abs(window.frame.height - height) > Self.heightTolerance else {
                 window.invalidateShadow()
+                return
+            }
+            guard attemptsForTarget < Self.maxFitAttempts else { return }
+            attemptsForTarget += 1
+
+            isResizing = true
+            let current = window.frame
+            // Refresh SwiftUI's hosting view constraints before changing the panel's frame so AppKit does not clamp
+            // the shrink back to the previous content height.
+            var ancestor = superview
+            while let view = ancestor {
+                view.invalidateIntrinsicContentSize()
+                view.needsUpdateConstraints = true
+                if view === window.contentView { break }
+                ancestor = view.superview
+            }
+            window.updateConstraintsIfNeeded()
+
+            if window.contentMinSize.height > content.height {
+                window.contentMinSize = NSSize(width: window.contentMinSize.width, height: content.height)
+            }
+            if window.minSize.height > height {
+                window.minSize = NSSize(width: window.minSize.width, height: height)
+            }
+            if window.contentMaxSize.height > 0, window.contentMaxSize.height < content.height {
+                window.contentMaxSize = NSSize(width: window.contentMaxSize.width, height: content.height)
+            }
+            if window.maxSize.height > 0, window.maxSize.height < height {
+                window.maxSize = NSSize(width: window.maxSize.width, height: height)
+            }
+
+            let frame = PopoverPanel.resizedFrame(current: current, targetHeight: height)
+            window.setFrame(frame, display: true, animate: false)
+            window.layoutIfNeeded()
+            window.displayIfNeeded()
+            window.invalidateShadow()
+            isResizing = false
+
+            // WindowServer can keep the old shadow until Core Animation commits the resized layer, and the system's
+            // panel can finish settling constraints a beat later: refresh the shadow and re-check the height.
+            DispatchQueue.main.async { [weak self, weak window] in
+                window?.invalidateShadow()
+                self?.scheduleFit(after: 20)
             }
         }
 
